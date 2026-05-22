@@ -9,6 +9,7 @@ import hashlib
 import os
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class DedupStore:
 
     # ── Historial de alertas por ticker (para pre-check de precio) ─────────
 
-    def get_last_alert_on_ticker(self, ticker: str, hours: int = 4) -> dict | None:
+    def get_last_alert_on_ticker(self, ticker: str, hours: int = 4) -> Optional[dict]:
         """
         Retorna el último evento enviado a Claude para este ticker
         en las últimas N horas, o None si no hay ninguno.
