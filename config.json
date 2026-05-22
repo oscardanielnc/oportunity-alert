@@ -1,0 +1,38 @@
+{
+  "watchlist": {
+    "primary": ["NVDA", "TSM", "QBTS", "IONQ", "RGTI", "QUBT", "PLTR", "APP",
+                "AVGO", "AMD", "ASML", "ARM", "RDDT", "CRM", "MSFT", "GOOG",
+                "CCJ", "TLN", "BE", "EME", "NOC", "RTX", "LMT", "KTOS", "AVAV",
+                "UBER", "SHOP", "MU", "COHR", "IBM", "XOM", "CVX"],
+    "extended": ["QQQ", "SPY"],
+    "crypto": ["XRP"]
+  },
+  "intervals_seconds": {
+    "edgar": 90,
+    "finnhub": 120,
+    "reddit": 600
+  },
+  "max_article_age_minutes": 45,
+  "min_pct_for_alta": 8.0,
+  "min_pct_for_media": 3.0,
+  "already_priced_threshold_pct": 5.0,
+  "api_keys": {
+    "anthropic_key_env": "ANTHROPIC_API_KEY",
+    "finnhub_key_env": "FINNHUB_API_KEY",
+    "alpaca_key_env": "ALPACA_API_KEY",
+    "alpaca_secret_env": "ALPACA_SECRET_KEY",
+    "alpaca_base_url": "https://data.alpaca.markets",
+    "alpaca_feed": "iex",
+    "twilio_sid_env": "TWILIO_ACCOUNT_SID",
+    "twilio_token_env": "TWILIO_AUTH_TOKEN",
+    "twilio_from": "+18782908711",
+    "twilio_to": "+51929178606"
+  },
+  "claude_model": "claude-sonnet-4-6",
+  "send_sms_priorities": ["ALTA", "MEDIA"],
+  "log_only_priorities": ["BAJA"],
+  "sec_edgar": {
+    "user_agent": "OportunityAlert oscar@pairus.ai",
+    "feed_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom"
+  }
+}

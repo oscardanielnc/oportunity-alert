@@ -1,0 +1,32 @@
+# OportunityAlert — dependencias Python
+# Instalar con: pip install -r requirements.txt
+
+# HTTP y parsing
+requests==2.31.0
+feedparser==6.0.11        # SEC EDGAR RSS/Atom parsing
+
+# Finnhub
+finnhub-python==2.4.20
+
+# Reddit (API JSON pública, sin credenciales)
+# praw no se usa — reemplazado por requests directo a reddit.com/r/sub/new.json
+
+# Alpaca Markets (precio real-time AH)
+alpaca-py==0.29.0
+
+# Twilio SMS
+twilio==9.3.3
+
+# Google Gemini (motor primario, gratis hasta 1500 req/dia)
+google-generativeai==0.8.5
+
+# Claude API (Anthropic) — motor secundario opcional
+anthropic==0.40.0
+
+# Base de datos deduplicación
+# sqlite3 viene incluido en Python estándar
+
+# Utilidades
+python-dateutil==2.9.0
+pytz==2024.1
+python-dotenv==1.0.1

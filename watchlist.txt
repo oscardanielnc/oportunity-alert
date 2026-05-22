@@ -1,0 +1,78 @@
+# OportunityAlert — Watchlist
+# Formato: TICKER: Nombre de la empresa
+# Lineas con # son comentarios, se ignoran
+# Editar directamente este archivo o usar: python watchlist.py add/remove
+# Criterio: tickers con potencial de mover 15%+ en 1 dia ante catalizador
+
+# ── Semiconductores AI (alta volatilidad) ────────────────────────
+NVDA: NVIDIA Corporation
+AMD: Advanced Micro Devices
+AVGO: Broadcom Inc
+MU: Micron Technology
+INTC: Intel Corporation
+MRVL: Marvell Technology
+ARM: Arm Holdings
+COHR: Coherent Corp
+ANET: Arista Networks
+VRT: Vertiv Holdings
+SNDK: SanDisk Corporation
+LITE: Lumentum Holdings
+WOLF: Wolfspeed
+
+# ── Computacion Cuantica (movimientos extremos) ───────────────────
+QBTS: D-Wave Quantum
+IONQ: IonQ Inc
+RGTI: Rigetti Computing
+QUBT: Quantum Computing Inc
+
+# ── Software / AI / Cloud (alta volatilidad) ─────────────────────
+PLTR: Palantir Technologies
+APP: AppLovin Corporation
+SHOP: Shopify Inc
+MELI: MercadoLibre Inc
+SE: Sea Limited
+TTWO: Take-Two Interactive
+SOUN: SoundHound AI
+RDDT: Reddit Inc
+CRWD: CrowdStrike Holdings
+
+# ── Defensa, Espacio y Drones (small-mid cap, muy volatiles) ─────
+KTOS: Kratos Defense
+AVAV: AeroVironment
+RKLB: Rocket Lab USA
+LUNR: Intuitive Machines
+JOBY: Joby Aviation
+ACHR: Archer Aviation
+BBAI: BigBear.ai
+
+# ── Energia y Nuclear ─────────────────────────────────────────────
+TLN: Talen Energy
+BE: Bloom Energy
+IREN: Iris Energy
+
+# ── EV y Movilidad ────────────────────────────────────────────────
+TSLA: Tesla Inc
+RIVN: Rivian Automotive
+LCID: Lucid Motors
+
+# ── AI Computing / Infraestructura ───────────────────────────────
+SMCI: Super Micro Computer
+APLD: Applied Digital Corporation
+INOD: Innodata Inc
+
+# ── Fintech y Retail ──────────────────────────────────────────────
+HOOD: Robinhood Markets
+SOFI: SoFi Technologies
+JMIA: Jumia Technologies
+
+# ── Meme / Short Squeeze (movimiento extremo en horas) ───────────
+GME: GameStop
+AMC: AMC Entertainment
+
+# ── Bitcoin Mining (proxy BTC, muy volatiles) ─────────────────────
+MARA: Marathon Digital Holdings
+RIOT: Riot Platforms
+
+# ── Crypto Proxy ──────────────────────────────────────────────────
+BTC: Bitcoin
+MSTR: MicroStrategy

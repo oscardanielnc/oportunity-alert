@@ -1,0 +1,26 @@
+[Unit]
+Description=OportunityAlert — Monitor de noticias financieras 24/7
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/opportunity_alert
+
+# Cargar variables de entorno desde .env
+EnvironmentFile=/home/ubuntu/opportunity_alert/.env
+
+ExecStart=/usr/bin/python3 main.py
+
+# Auto-reinicio siempre, sin límite de intentos
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+# Logs via journald (ver con: journalctl -u opportunity_alert -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

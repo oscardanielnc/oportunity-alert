@@ -1,0 +1,25 @@
+# Credenciales — NUNCA commitear
+.env
+
+# Base de datos y datos generados
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+*.log.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
