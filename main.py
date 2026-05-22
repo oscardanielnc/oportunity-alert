@@ -599,14 +599,17 @@ def main():
     )
 
     # Lanzar todos los threads con supervisor de auto-reinicio
+    # Reddit desactivado: IPs de Oracle Cloud son bloqueadas por Reddit (403).
+    # Para reactivar: descomentar la línea de Reddit en threads_cfg.
     threads_cfg = [
         ("EDGAR",         edgar_loop,           (config, watchlist, dedup), shared),
         ("Finnhub",       finnhub_loop,         (config, watchlist, dedup), shared),
-        ("Reddit",        reddit_loop,          (config, watchlist, dedup), shared),
+        # ("Reddit",      reddit_loop,          (config, watchlist, dedup), shared),
         ("Price24h",      price_update_loop,    (),                         {}),
         ("Heartbeat",     heartbeat_loop,       (twilio_from, twilio_to),   {}),
         ("WeekendDigest", weekend_digest_loop,  (twilio_from, twilio_to),   {}),
     ]
+    logger.info("Fuentes activas: EDGAR, Finnhub (Reddit desactivado — bloqueado por Oracle Cloud IP)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(
