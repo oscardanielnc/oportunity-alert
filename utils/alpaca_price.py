@@ -76,7 +76,7 @@ def get_realtime_price(ticker: str) -> dict:
             timeout=10,
         )
         trade_resp.raise_for_status()
-        trade_data = trade_resp.json().get("trade", {})
+        trade_data = trade_resp.json().get("trade") or {}
         current_price = float(trade_data.get("p", 0))
         trade_time_str = trade_data.get("t", "")
 
@@ -127,7 +127,7 @@ def get_realtime_price(ticker: str) -> dict:
             timeout=10,
         )
         if bars_resp.status_code == 200:
-            bars = bars_resp.json().get("bars", [])
+            bars = bars_resp.json().get("bars") or []
             result["candles_1m"] = [
                 {
                     "t": b.get("t"),

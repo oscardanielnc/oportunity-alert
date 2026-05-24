@@ -50,7 +50,7 @@ PRICED_THRESHOLDS = {
 CRYPTO_ALWAYS_ALERT = {"MSTR", "MARA", "RIOT", "IREN"}
 
 # ── Contadores globales para heartbeat ───────────────────────────────────────
-_stats = {"analyzed": 0, "alta": 0, "media": 0, "baja": 0, "sms_sent": 0}
+_stats = {"analyzed": 0, "alta": 0, "media": 0, "baja": 0, "sms_sent": 0, "dedup": 0, "filtered": 0}
 _stats_lock = threading.Lock()
 
 # ── Cola de acumulación durante mercado cerrado ───────────────────────────────
@@ -179,6 +179,8 @@ def process_article(
     article_id = article.get("id", "")
 
     if dedup.is_seen(article_id):
+        with _stats_lock:
+            _stats["dedup"] += 1
         return
 
     passes, reason = passes_filter(
@@ -188,6 +190,8 @@ def process_article(
         max_age_minutes=config.get("max_article_age_minutes", 45),
     )
     if not passes:
+        with _stats_lock:
+            _stats["filtered"] += 1
         logger.debug(f"Filtro [{reason}]: {article.get('title', '')[:70]}")
         dedup.mark_seen(article_id, article.get("source", ""))
         return
@@ -293,8 +297,21 @@ def edgar_loop(config, watchlist, dedup, **kwargs):
     while True:
         try:
             articles = fetch_8k_filings(watchlist)
+            with _stats_lock:
+                dedup_before = _stats["dedup"]
+                filtered_before = _stats["filtered"]
+                analyzed_before = _stats["analyzed"]
             for article in articles:
                 process_article(article, watchlist, dedup, config, **kwargs)
+            with _stats_lock:
+                n_dedup = _stats["dedup"] - dedup_before
+                n_filtered = _stats["filtered"] - filtered_before
+                n_claude = _stats["analyzed"] - analyzed_before
+            if n_dedup > 0 or n_filtered > 0 or n_claude > 0:
+                logger.info(
+                    f"EDGAR ciclo: {len(articles)} filings | "
+                    f"{n_dedup} ya vistos | {n_filtered} sin keywords | {n_claude} → Claude"
+                )
         except Exception as e:
             logger.error(f"Error en EDGAR poll: {e}")
         time.sleep(interval)
@@ -474,7 +491,10 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 media = _stats["media"]
                 baja = _stats["baja"]
                 sms_sent = _stats["sms_sent"]
-                _stats.update({"analyzed": 0, "alta": 0, "media": 0, "baja": 0, "sms_sent": 0})
+                dedup_total = _stats["dedup"]
+                filtered_total = _stats["filtered"]
+                _stats.update({"analyzed": 0, "alta": 0, "media": 0, "baja": 0,
+                               "sms_sent": 0, "dedup": 0, "filtered": 0})
 
             fecha = datetime.now(LIMA).strftime("%d/%m/%Y")
             channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
@@ -493,6 +513,7 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 f"✅ *OportunityAlert* activo — {fecha}\n"
                 f"Analizadas: {analyzed} | Alertas enviadas: {sms_sent}\n"
                 f"ALTA:{alta}  MEDIA:{media}  BAJA:{baja}\n"
+                f"Filtradas: {dedup_total} dedup + {filtered_total} sin keywords\n"
                 f"{market_line}"
             )
             from twilio.rest import Client as TwilioClient
