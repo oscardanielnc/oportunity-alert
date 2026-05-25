@@ -644,7 +644,7 @@ def _parse_portfolio_stops() -> dict:
     """
     import re
     from pathlib import Path
-    path = Path("C:/Users/LENOVO/trading/portfolio.md")
+    path = Path(__file__).parent / "data" / "portfolio.md"
     stops = {}
     try:
         text = path.read_text(encoding="utf-8")

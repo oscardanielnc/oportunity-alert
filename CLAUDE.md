@@ -120,10 +120,10 @@ opportunity_alert/
     └── metrics.db              <- SQLite metricas (gates, alertas, trades)
 ```
 
-**Archivos externos (read-only, nunca modificar):**
-- `C:/Users/LENOVO/trading/etoro_config.json` — credenciales eToro API
-- `C:/Users/LENOVO/trading/portfolio.md` — stops, horizontes, posiciones abiertas
-- `C:/Users/LENOVO/trading/playbook/index.yaml` — indice de estrategias
+**Archivos de configuracion (dentro del proyecto, no commitear con credenciales reales):**
+- `data/etoro_config.json` — credenciales eToro API
+- `data/portfolio.md` — stops, horizontes, posiciones abiertas
+- `utils/playbook_matcher.py` — estrategias hardcodeadas (no archivo externo)
 
 ---
 
@@ -457,7 +457,7 @@ MAX_SECTOR_PCT = 0.40         # maximo 40% en un sector
 
 4. **Windows cp1252**: Evitar emojis en output de consola/logs en Windows. `show_metrics.py` usa solo ASCII. Los SMS si pueden tener emojis (va por Twilio, no por consola).
 
-5. **Rutas externas**: Si el proyecto se despliega en Oracle VM, cambiar `C:/Users/LENOVO/trading/` a ruta del servidor, o leer de variable de entorno `TRADING_DIR`.
+5. **Rutas independientes**: `etoro_config.json` y `portfolio.md` viven en `data/` dentro del proyecto. No hay dependencias externas fuera del repo.
 
 6. **Gemini > Claude para este proyecto**: `AI_ENGINE=gemini` ahorra dinero. Gemini 2.0 Flash es gratuito hasta 1,500 req/dia. Con los gates filtrando ~70% de noticias, el consumo de IA es bajo.
 

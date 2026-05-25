@@ -1,6 +1,6 @@
 """
 eToro API — wrapper READ-ONLY.
-Lee credenciales desde C:/Users/LENOVO/trading/etoro_config.json.
+Lee credenciales desde data/etoro_config.json (dentro del proyecto).
 NUNCA ejecuta órdenes.
 
 Resiliencia:
@@ -19,7 +19,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-ETORO_CONFIG_PATH = Path("C:/Users/LENOVO/trading/etoro_config.json")
+ETORO_CONFIG_PATH = Path(__file__).parent.parent / "data" / "etoro_config.json"
 
 # ── Circuit breaker ───────────────────────────────────────────────────────────
 CIRCUIT_OPEN_THRESHOLD = 5      # fallos consecutivos antes de abrir el circuito
