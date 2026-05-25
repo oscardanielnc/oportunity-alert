@@ -81,6 +81,24 @@ def format_sms(result: dict) -> str:
     if consideraciones_str:
         msg += f"\n{consideraciones_str}\n"
 
+    # Líneas de convicción v2.0 (solo si están presentes)
+    conviction_score = result.get("conviction_score")
+    playbook_matches = result.get("playbook_matches", [])
+    portfolio = result.get("portfolio_gate", {})
+
+    extras = []
+    if conviction_score is not None:
+        extras.append(f"🎯 Convicción: {conviction_score}/7 pts")
+    if playbook_matches:
+        extras.append(f"📚 Patrón: {', '.join(playbook_matches[:2]).upper()}")
+    if portfolio.get("suggested_position_usd"):
+        extras.append(f"💵 Tamaño sugerido: ${portfolio['suggested_position_usd']:.0f}")
+    if not portfolio.get("can_enter", True) and portfolio.get("reason"):
+        extras.append(f"⚠️ Portfolio: {portfolio['reason']}")
+
+    if extras:
+        msg += "\n" + "\n".join(extras) + "\n"
+
     return msg
 
 

@@ -1,644 +1,491 @@
-# 🚨 OportunityAlert — Sistema de Alertas de Trading en Tiempo Real
-# Instrucciones completas para Claude Code
-# Proyecto de Oscar Navarro — v1.0
+# OportunityAlert v2.1 — Instrucciones para Claude Code
+# Sistema de alertas + convicción + gestión de portafolio + event mode
+# Proyecto de Oscar Navarro — v2.1 (2026-05-24)
 
 ---
 
-## ROL Y OBJETIVO
+## ROL Y MISIÓN
 
-Eres el asistente de desarrollo para el sistema **OportunityAlert**: un programa Python que corre 24/7 en una VM de Oracle, monitorea noticias financieras en tiempo real, filtra las relevantes y envía alertas SMS vía Twilio cuando detecta catalizadores de alta prioridad para trading.
-
-**El problema que resuelve:** El 21 de mayo 2026, D-Wave (QBTS) recibió $100M del gobierno. El filing SEC (8-K) apareció a la 1:54am Lima. El mercado reaccionó a las 5am Lima (+33%). Con este sistema, la alerta hubiera llegado al celular de Oscar a las 1:56am.
+Eres el asistente de desarrollo para **OportunityAlert**: un programa Python 24/7 que monitorea noticias financieras, filtra catalizadores y alerta a Oscar por SMS/WhatsApp. Evalúa convicción técnica antes de llamar a la IA, maneja eventos extraordinarios con flujo de dos alertas, y monitorea posiciones abiertas en eToro para notificarle cuándo actuar.
 
 ---
 
-## ARQUITECTURA DEL SISTEMA (3 capas)
+## REGLA DE COSTOS — NO NEGOCIABLE
 
-```
-CAPA 1: INGESTA (HTTP polling, sin WebSocket)
-    SEC EDGAR RSS   → cada 90 segundos
-    Finnhub News    → cada 120 segundos
-    Reddit PRAW     → cada 10 minutos
+**Código antes que IA. Siempre.**
 
-         ↓ ~500-2000 eventos/día
-         
-CAPA 2: FILTRO PYTHON (sin IA, <5ms por noticia)
-    ¿Ticker en watchlist?
-    ¿Keyword crítica presente?
-    ¿Noticia tiene <45 minutos?
-    ¿Ya fue procesada? (dedup por ID/URL)
-    
-         ↓ ~10-30 candidatos/día
+| Tarea | Cómo hacerla |
+|-------|-------------|
+| RSI, EMA, ATR, Bollinger | Código puro — fórmulas sobre barras diarias Alpaca |
+| Precio actual | Alpaca API (`utils/alpaca_price.py`) |
+| Detección "catalizador ya priceado" | Código: `abs(change_pct) > threshold` |
+| Volumen alto vs. normal | Código: comparar velas 1m vs. promedio |
+| Calcular stop y target | Código: `precio ± N × ATR14` |
+| Estabilización post-spike (event mode) | Código: velas 1m en tiempo real |
+| T1 alcanzado | Código: `pnl_pct >= 8.0` |
+| Stop en riesgo | Código: `precio_actual <= stop_alert × 1.01` |
+| Clasificar catalizador (FDA, contrato, upgrade…) | IA — solo esto |
+| Dirección LONG/SHORT y magnitud % | IA — prompt reducido |
 
-CAPA 3: CLAUDE SONNET SCORING (solo candidatos filtrados)
-    Evalúa: ¿priceado ya? + ¿dirección? + ¿magnitud? + prioridad
-    Consulta precio REAL AH via Alpaca WebSocket antes de clasificar
-    (precio actual de mercado, no cierre — incluye pre-market y AH)
-    Output: ALTA / MEDIA / BAJA + acción operativa
-    
-         ↓
-    ALTA → SMS Twilio inmediato
-    MEDIA → SMS Twilio inmediato (con indicación de menor urgencia)
-    BAJA → Solo registro en archivo
-```
+**Resultado actual:** ~60-70% de reducción de llamadas a IA vs. v1.0.
 
 ---
 
-## DECISIONES DE DISEÑO (no negociar estas)
+## ARQUITECTURA v2.1
 
-### Por qué HTTP polling y no WebSocket
-- SEC EDGAR no tiene WebSocket — solo RSS/HTTP
-- Finnhub WebSocket es para precios, no para noticias
-- HTTP polling cada 90-120s es suficiente para capturar noticias antes de que el mercado reaccione (ventana real: 3-15 minutos tras filing)
-- Más simple, más estable para 24/7, más fácil de debuggear
-
-### Por qué SEC EDGAR + Finnhub (y no otros)
-- **SEC EDGAR:** gratis, oficial, cubre 8-K (contratos, awards, eventos materiales, insider buying). Es el caso de uso más valioso — fue el QBTS de hoy.
-- **Finnhub:** ya tiene credenciales Oscar, cubre upgrades de analistas, earnings, noticias generales. Complementa perfectamente a EDGAR.
-- **Reddit PRAW:** sentiment social, squeeze alerts. Señal de confirmación, no primaria.
-- NO usar: Bloomberg, Refinitiv, Reuters (muy caros). NewsAPI (noticias financieras débiles).
-
-### Por qué Claude Sonnet para scoring
-- Oscar tiene API Anthropic configurada (usa Claude Code)
-- Sonnet es la mejor relación calidad/costo para análisis de noticias
-- Costo real: ~5-8 USD/mes con 30 análisis diarios
-- Alternativa económica: Haiku (si el costo sube, cambiar en config)
-
-### Sobre la suscripción Claude Pro de $100/mes
-- Esa suscripción es para claude.ai (web UI) — NO incluye API
-- La API se factura por tokens en console.anthropic.com
-- Con los análisis de este sistema: ~$5-8/mes adicional
-- Oscar ya tiene API key configurada (usa Claude Code)
-
----
-
-## FUENTES DE DATOS — DETALLES TÉCNICOS
-
-### SEC EDGAR RSS Feed
 ```
-URL: https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom
-Rate limit: 10 req/seg max — nosotros usamos 1 req/90s = completamente seguro
-No requiere API key
-Headers requeridos: User-Agent con email real (obligatorio por SEC policy)
-Formato: XML/Atom feed con filings recientes
-```
-Tipos de 8-K más valiosos para trading:
-- Item 1.01: Material Definitive Agreement (contratos, partnerships)
-- Item 5.02: Departure/Appointment of Directors (insider moves)
-- Item 8.01: Other Events (catch-all — aquí entran los government awards)
+NOTICIA RECIBIDA (EDGAR / Finnhub / Reddit)
+         |
+[CAPA 1] Keyword filter  — score >= 3 para pasar
+         |
+[DETECCION] detect_event_type()
+         |                    |
+    EVENT MODE           MODO NORMAL
+    (earnings/FDA/       (todos los demas)
+     breaking/etc.)
+         |                    |
+[CAPA 2] Conviction Gates (codigo puro, <1 seg)
+  Gate 1: Catalizador no priceado   (0 o 3 pts)  -- ambos modos
+  Gate 2: Tecnico favorable         (0-3 pts)
+     - NORMAL: RSI14 + EMA20 + Bollinger
+     - EVENT:  event_gate2_score() -- velas 1m stabilization
+  Gate 3: Volumen confirma          (0 o 1 pt)
+  Score 0-7
+  - NORMAL: si < 4 -> DESCARTAR sin IA
+  - EVENT:  Gate 1 = 0 -> DESCARTAR; si pasa Gate 1 -> siempre a IA
+         |
+[CAPA 3] AI Scoring reducido
+  Solo pide: tipo catalizador + direccion + magnitud %
+  Stops y targets los calcula codigo (ATR-based)
+         |
+[CAPA 4] Gates post-IA (codigo)
+  Gate 4: Playbook match           (bonus informativo)
+  Gate 5: Portfolio gate eToro     (puede bloquear)
+         |                    |
+    EVENT MODE           MODO NORMAL
+         |                    |
+  SMS 1: aviso inmediato    SMS unico con entrada
+  "No entrar aun"
+  queue_followup() -> 7 min
+         |
+  SMS 2 (7 min despues):
+  analyze_stabilization() con precio fresco
+  ENTRAR_AHORA / ESPERAR / DESCARTAR
 
-### Finnhub News API
-```
-Endpoint: https://finnhub.io/api/v1/company-news?symbol=TICKER&from=DATE&to=DATE&token=API_KEY
-Rate limit: 60 req/min (free) — usamos ~20 req/min total
-API key: en api_credentials.json del proyecto trading (~/trading/api_credentials.json)
-```
+[THREAD: PositionTracker — cada 10 min]
+  - Compara snapshots -> detecta posiciones cerradas
+  - Stop en riesgo (vs portfolio.md)     -> SMS URGENTE
+  - T1 alcanzado (P&L >= 8%)             -> SMS INFO
+  - Retroceso desde pico (>= 4%)         -> SMS ATENCION
+  - Movimiento brusco (>3%) sin noticia  -> SMS explicacion
+    (news lookup en metrics_store, 90 min ventana)
 
-### Reddit PRAW
-```
-Subreddits: wallstreetbets, stocks, investing, SecurityAnalysis
-Keywords de squeeze: short squeeze, gamma squeeze, unusual options
-Credenciales: en ~/trading/api_credentials.json
-```
-
-### Alpaca Markets — Precio Real-Time (FUENTE PRINCIPAL DE PRECIOS)
-```
-Por qué Alpaca y NO eToro para precios:
-- eToro API devuelve precios de cierre o forex — no está diseñada para polling sistemático
-- Alpaca es gratuito, da precio ACTUAL incluyendo pre-market y after-hours
-- Cubre desde las 4:00am ET (3am Lima) hasta las 8:00pm ET (7pm Lima)
-- WebSocket para precio en streaming — sin polling, precio llega en <100ms
-- REST API para velas OHLCV (1m, 5m, 15m) también incluyendo horas AH
-
-Setup Alpaca (Oscar debe hacer esto una vez):
-1. Crear cuenta gratuita en alpaca.markets (no requiere depósito de dinero)
-2. En el dashboard → API Keys → crear Paper Trading key
-3. Guardar en config.json: alpaca_key y alpaca_secret
-
-Endpoints usados:
-  Precio actual: GET https://data.alpaca.markets/v2/stocks/{ticker}/quotes/latest
-  Velas AH:      GET https://data.alpaca.markets/v2/stocks/{ticker}/bars
-                 params: timeframe=1Min, feed=iex, start=<hace 2h>
-  WebSocket:     wss://stream.data.alpaca.markets/v2/iex
-
-Parámetro crítico: feed=iex (IEX feed, gratuito, incluye AH)
-  - feed=sip es de pago (requiere suscripción)
-  - feed=iex es gratuito y suficiente para nuestro uso
-
-Lo que obtiene el sistema en cada evaluación:
-  - current_price: precio de la última transacción (AH o regular)
-  - change_pct: variación vs cierre anterior
-  - last_trade_time: confirmar que el precio es fresco (<5 min)
-  - candles_1m: últimas 10 velas de 1 minuto para ver momentum
-```
-
-### Polygon.io (opción upgrade — $29/mes)
-```
-Usar si Alpaca tiene limitaciones o se quiere news + precios en un solo proveedor
-Ventajas sobre Alpaca: también tiene feed de noticias (puede reemplazar Finnhub)
-Desventaja: costo mensual
-Recomendación: empezar con Alpaca (gratis), migrar a Polygon si es necesario
-```
-
-### eToro API (solo como referencia, NO usar para precios en este sistema)
-```
-eToro no está diseñado para polling sistemático de precios de acciones
-Sus endpoints devuelven precios de cierre o rates de forex/CFDs
-Usar eToro solo para ejecutar órdenes manualmente — nunca como fuente de precio
+[THREAD: MetricsStore — siempre activo]
+  - Loggea cada alerta, gate_event, snapshot de posicion, trade
+  - CLI: python show_metrics.py [--days N]
 ```
 
 ---
 
-## WATCHLIST DE TICKERS (cargar desde archivo externo)
-
-```json
-{
-  "primary": ["NVDA", "TSM", "QBTS", "IONQ", "RGTI", "QUBT", "PLTR", "APP",
-              "AVGO", "AMD", "ASML", "ARM", "RDDT", "CRM", "MSFT", "GOOG",
-              "CCJ", "TLN", "BE", "EME", "NOC", "RTX", "LMT", "KTOS", "AVAV",
-              "UBER", "SHOP", "MU", "COHR", "TSM"],
-  "extended": ["QQQ", "SPY", "IBM", "INTC", "XOM", "CVX"],
-  "crypto": ["XRP"]
-}
-```
-La watchlist se lee desde `config.json` — Oscar puede editarla sin tocar código.
-
----
-
-## CAPA 2: KEYWORDS DE FILTRO PYTHON
-
-### Keywords que SIEMPRE pasan el filtro (prioridad máxima)
-```python
-CRITICAL_KEYWORDS = [
-    # Contratos y gobierno
-    "CHIPS Act", "government award", "contract award", "DoD contract",
-    "Department of Commerce", "federal contract", "grant", "billion award",
-    "million award", "government stake", "equity stake",
-    # FDA / Biofarma
-    "FDA approval", "FDA approved", "FDA rejected", "PDUFA", "NDA approval",
-    "BLA approval", "clinical trial results", "Phase 3",
-    # M&A
-    "acquisition", "merger", "takeover bid", "buyout", "strategic review",
-    # Earnings/Guidance
-    "beats estimates", "raises guidance", "guidance raised", "EPS beat",
-    "revenue beat", "record revenue",
-    # Analistas
-    "price target raised", "upgraded to buy", "upgraded to overweight",
-    "strong buy", "initiated coverage",
-    # Eventos directos
-    "Investor Day", "analyst day", "special dividend", "share buyback",
-    "partnership announced", "strategic partnership",
-]
-
-# Keywords que degradan prioridad (señal débil o ya priceada)
-WEAK_KEYWORDS = [
-    "rumored", "sources say", "could", "might consider",
-    "analyst speculates", "market chatter"
-]
-```
-
-### Lógica de filtro Python
-```python
-def passes_filter(article):
-    # 1. Ticker en watchlist
-    if not any(ticker in article['text'] for ticker in WATCHLIST):
-        return False
-    # 2. Noticia reciente (< 45 minutos)
-    if article['age_minutes'] > 45:
-        return False
-    # 3. No procesada antes
-    if article['id'] in SEEN_IDS:
-        return False
-    # 4. Al menos 1 keyword crítica
-    if not any(kw.lower() in article['text'].lower() for kw in CRITICAL_KEYWORDS):
-        return False
-    return True
-```
-
----
-
-## CAPA 3: PROMPT DE CLAUDE SONNET
-
-Este prompt es el corazón del sistema. Está diseñado para ser DIRECTO y NO excesivamente cauteloso.
-
-```
-SISTEMA: Eres un analista de trading de alta frecuencia. Tu trabajo es evaluar si una noticia es un catalizador accionable AHORA. Sesgas hacia alertar cuando hay duda — perder una oportunidad es peor que una alerta falsa.
-
-NOTICIA A EVALUAR:
-Ticker: {ticker}
-Fuente: {source}
-Publicada: hace {age_minutes} minutos
-Precio actual REAL: ${current_price} (precio live AH/pre-market via Alpaca)
-Precio cierre anterior: ${prev_close}
-Cambio desde cierre: {pct_change:+.1f}%
-Momentum últimas velas: {candle_summary}  ← ej: "3 velas verdes consecutivas, vol creciente"
-Hora del último trade: {last_trade_time} Lima
-Titular: {headline}
-Resumen: {summary}
-
-EVALÚA en este orden exacto:
-
-1. ESTADO DEL CATALIZADOR:
-   - ¿El evento principal ya ocurrió o está pendiente?
-   - ¿El precio ya se movió >5% por esta noticia? (SÍ/NO)
-   - Si movió >5% → el catalizador YA ESTÁ PRICEADO → PRIORIDAD: DESCARTADO
-
-2. DIRECCIÓN:
-   - LONG o SHORT
-   - Razón en 1 línea
-
-3. MAGNITUD ESTIMADA:
-   - % potencial de movimiento en las próximas 4-12 horas
-   - Basado en tipo de catalizador + sector + capitalización
-
-4. PRIORIDAD:
-   - ALTA: catalizador directo + empresa nombrada + no priceado + >8% potencial
-   - MEDIA: catalizador real + empresa relacionada OR potencial 3-8%
-   - BAJA: señal débil, sector general, o potencial <3%
-   - DESCARTADO: ya priceado (precio movió >5%) o noticia vieja
-
-5. OPERATIVA (solo si ALTA o MEDIA):
-   - Entrada: rango de precio
-   - Stop: precio de cancelación
-   - Target: precio objetivo
-   - Timing: cuándo actuar (¿ahora en AH? ¿apertura mañana?)
-   - Riesgo principal: 1 línea
-
-FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
-{
-  "ticker": "XXXX",
-  "prioridad": "ALTA|MEDIA|BAJA|DESCARTADO",
-  "tipo_catalizador": "fundamental|hype|mixto",
-  "direccion": "LONG|SHORT",
-  "pct_estimado": 12.5,
-  "catalizador_priceado": false,
-  "resumen_cataliz": "descripción en 1 línea del catalizador",
-  "entrada_rango": "$X.XX - $X.XX",
-  "stop": "$X.XX",
-  "target": "$X.XX",
-  "timing_entrada": "ahora AH | apertura 8:30am Lima | esperar pullback a $X",
-  "horizonte_tiempo": "3 días | mismo día | Day+1",
-  "salida_fecha": "2026-05-24 3:00pm Lima si no llegó a target",
-  "salida_anticipada": "salir si baja de $X.XX (stop) o si hype no confirma en 2h",
-  "riesgo": "descripción del riesgo principal",
-  "confianza": "ALTA|MEDIA|BAJA"
-}
-```
-
----
-
-## FORMATO DEL ARCHIVO DE ALERTAS (alerts.json)
-
-Human-readable JSON Lines — una línea por alerta:
-
-```json
-{"timestamp": "2026-05-21T06:56:00-05:00", "ticker": "QBTS", "prioridad": "ALTA", "direccion": "LONG", "pct_estimado": 28.0, "catalizador": "$100M CHIPS Act Award — D-Wave recibe equity stake del gobierno", "entrada_rango": "$19.00 - $20.00", "stop": "$16.50", "target": "$26.00", "timing": "Pre-market apertura 8:30am Lima", "riesgo": "Sector cuántico especulativo — si mercado baja puede no moverse", "fuente": "SEC EDGAR 8-K", "sms_enviado": true, "precio_al_alerta": 19.30, "precio_24h_despues": null}
-```
-
-El campo `precio_24h_despues` se rellena automáticamente 24h después para tracking de accuracy.
-
----
-
-## FORMATO SMS TWILIO
-
-```
-🚨 ALTA — QBTS LONG
-$100M CHIPS Award confirmado (SEC 8-K)
-Precio: $19.30 | No priceado
-Entrada: $19.00-20.00
-Stop: $16.50 | Target: $26.00
-Timing: apertura 8:30am Lima
-→ Verificar en eToro ahora
-```
-
-SMS de MEDIA:
-```
-⚠️ MEDIA — NVDA LONG
-MS sube PT a $320 (+8% potencial)
-Precio: $285 | Mov. día: +1.2%
-Entrada: $284-287 | Stop: $272
-```
-
----
-
-## ESTRUCTURA DEL PROYECTO
+## ESTRUCTURA DEL PROYECTO (v2.1 — estado actual)
 
 ```
 opportunity_alert/
-├── CLAUDE.md              ← este archivo
-├── main.py                ← loop principal 24/7
-├── config.json            ← watchlist, intervalos, API keys paths
-├── requirements.txt       ← dependencias Python
-├── sources/
-│   ├── __init__.py
-│   ├── edgar.py           ← SEC EDGAR RSS polling
-│   ├── finnhub_news.py    ← Finnhub news API
-│   └── reddit_monitor.py  ← Reddit PRAW sentiment
+├── main.py                     <- loop principal 24/7, threads
+├── config.json                 <- watchlist, API keys, intervalos
+├── show_metrics.py             <- CLI dashboard de metricas
 ├── filters/
-│   ├── __init__.py
-│   ├── keyword_filter.py  ← Capa 2: filtro rápido Python
-│   └── claude_scorer.py   ← Capa 3: Claude Sonnet scoring
+│   ├── keyword_filter.py       <- filtro keywords Tier-1/2
+│   └── claude_scorer.py        <- Gemini/Claude con prompt reducido + conviction
 ├── alerts/
-│   ├── __init__.py
-│   ├── twilio_sms.py      ← envío SMS
-│   └── alert_logger.py    ← escritura alerts.json
+│   ├── twilio_sms.py           <- SMS/WhatsApp Twilio (conviction_score incluido)
+│   └── alert_logger.py         <- escribe alerts.json
 ├── utils/
-│   ├── __init__.py
-│   ├── alpaca_price.py    ← precio real-time AH + velas via Alpaca
-│   └── dedup_store.py     ← SQLite para deduplicación
+│   ├── alpaca_price.py         <- precio real-time + velas 1m
+│   ├── dedup_store.py          <- SQLite dedup + tracker_flags + position_peaks
+│   ├── conviction_gates.py     <- Gates 1-3 (codigo puro, RSI/EMA/ATR/BB)
+│   ├── etoro_client.py         <- Wrapper READ-ONLY eToro + circuit breaker
+│   ├── playbook_matcher.py     <- keyword -> estrategia del playbook
+│   ├── metrics_store.py        <- SQLite metrics (5 tablas)
+│   ├── event_gate.py           <- deteccion eventos + stabilization analysis
+│   └── delayed_alerts.py       <- worker thread SMS 2 (followup 7 min)
+├── sources/
+│   ├── edgar.py                <- SEC EDGAR RSS 90s
+│   ├── finnhub_news.py         <- Finnhub 120s
+│   └── reddit_monitor.py       <- Reddit 600s (desactivado en Oracle Cloud)
 └── data/
-    ├── alerts.json        ← log de todas las alertas
-    └── seen_ids.db        ← SQLite dedup store
+    ├── alerts.json             <- log JSON Lines
+    ├── claude_analysis.log     <- log legible de todos los analisis
+    ├── seen_ids.db             <- SQLite dedup
+    └── metrics.db              <- SQLite metricas (gates, alertas, trades)
 ```
 
----
-
-## config.json (template)
-
-```json
-{
-  "watchlist": {
-    "primary": ["NVDA", "TSM", "QBTS", "IONQ", "RGTI", "QUBT", "PLTR", "APP",
-                "AVGO", "AMD", "ASML", "ARM", "RDDT", "CRM", "MSFT", "GOOG",
-                "CCJ", "TLN", "BE", "EME", "NOC", "RTX", "LMT", "KTOS", "AVAV",
-                "UBER", "SHOP", "MU", "COHR", "IBM", "XOM", "CVX"],
-    "extended": ["QQQ", "SPY"],
-    "crypto": ["XRP"]
-  },
-  "intervals_seconds": {
-    "edgar": 90,
-    "finnhub": 120,
-    "reddit": 600
-  },
-  "max_article_age_minutes": 45,
-  "min_pct_for_alta": 8.0,
-  "min_pct_for_media": 3.0,
-  "already_priced_threshold_pct": 5.0,
-  "api_keys": {
-    "anthropic_key_env": "ANTHROPIC_API_KEY",
-    "finnhub_key_env": "FINNHUB_API_KEY",
-    "alpaca_key_env": "ALPACA_API_KEY",
-    "alpaca_secret_env": "ALPACA_SECRET_KEY",
-    "alpaca_base_url": "https://data.alpaca.markets",
-    "alpaca_feed": "iex",
-    "twilio_sid_env": "TWILIO_ACCOUNT_SID",
-    "twilio_token_env": "TWILIO_AUTH_TOKEN",
-    "twilio_from": "+1XXXXXXXXXX",
-    "twilio_to": "+51XXXXXXXXXX"
-  },
-  "claude_model": "claude-sonnet-4-6",
-  "send_sms_priorities": ["ALTA", "MEDIA"],
-  "log_only_priorities": ["BAJA"]
-}
-```
+**Archivos externos (read-only, nunca modificar):**
+- `C:/Users/LENOVO/trading/etoro_config.json` — credenciales eToro API
+- `C:/Users/LENOVO/trading/portfolio.md` — stops, horizontes, posiciones abiertas
+- `C:/Users/LENOVO/trading/playbook/index.yaml` — indice de estrategias
 
 ---
 
-## LÓGICA DEL LOOP PRINCIPAL (main.py)
+## MODULO: `utils/conviction_gates.py`
 
-```
-INICIO:
-  Cargar config.json
-  Inicializar dedup store (SQLite)
-  Inicializar conexiones: EDGAR, Finnhub, Reddit
-  Inicializar Twilio client
-  Log: "OportunityAlert iniciado — monitoreando X tickers"
+Puntua 0-7 usando codigo puro (sin IA). Si `skip_ai=True`, se descarta sin llamar a Gemini/Claude.
 
-LOOP INFINITO:
-  Cada 90s  → poll EDGAR RSS → procesar artículos nuevos
-  Cada 120s → poll Finnhub   → procesar artículos nuevos
-  Cada 600s → poll Reddit    → procesar posts nuevos
-  
-  Para cada artículo nuevo:
-    1. passes_filter(article) → si False: skip
-    2. get_realtime_price(ticker) via Alpaca API
-       → devuelve: current_price, change_pct, last_trade_time, candles_1m[-10:]
-       → si last_trade_time > 10 min de antigüedad → usar precio con advertencia
-    3. score_with_claude(article, price_data)
-    4. if result.prioridad in ["ALTA", "MEDIA"]:
-         log_alert(result)
-         send_sms(result)
-    5. elif result.prioridad == "BAJA":
-         log_alert(result)  # solo archivo, no SMS
-    6. mark_as_seen(article.id)
-  
-  Manejo de errores:
-    - API timeout → retry 3x con backoff exponencial
-    - Rate limit → esperar y reintentar
-    - Fallo Twilio → log error, continuar (no detener el sistema)
-    - Fallo Claude → log error, marcar noticia para revisión manual
+### Gate 1 — Catalizador no priceado (0 o 3 pts)
+- `change_pct < PRICED_THRESHOLDS.get(ticker, 12)` → 3 pts; si supera → 0 pts
+- Gate 1 = 0 → `skip_ai=True` inmediato, no evaluar Gate 2 ni 3
 
-  Cada 24h → actualizar precio_24h_despues en alertas del día anterior
-```
+### Gate 2 — Confirmacion tecnica (0-3 pts, 1 por sub-gate)
+- Fetches barras diarias Alpaca (`/v2/stocks/{ticker}/bars?timeframe=1Day&limit=60`)
+- Sub-gates LONG: RSI14 < 72 | precio > EMA20 × 0.97 | precio < BB_upper × 0.99
+- Sub-gates SHORT: RSI14 > 28 | precio < EMA20 × 1.03 | precio > BB_lower × 1.01
+- Si Alpaca falla en barras: gate2_score = 1 (continua)
 
----
+### Gate 3 — Volumen confirma (0 o 1 pt)
+- Usa `candles_1m` ya disponibles de `get_realtime_price()`
+- `recent_vol (3 velas) > avg_vol × 1.3` → 1 pt
+- Si mercado cerrado >30 min o <5 velas: gate3_score = 1 (ok, AH no representativo)
 
-## TIPOS DE CATALIZADOR Y SU HORIZONTE DE SALIDA
-
-El sistema reconoce DOS grandes familias de catalizadores. Ambas son válidas y accionables.
-
----
-
-### FAMILIA 1: CATALIZADORES FUNDAMENTALES
-Basados en eventos concretos y verificables. Movimiento más sostenido.
-
-| Tipo | Ejemplos | Horizonte salida | Prioridad max |
-|------|----------|-----------------|---------------|
-| Gobierno/CHIPS/DoD directo | $100M CHIPS Award a empresa nombrada | 3–7 días | ALTA |
-| FDA approval/rejection | Aprobación NDA específica | 1–3 días | ALTA |
-| M&A confirmado | Adquisición con precio por acción | Días hasta cierre | ALTA |
-| Earnings beat + guidance raise | AH, precio no reaccionó aún | Mismo día / Day+1 | ALTA |
-| Upgrade tier-1 analista | MS/GS/JPM sube PT >15% | 2–5 días | MEDIA |
-| Contrato importante | Contrato nombrado con monto | 2–5 días | MEDIA |
-| Insider buying masivo | CEO compra >$1M en acciones propias | 3–10 días | MEDIA |
-
----
-
-### FAMILIA 2: CATALIZADORES DE HYPE/SENTIMIENTO
-Basados en momentum social, retail FOMO o narrativa viral. Movimiento rápido pero más frágil.
-**Son catalizadores reales — ignorarlos es perder oportunidades como QBTS enero 2025 (+800%) o cualquier squeeze de WSB.**
-
-| Tipo | Señal detectable | Horizonte salida | Prioridad max |
-|------|-----------------|-----------------|---------------|
-| Reddit squeeze emergente | WSB menciones x3 en <2h + squeeze_alert | **Mismo día / 24h** | ALTA si RSI<60 |
-| Google Trends spike | Interés +100% vs semana anterior en <3h | **Mismo día / 48h** | MEDIA |
-| Sector hype gubernamental | Presidente/funcionario menciona sector | **1–3 días** | ALTA si ticker directo |
-| Meme stock revival | Stock tendencia + volumen x5 normal pre-market | **Horas** | MEDIA |
-| Hype post-Investor Day | Bookings/guidance sorprenden, comunidad viral | **2–5 días** | MEDIA |
-| News volume spike | 5+ artículos en <1h de distintas fuentes | **Horas a 1 día** | MEDIA |
-
-#### Cómo detectar hype en el código:
+### Calculos ATR (por codigo, no IA)
 ```python
-def detect_hype_signals(ticker, reddit_client, trends_client, alpaca_client):
-    signals = []
-
-    # 1. Reddit: spike de menciones en últimas 2h vs promedio
-    reddit_data = reddit_client.get_mentions(ticker, hours=2)
-    if reddit_data['mentions'] > reddit_data['avg_hourly'] * 3:
-        signals.append({
-            'type': 'reddit_spike',
-            'strength': round(reddit_data['mentions'] / reddit_data['avg_hourly'], 1),
-            'squeeze_alert': reddit_data['squeeze_alert']
-        })
-
-    # 2. Google Trends: cambio rápido de interés
-    trends = trends_client.get_interest(ticker)
-    if trends['change_pct'] > 100 and trends['current_interest'] > 60:
-        signals.append({'type': 'trends_spike', 'pct': trends['change_pct']})
-
-    # 3. Volumen pre-market anormal via Alpaca
-    volume = alpaca_client.get_premarket_volume(ticker)
-    if volume['ratio_vs_20d_avg'] > 3.0:
-        signals.append({'type': 'volume_spike', 'ratio': volume['ratio_vs_20d_avg']})
-
-    return signals
-```
-
-#### Reglas para clasificar hype:
-- **Hype puro (sin fundamental):** horizonte = mismo día / 24h máximo. Stop ajustado (-5%). Monto máximo 10% capital.
-- **Hype + fundamental (ej: $100M award + momentum social):** horizonte = 3–7 días. Stop normal. Puede ser ALTA.
-- **Sector hype sin ticker directo de watchlist:** no alertar. Demasiado difuso.
-- **El hype es frágil:** si precio no sube en primeras 2h → Claude debe indicar salida.
-
----
-
-## HORIZONTE DE SALIDA — OBLIGATORIO EN CADA ALERTA
-
-**Toda alerta debe incluir un horizonte de salida explícito en tiempo Y en precio.**
-Sin esto, Oscar no sabe cuándo salir y puede quedarse dentro de un trade que revirtió.
-
-### Tabla de horizontes por tipo de catalizador:
-
-| Catalizador | Horizonte tiempo | Salida por precio | Salida por tiempo |
-|-------------|-----------------|-------------------|-------------------|
-| Gobierno directo (CHIPS/DoD) | 3–7 días | Target: +20–35% | Salir Day+5 si no llegó |
-| Reddit squeeze | Mismo día / 24h | Target: +15–30% | Salir al cierre del día |
-| FDA approval | 1–2 días | Target: +20–40% | Salir Day+2 si no llegó |
-| Earnings AH beat | Overnight / Day+1 | Target: +8–15% | Salir apertura Day+1 si no sube |
-| Upgrade analista | 2–5 días | Target: +8–15% | Salir Day+4 si no llegó |
-| Google Trends spike | Horas / 48h | Target: +10–20% | Salir siguiente jornada si no confirma |
-| M&A confirmado | Semanas | Target: precio oferta | Mantener hasta cierre o ruptura |
-| Meme/volumen spike | Horas | Target: +15–25% | Salir mismo día antes del cierre |
-
-### Formato obligatorio en el JSON de alerta:
-```json
-{
-  "horizonte_tiempo": "2 días / salir Day+2",
-  "salida_precio": "$26.00",
-  "salida_tiempo": "2026-05-23 3:00pm Lima si no llegó a target",
-  "salida_anticipada": "salir si precio baja de $21.00 (stop)"
+ATR_MULT = {
+    "QUANTUM":  (2.0, 4.0),   # QBTS, IONQ, RGTI, QUBT
+    "SMALL_AI": (2.0, 3.5),   # SOUN, BBAI, INOD, APLD, IREN
+    "SPACE":    (1.8, 3.0),   # RKLB, LUNR, JOBY, ACHR
+    "HIGHVOL":  (1.5, 2.5),   # NVDA, TSLA, PLTR, APP, SMCI
+    "DEFAULT":  (1.5, 2.5),
 }
 ```
+`stop_code = entry ± stop_mult × atr14`, `target_code = entry ∓ target_mult × atr14`
 
-### En el SMS, el horizonte va siempre al final:
-```
-🚨 ALTA — QBTS LONG
-$100M CHIPS Award (SEC 8-K — hace 2 min)
-Entrada: $19–20 | Stop: $16.50 | Target: $26
-⏱ Salir: Day+5 o $26 lo que llegue primero
-```
-
----
-
-## CÓMO DETECTAR SI EL CATALIZADOR ESTÁ PRICEADO
-
-### Señales de que YA ESTÁ PRICEADO (degradar a DESCARTADO):
-1. `pct_change` actual vs close anterior > 5% (verificado via Alpaca AH)
-2. Noticia publicada hace >45 minutos y precio ya reaccionó
-3. Titular dice "stock soars", "stock jumps", "surges" → subida ya ocurrió
-4. Mismo evento cubierto por 5+ fuentes distintas → noticia masiva, todos ya saben
-
-### Señales de RUIDO (filtrar en Capa 2, nunca llegan a Claude):
-1. Sin empresa específica de watchlist nombrada
-2. Artículo de opinión sin catalizador nuevo
-3. Rehash de noticias de hace >2 días
-4. "Sources say", "rumored", "could consider" sin confirmación
-5. Hype sin volumen o menciones que lo respalden
-
----
-
-## SESGO HACIA ALERTAR (anti-exceso-de-cautela)
-
-Regla fija del sistema: **cuando Claude tenga duda entre MEDIA y BAJA → usar MEDIA.**
-
-Justificación: Oscar prefiere recibir 5 alertas mediocres que perderse 1 oportunidad real como QBTS (+33%). El costo de un SMS innecesario es $0.01. El costo de perder una entrada como QBTS May 21 2026 fue ~$1,000+ de P&L potencial.
-
-El sistema NO es el tomador de decisión final — Oscar lo es. El sistema es el detector y alertador. Oscar decide si entra o no.
-
----
-
-## COMANDO DE INICIO
-
-Cuando Oscar escribe **"empezar"** en una sesión nueva:
-
-1. Crear toda la estructura de carpetas y archivos
-2. Instalar dependencias (`requirements.txt`)
-3. Crear `config.json` con template y pedir a Oscar que complete:
-   - Número de teléfono Twilio (from y to)
-   - Alpaca API key + secret (cuenta gratuita en alpaca.markets → Paper Trading keys)
-   - Confirmar Finnhub API key (ya tiene en ~/trading/api_credentials.json)
-4. Crear todos los módulos Python con lógica completa
-5. Crear script de test: `python test_alert.py` que simula 1 noticia y verifica SMS
-6. Crear `run.sh` para Oracle VM con `nohup python main.py &`
-7. Mostrar instrucciones de deployment en la VM
-
----
-
-## NOTAS PARA EL DEVELOPER CLAUDE
-
-- Los paths de credenciales son relativos a la VM de Oracle, no al Windows de Oscar
-- En la VM: los archivos de `~/trading/` deben estar disponibles (o replicar config relevante)
-- La VM ya tiene Python instalado según Oscar
-- Prioridad de desarrollo: EDGAR → Filtro Python → Claude scorer → Twilio → Reddit (en ese orden)
-- Testear primero con QBTS como caso de prueba: el 8-K del 21-mayo-2026 debe generar ALTA
-- El sistema debe correr con `nohup` o como `systemd service` para sobrevivir desconexiones SSH
-- Logging a archivo + stdout para debuggear desde la VM
-- NO usar asyncio en v1.0 — usar threading simple para mantener el código legible
-- Código comentado en español para que Oscar pueda leerlo
-
----
-
-## FLUJO COMPLETO — DE LA ALERTA A LA DECISIÓN
-
-```
-OportunityAlert detecta catalizador
-         ↓
-Escribe en ~/opportunity_alert/data/alerts.json
-         ↓
-Envía SMS Twilio a Oscar:
-  "🚨 ALTA — QBTS LONG | $100M CHIPS Award | Entrada $19–20 | Stop $16.50"
-         ↓
-Oscar abre Claude Code (proyecto trading) y escribe:
-  "alerta: analiza QBTS"
-         ↓
-Claude lee alerts.json para contexto completo
-Claude verifica precio actual (Alpaca o pregunta a Oscar)
-Claude da decisión en <60 segundos:
-  ✅ ENTRAR / ❌ NO ENTRAR / ⏳ ESPERAR
-         ↓
-Oscar ejecuta manualmente en eToro
+### Logica skip_ai
+```python
+skip_ai = (gate1_score == 0) or (conviction_score < 4)
+# En EVENT MODE: solo Gate 1 puede bloquear (skip_ai = gate1_score == 0)
 ```
 
-**El SMS debe incluir siempre** el ticker, dirección, catalizador en 1 línea,
-rango de entrada y stop — para que Oscar tenga el contexto mínimo antes de
-abrir Claude. Si Claude no está disponible en ese momento, Oscar puede actuar
-solo con el SMS.
+---
+
+## MODULO: `utils/event_gate.py`
+
+Maneja eventos donde los indicadores tecnicos historicos (RSI/EMA) son irrelevantes porque el precio reacciona a informacion nueva, no a patrones pasados.
+
+### Deteccion de tipo de evento
+```python
+detect_event_type(article, price_data) -> str
+# "earnings" | "fda" | "government_contract" | "breaking_news" | "large_move" | "normal"
+```
+- Earnings: keywords (eps, revenue, beat, miss, guidance, quarterly…)
+- FDA: keywords (fda, approval, pdufa, clinical trial, phase 3…)
+- Government contract: keywords (dod, pentagon, chips act, award…)
+- Breaking news: `age_minutes < 4`
+- Large move: `abs(change_pct) > 10`
+
+### Analisis de estabilizacion (reemplaza Gate 2 en event mode)
+```python
+analyze_stabilization(candles_1m, direction) -> dict
+# signal: "ENTRAR_AHORA" | "ESPERAR_CONFIRMACION" | "DESCARTAR" | "SIN_DATOS"
+# confidence: "ALTA" | "MEDIA" | "BAJA"
+# event_gate_score: 0-3
+```
+Analiza 3 criterios (1 pt c/u):
+1. **Volumen sostenido**: `avg_recent >= avg_older × 0.7`
+2. **Rango achicando**: `avg_recent_range < avg_older_range × 0.85` (volatilidad decrece)
+3. **Direccion confirmada**: higher_lows (LONG) o lower_highs (SHORT) en 4 velas
+
+Score 3 → ENTRAR_AHORA/ALTA | Score 2 → ENTRAR_AHORA/MEDIA | Score 1 → ESPERAR/BAJA | Score 0 → DESCARTAR/BAJA
+
+### Formato SMS eventos
+- `format_event_watch_sms()` → SMS 1: aviso inmediato, sin señal de entrada
+- `format_event_confirm_sms()` → SMS 2: confirmacion o descarte con precio fresco
 
 ---
 
-## HISTORIAL DE OPORTUNIDADES PERDIDAS (contexto del problema)
+## MODULO: `utils/delayed_alerts.py`
 
-Este sistema existe para evitar repetir estos casos:
+Worker daemon thread que procesa la cola de followups (SMS 2).
 
-| Fecha | Ticker | Catalizador | Ventana perdida | P&L potencial |
-|-------|--------|-------------|-----------------|---------------|
-| 2026-05-21 | QBTS | $100M CHIPS Award (8-K SEC 1:54am Lima) | 3 horas | +33% en apertura |
-| 2026-05-21 | IONQ | Mismo programa gobierno $2B | 3 horas | +27% |
-| 2026-05-21 | ARM  | Ola de upgrades (Bernstein+RBC+Jefferies) | 2 días | +36% |
+### Flujo
+1. `start_worker()` — llamar una sola vez en `main()`; inicia daemon thread
+2. `queue_followup(ticker, article, conviction, result, event_type, twilio_to, delay_seconds=420)`:
+   - Dedup por ticker: si ya hay un followup pendiente, retorna False
+   - Encola item con `fire_at = time.time() + delay_seconds`
+3. Worker espera hasta `fire_at`, luego llama `_process_followup()`
+4. `_process_followup()`:
+   - Re-fetches precio fresco de Alpaca
+   - Corre `analyze_stabilization()` con velas 1m actualizadas
+   - Recalcula stop/target con precio fresco + ATR del conviction original
+   - Envia SMS 2 con veredicto de entrada
 
-Estos tres casos ocurrieron la misma semana. El sistema habría capturado los 3.
+### Dedup
+- `_queued_tickers: set` protegido con `threading.Lock()`
+- Un ticker solo puede tener un followup pendiente a la vez
 
 ---
 
-*Sistema diseñado por Oscar Navarro + Claude Code — v1.0 2026-05-21*
-*Proyecto: OportunityAlert — alertas de trading en tiempo real*
+## MODULO: `utils/etoro_client.py`
+
+Wrapper READ-ONLY para la eToro API. NUNCA ejecuta ordenes.
+
+### Endpoint correcto
+```
+GET /trading/info/portfolio
+Headers: x-api-key, x-user-key, x-request-id, Content-Type
+```
+**NOTA CRITICA**: El endpoint NO incluye `/{env}/`. La ruta `/trading/info/real/portfolio` devuelve 404.
+
+### Estructura de respuesta
+```
+data["clientPortfolio"]["positions"][]  <- lista de posiciones
+data["clientPortfolio"]["credit"]       <- efectivo disponible
+```
+
+### Circuit breaker
+- `CIRCUIT_OPEN_THRESHOLD = 5` fallos consecutivos
+- `CIRCUIT_PAUSE_MINUTES = 30` pausa cuando se abre el circuito
+- 401/403 → `_notify_token_expired()` envia SMS alerta (una sola vez, no spam)
+- `reset_token_alert()` → resetear despues de actualizar `etoro_config.json`
+
+### Token de sesion
+- `user_key` es un blob base64 (NO es JWT estandar, no tiene campo `exp`)
+- Decodifica a: `{"ci": "...", "ean": "UnregisteredApplication", "ek": "..."}`
+- No hay forma de leer expiry del token; se detecta via 401/403
+
+### Funciones principales
+- `get_portfolio() -> dict` — posiciones + cash + total_value
+- `check_portfolio_gate(ticker) -> dict` — verifica si puede entrar (ya en posicion, cash < $200, sector > 40%)
+- `health_check() -> dict` — ping rapido para heartbeat (no cuenta en circuit breaker)
+
+---
+
+## MODULO: `utils/metrics_store.py`
+
+SQLite en `data/metrics.db` con 5 tablas. Instanciar como singleton global en `main()`.
+
+### Tablas
+| Tabla | Proposito |
+|-------|-----------|
+| `alerts` | Cada alerta enviada (ticker, prioridad, conviction_score, direccion…) |
+| `gate_events` | Cada evaluacion de gates (gate1/2/3 score, skip_ai, event_mode) |
+| `position_snapshots` | Snapshot eToro cada 10 min (pnl_pct, current_price…) |
+| `trades` | Posiciones cerradas detectadas por snapshot comparison |
+| `daily_summary` | Resumen diario (totales, tasas de precision) |
+
+### Metodos clave
+- `log_alert(ticker, result, event_type)` — registra alerta
+- `log_gate_event(ticker, conviction, event_mode)` — registra evaluacion de gates
+- `log_position_snapshot(positions)` — registra snapshot de cartera
+- `get_open_tickers_last_snapshot()` — tickers en posicion en snapshot anterior
+- `record_closed_trade(ticker, entry, exit_price, pnl_pct)` — registra trade cerrado, auto-matchea con alerta
+- `get_recent_news_for_ticker(ticker, minutes=90)` — busca alertas recientes para explicar movimientos
+- `get_accuracy_summary(days)`, `get_gate_efficiency(days)`, `get_recent_trades(limit)`
+
+### CLI
+```bash
+python show_metrics.py          # ultimos 7 dias
+python show_metrics.py --days 30
+```
+
+---
+
+## MODULO: `utils/dedup_store.py`
+
+SQLite en `data/seen_ids.db`. Tres tablas:
+
+| Tabla | Proposito |
+|-------|-----------|
+| `seen_articles` | Dedup de articulos procesados |
+| `tracker_flags` | Cooldown flags para Position Tracker (con TTL) |
+| `position_peaks` | Pico de P&L por posicion (ticker + entry_price) |
+
+### Metodos nuevos en v2.0
+- `set_flag(key, ttl_hours=48.0)` — setea flag con expiry
+- `has_flag(key) -> bool` — verifica si flag existe y no expiro
+- `update_peak_pnl(ticker, entry, pnl_pct)` — actualiza si nuevo pnl > peak
+- `get_peak_pnl(ticker, entry) -> float` — retorna peak guardado
+
+---
+
+## MODULO: `utils/playbook_matcher.py`
+
+Mapeo de keywords en `resumen_cataliz` a estrategias del playbook de Oscar.
+
+```python
+find_matching_strategies(catalyst_summary) -> list[str]
+# Ejemplos: "contract" -> ["patron_a"], "earnings beat" -> ["ped","e1","e2"]
+```
+
+Se usa en Gate 4 (informativo, no bloquea).
+
+---
+
+## MODULO: `filters/claude_scorer.py`
+
+### Cambios vs v1.0
+- Prompt reducido ~55%: la IA ya NO calcula stops ni targets
+- `score_with_claude(article, price_data, model=None, conviction=None)` — acepta `conviction`
+- Post-procesamiento inyecta `entrada_rango`, `stop`, `target` desde `conviction_gates`
+- `_calc_exit_date(horizonte)` — "mismo dia"→14:45 Lima, "Day+1"→09:00+1, "3-5 dias"→14:00+4
+- `max_tokens` reducido de 1024 a 512
+
+### JSON que pide a la IA
+```json
+{
+  "ticker", "prioridad", "tipo_catalizador", "direccion",
+  "pct_estimado", "catalizador_priceado", "resumen_cataliz",
+  "timing_entrada", "horizonte_tiempo", "riesgo", "confianza"
+}
+```
+Stops y targets NO van en el JSON — se calculan por codigo.
+
+---
+
+## FLUJO `process_article()` en `main.py`
+
+```python
+1. detect_event_type(article, price_data)
+   -> event_mode = is_event_mode(event_type)
+
+2. evaluate_conviction(ticker, price_data, direction)
+   - En event_mode: Gate 2 = event_gate2_score() (no RSI/EMA)
+   - En event_mode: skip_ai solo si gate1_score == 0
+
+3. log_gate_event(_metrics, ...)
+
+4. Si skip_ai: return (descartar sin IA)
+
+5. score_with_claude(article, price_data, conviction=conviction)
+
+6. Gate 4: find_matching_strategies(result["resumen_cataliz"])
+7. Gate 5: check_portfolio_gate(ticker)
+   - Si can_enter=False y prioridad=ALTA: bajar a MEDIA
+
+8. log_alert(_metrics, ...)
+
+9. SMS:
+   - EVENT MODE: format_event_watch_sms() + queue_followup() -> SMS 2 en 7 min
+   - NORMAL:     send_sms() con conviction_score, playbook, portfolio
+```
+
+---
+
+## FLUJO `position_tracker_loop()` en `main.py`
+
+Corre cada 10 min en thread separado.
+
+```python
+1. _parse_portfolio_stops()  <- lee C:/Users/LENOVO/trading/portfolio.md
+2. get_portfolio()           <- llama eToro API
+3. Compara tickers actuales vs snapshot anterior (_metrics)
+   -> posicion desaparecida = trade cerrado -> record_closed_trade()
+4. _explain_large_moves()    <- para cada posicion con movimiento >3%
+   -> get_recent_news_for_ticker() en metrics (ventana 90 min)
+   -> envia SMS "precio subio X% — cataliz: [noticia]" o "volatilidad sin noticias"
+   -> cooldown 60 min por ticker
+5. Para cada posicion abierta:
+   - Stop en riesgo: current <= stop_alert_price × 1.01 -> SMS URGENTE (cooldown 4h)
+   - T1 alcanzado: pnl_pct >= 8.0% -> SMS INFO (cooldown 48h)
+   - Retroceso desde pico: peak_pnl >= 8% y retroceso >= 4% -> SMS ATENCION (cooldown 6h)
+6. log_position_snapshot(_metrics, positions)
+```
+
+---
+
+## VARIABLES DE ENTORNO
+
+```bash
+# Ya deben estar en .env
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
+FINNHUB_API_KEY=...
+ALPACA_API_KEY=...
+ALPACA_SECRET_KEY=...
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_TO=+51...           # numero destino
+TWILIO_FROM=+1...          # numero origen (SMS) — no necesario en WhatsApp
+NOTIFICATION_CHANNEL=whatsapp   # "whatsapp" o "sms"
+AI_ENGINE=gemini           # gemini (gratis 1500/dia) o claude (pagado)
+```
+
+No se necesitan nuevas variables para eToro — lee `etoro_config.json` directamente.
+
+---
+
+## PARAMETROS Y UMBRALES
+
+```python
+# Gates
+GATE_SKIP_THRESHOLD = 4       # score minimo para llamar IA (modo normal)
+BREAKING_AGE_THRESHOLD = 4    # minutos: noticia < 4 min = breaking_news
+
+# Event mode
+FOLLOWUP_DELAY_SECONDS = 420  # 7 minutos entre SMS 1 y SMS 2
+
+# ATR multipliers
+QUANTUM_STOP = 2.0,  QUANTUM_TARGET = 4.0
+SMALL_AI_STOP = 2.0, SMALL_AI_TARGET = 3.5
+SPACE_STOP = 1.8,    SPACE_TARGET = 3.0
+HIGHVOL_STOP = 1.5,  HIGHVOL_TARGET = 2.5
+DEFAULT_STOP = 1.5,  DEFAULT_TARGET = 2.5
+
+# Position tracker
+POSITION_POLL = 600           # 10 minutos
+T1_THRESHOLD = 8.0            # % P&L para T1
+PEAK_RETRACE = 4.0            # % retroceso desde pico para alertar
+ALERT_COOLDOWN_T1 = 48        # horas antes de re-notificar T1
+ALERT_COOLDOWN_STOP = 4       # horas antes de re-notificar stop
+EXPLAIN_MOVE_THRESHOLD = 3.0  # % movimiento brusco a explicar
+EXPLAIN_COOLDOWN = 60         # minutos entre explicaciones del mismo ticker
+
+# Portfolio
+MIN_CAPITAL_USD = 200
+POSITION_BASE_PCT = 0.10      # 10% del disponible
+POSITION_MAX_PCT = 0.20       # maximo 20% del total
+MAX_SECTOR_PCT = 0.40         # maximo 40% en un sector
+```
+
+---
+
+## NOTAS CRITICAS
+
+1. **eToro API es READ-ONLY** — `etoro_config.json` tiene `"environment": "real"`. Este proyecto NUNCA ejecuta ordenes. Solo lee posiciones y precios.
+
+2. **Endpoint eToro correcto**: `/trading/info/portfolio` (SIN `/{env}/`). La URL `/trading/info/real/portfolio` devuelve 404.
+
+3. **Token eToro**: `user_key` es base64 de `{"ci":"...","ean":"UnregisteredApplication","ek":"..."}`. No es JWT, no tiene campo `exp`. La expiry se detecta via 401/403.
+
+4. **Windows cp1252**: Evitar emojis en output de consola/logs en Windows. `show_metrics.py` usa solo ASCII. Los SMS si pueden tener emojis (va por Twilio, no por consola).
+
+5. **Rutas externas**: Si el proyecto se despliega en Oracle VM, cambiar `C:/Users/LENOVO/trading/` a ruta del servidor, o leer de variable de entorno `TRADING_DIR`.
+
+6. **Gemini > Claude para este proyecto**: `AI_ENGINE=gemini` ahorra dinero. Gemini 2.0 Flash es gratuito hasta 1,500 req/dia. Con los gates filtrando ~70% de noticias, el consumo de IA es bajo.
+
+7. **Logs con prefijos**: Filtrar con `grep -i "[GATES]\|[PositionTracker]\|[DelayedAlert]\|[eToro]\|[EventGate]"` para diagnosticar subsistemas especificos.
+
+8. **No duplicar indicadores**: `conviction_gates.py` implementa EMA, RSI, ATR puros con barras Alpaca. No usar `C:/Users/LENOVO/trading/indicators.py` (usa yfinance, latencia innecesaria).
+
+---
+
+## COMANDOS DE VERIFICACION
+
+```bash
+# Verificar conviction gates
+python -c "from utils.conviction_gates import evaluate_conviction; import json; print(json.dumps(evaluate_conviction('NVDA', {'change_pct': 3.5, 'candles_1m': [], 'current_price': 130.0}), indent=2))"
+
+# Verificar event gate
+python -c "from utils.event_gate import detect_event_type; print(detect_event_type({'title': 'NVDA beats EPS estimates', 'summary': 'quarterly earnings beat', 'age_minutes': 2}, {'change_pct': 5.0}))"
+
+# Verificar eToro
+python -c "from utils.etoro_client import get_portfolio; import json; print(json.dumps(get_portfolio(), indent=2))"
+
+# Ver metricas
+python show_metrics.py --days 7
+
+# Correr sistema
+python main.py
+```
+
+---
+
+*OportunityAlert v2.1 — Oscar Navarro + Claude Code — 2026-05-24*

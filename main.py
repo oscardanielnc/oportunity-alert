@@ -30,20 +30,14 @@ from alerts.twilio_sms import send_sms, format_sms
 from alerts.alert_logger import log_alert, log_claude_analysis, update_24h_prices, get_recent_alerts
 from utils.alpaca_price import get_realtime_price
 from utils.dedup_store import DedupStore
+from utils.etoro_client import get_portfolio, check_portfolio_gate
+from utils.conviction_gates import evaluate_conviction
+from utils.playbook_matcher import find_matching_strategies
+from utils.metrics_store import MetricsStore
+from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
+from utils.delayed_alerts import queue_followup, start_worker
 
 LIMA = timezone(timedelta(hours=-5))
-
-# Umbrales de "ya priceado" por sector (% de movimiento desde cierre)
-# Sectores más volátiles toleran mayor movimiento antes de descartar
-PRICED_THRESHOLDS = {
-    "QBTS": 30, "IONQ": 30, "RGTI": 30, "QUBT": 30,
-    "GME": 30, "AMC": 30,
-    "MARA": 25, "RIOT": 25, "MSTR": 25,
-    "SOUN": 25, "BBAI": 25, "INOD": 25, "APLD": 25, "IREN": 25,
-    "RKLB": 20, "LUNR": 20, "JOBY": 20, "ACHR": 20,
-    "NVDA": 15, "TSLA": 15, "SMCI": 15, "RIVN": 15, "LCID": 15,
-    "WOLF": 15, "PLTR": 15, "APP": 15,
-}
 
 # Tickers crypto-correlacionados: alertar inmediatamente aunque mercado esté cerrado
 # (informan trades en Binance o preparación para apertura del lunes)
@@ -52,6 +46,9 @@ CRYPTO_ALWAYS_ALERT = {"MSTR", "MARA", "RIOT", "IREN"}
 # ── Contadores globales para heartbeat ───────────────────────────────────────
 _stats = {"analyzed": 0, "alta": 0, "media": 0, "baja": 0, "sms_sent": 0, "dedup": 0, "filtered": 0}
 _stats_lock = threading.Lock()
+
+# Singleton de métricas — inicializado en main()
+_metrics: MetricsStore = None
 
 # ── Cola de acumulación durante mercado cerrado ───────────────────────────────
 _weekend_queue: list[dict] = []
@@ -166,6 +163,31 @@ def _supervised_thread(name: str, target_fn, *args, **kwargs):
 
 # ── Lógica central ────────────────────────────────────────────────────────────
 
+def _send_twilio_raw(body: str, to_number: str) -> bool:
+    """Envía SMS/WhatsApp de texto libre (para event mode y position tracker)."""
+    try:
+        from twilio.rest import Client as TwilioClient
+        from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
+        sid     = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        token   = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
+        if not (sid and token and to_number):
+            return False
+        client = TwilioClient(sid, token)
+        if channel == "whatsapp":
+            client.messages.create(
+                body=body, from_=WHATSAPP_SANDBOX_FROM,
+                to=f"whatsapp:{to_number}",
+            )
+        else:
+            from_ = os.environ.get("TWILIO_FROM", "")
+            client.messages.create(body=body, from_=from_, to=to_number)
+        return True
+    except Exception as e:
+        logger.error(f"[SMS] Error enviando mensaje raw: {e}")
+        return False
+
+
 def process_article(
     article: dict,
     watchlist: list[str],
@@ -214,35 +236,84 @@ def process_article(
         f"score={score} | {article.get('title', '')[:70]}"
     )
 
-    # Pre-check de precio (evita llamar a Claude si ya está priceado sin alertas previas)
-    # Noticias breaking (<5 min) tienen el doble de margen — el precio puede seguir corriendo
+    # ── Precio real-time ──────────────────────────────────────────────────────
     price_data = get_realtime_price(ticker)
-    change_pct = price_data.get("change_pct")
     last_alert = dedup.get_last_alert_on_ticker(ticker, hours=4)
-    article_age = article.get("age_minutes", 999)
 
-    if change_pct is not None and last_alert is None:
-        threshold = PRICED_THRESHOLDS.get(ticker, config.get("already_priced_threshold_pct", 10.0))
-        # Breaking news (<5 min): usar el doble del umbral — el precio puede seguir corriendo
-        effective_threshold = threshold * 2 if article_age < 5 else threshold
-        if abs(change_pct) > effective_threshold:
-            logger.info(
-                f"[PRE-CHECK] {ticker} movio {change_pct:+.1f}% "
-                f"(umbral={effective_threshold:.0f}%, noticia={article_age:.0f}min) "
-                f"→ auto-DESCARTADO (ahorra 1 llamada Claude)"
+    # ── Detección de tipo de evento ───────────────────────────────────────────
+    event_type  = detect_event_type(article, price_data)
+    event_mode  = is_event_mode(event_type)
+
+    # ── Conviction Gates v2.0 (código puro, < 1 segundo, sin tokens) ──────────
+    conviction = evaluate_conviction(ticker, price_data, direction="LONG")
+
+    # En event mode: Gate 2 técnico se reemplaza por análisis de velas 1m
+    if event_mode:
+        ev_g2 = event_gate2_score(price_data.get("candles_1m", []), direction="LONG")
+        # Recalcular score total con el gate2 de eventos
+        old_total = conviction["conviction_score"]
+        conviction["gate2_score"]      = ev_g2
+        conviction["conviction_score"] = conviction["gate1_score"] + ev_g2 + conviction["gate3_score"]
+        conviction["skip_ai"]          = conviction["gate1_score"] == 0  # en event mode solo Gate1 puede bloquear
+        logger.info(
+            f"[EVENT-MODE] {ticker} tipo={event_type} | "
+            f"gate2 tecnico reemplazado por estabilizacion ({old_total}→{conviction['conviction_score']}/7)"
+        )
+
+    if conviction["skip_ai"]:
+        logger.info(
+            f"[GATES] {ticker} score={conviction['conviction_score']}/7 "
+            f"→ DESCARTADO sin IA | {conviction['reasoning']}"
+        )
+        if _metrics:
+            _metrics.log_gate_event(
+                ticker, source, conviction,
+                ai_called=False,
+                article_title=article.get("title", ""),
             )
-            dedup.mark_seen(article_id, source)
-            dedup.mark_ticker_event(ticker, fingerprint, source, sent_to_claude=False)
-            return
+        dedup.mark_seen(article_id, source)
+        dedup.mark_ticker_event(ticker, fingerprint, source, sent_to_claude=False)
+        return
 
-    # Claude scoring
+    logger.info(
+        f"[GATES] {ticker} score={conviction['conviction_score']}/7 → pasa a IA | "
+        f"{'EVENT-MODE ' + event_type if event_mode else 'RSI=' + str(round(conviction.get('gate2_rsi', 0), 1))} | "
+        f"{conviction['reasoning']}"
+    )
+
+    # ── Scoring IA (prompt reducido — stops/targets los calcula conviction) ───
     model = os.environ.get("CLAUDE_MODEL", config.get("claude_model", "claude-sonnet-4-6"))
-    result = score_with_claude(article, price_data, model=model)
+    result = score_with_claude(article, price_data, model=model, conviction=conviction)
 
     prioridad = result.get("prioridad", "BAJA")
     direction = result.get("direccion", "")
 
+    # ── Gate 4: Playbook match (informativo) ──────────────────────────────────
+    playbook_matches = find_matching_strategies(result.get("resumen_cataliz", ""))
+    result["playbook_matches"] = playbook_matches
+
+    # ── Gate 5: Portfolio gate eToro (puede degradar prioridad) ───────────────
+    portfolio_gate = check_portfolio_gate(ticker)
+    result["portfolio_gate"] = portfolio_gate
+
+    if not portfolio_gate["can_enter"] and prioridad == "ALTA":
+        prioridad = "MEDIA"
+        result["prioridad"] = "MEDIA"
+        result["resumen_cataliz"] = (
+            f"[Portfolio: {portfolio_gate['reason']}] "
+            + result.get("resumen_cataliz", "")
+        )
+
     log_claude_analysis(result)
+
+    # Registrar en métricas
+    if _metrics:
+        _metrics.log_gate_event(
+            ticker, source, conviction,
+            ai_called=True,
+            ai_prioridad=prioridad,
+            article_title=article.get("title", ""),
+        )
     dedup.mark_ticker_event(ticker, fingerprint, source, direction=direction, sent_to_claude=True)
 
     # Actualizar stats para heartbeat
@@ -265,15 +336,30 @@ def process_article(
 
     sms_enviado = False
     if prioridad in send_priorities:
-        market_open = is_market_open()
+        market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
 
         if market_open or crypto_ticker:
-            # Envío inmediato: mercado abierto o ticker crypto-proxy
-            sms_enviado = send_sms(result, twilio_from, twilio_to)
-            if sms_enviado:
-                with _stats_lock:
-                    _stats["sms_sent"] += 1
+            if event_mode:
+                # ── Flujo evento: SMS 1 (aviso) + SMS 2 encolado ─────────────
+                sms1_body = format_event_watch_sms(
+                    ticker, event_type, result, price_data, followup_minutes=7
+                )
+                sms_enviado = bool(_send_twilio_raw(sms1_body, twilio_to))
+                if sms_enviado:
+                    with _stats_lock:
+                        _stats["sms_sent"] += 1
+                    queue_followup(
+                        ticker, article, conviction, result,
+                        event_type, twilio_to,
+                    )
+                    logger.info(f"[EVENT] {ticker} SMS1 enviado ({event_type}) — SMS2 encolado en 7 min")
+            else:
+                # ── Flujo normal ──────────────────────────────────────────────
+                sms_enviado = send_sms(result, twilio_from, twilio_to)
+                if sms_enviado:
+                    with _stats_lock:
+                        _stats["sms_sent"] += 1
         else:
             # Mercado cerrado: acumular para el digest del domingo 7pm Lima
             with _weekend_lock:
@@ -286,6 +372,9 @@ def process_article(
 
     if prioridad in send_priorities or prioridad in log_priorities:
         log_alert(result, sms_enviado=sms_enviado, _skip_analysis_log=True)
+        if _metrics:
+            _metrics.log_alert(result, conviction=conviction, sms_enviado=sms_enviado)
+            _metrics.refresh_daily_summary()
 
     dedup.mark_seen(article_id, source)
 
@@ -509,12 +598,21 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
             else:
                 market_line = f"🔒 Mercado: CERRADO — {queued} oportunidad{'es' if queued != 1 else ''} acumulada{'s' if queued != 1 else ''}"
 
+            from utils.etoro_client import health_check as etoro_health
+            etoro = etoro_health()
+            etoro_line = (
+                f"eToro: OK (${get_portfolio().get('available_cash', 0):.0f} cash)"
+                if etoro["ok"]
+                else f"eToro: OFFLINE ({etoro['status']}) — gates 1-3 activos"
+            )
+
             msg_body = (
-                f"✅ *OportunityAlert* activo — {fecha}\n"
-                f"Analizadas: {analyzed} | Alertas enviadas: {sms_sent}\n"
+                f"OportunityAlert activo — {fecha}\n"
+                f"Analizadas: {analyzed} | SMS enviados: {sms_sent}\n"
                 f"ALTA:{alta}  MEDIA:{media}  BAJA:{baja}\n"
-                f"Filtradas: {dedup_total} dedup + {filtered_total} sin keywords\n"
-                f"{market_line}"
+                f"Gates filtraron: {dedup_total} dedup + {filtered_total} sin keywords\n"
+                f"{market_line}\n"
+                f"{etoro_line}"
             )
             from twilio.rest import Client as TwilioClient
             from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
@@ -535,6 +633,271 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 logger.info(f"Heartbeat enviado: {msg_body.replace(chr(10), ' | ')}")
         except Exception as e:
             logger.error(f"Error en heartbeat: {e}")
+
+
+# ── Position Tracker ─────────────────────────────────────────────────────────
+
+def _parse_portfolio_stops() -> dict:
+    """
+    Lee portfolio.md y retorna stops por ticker.
+    Retorna: { "NVDA": {"stop_alert_price": 169.07, "horizonte": "Meses/Años"}, ... }
+    """
+    import re
+    from pathlib import Path
+    path = Path("C:/Users/LENOVO/trading/portfolio.md")
+    stops = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+        # Filas: | TICKER | horizonte | -XX% | $XXX.XX |
+        pattern = r"\|\s*([A-Z]{1,5})\s*\|\s*([\w/]+)\s*\|\s*[−\-][\d.]+%\s*\|\s*\$([\d,]+\.?\d*)\s*\|"
+        for m in re.finditer(pattern, text):
+            ticker, horizonte, price_str = m.groups()
+            stops[ticker] = {
+                "stop_alert_price": float(price_str.replace(",", "")),
+                "horizonte": horizonte,
+            }
+        logger.info(f"[PositionTracker] Stops cargados: {list(stops.keys())}")
+    except FileNotFoundError:
+        logger.warning("[PositionTracker] portfolio.md no encontrado — sin stops")
+    except Exception as e:
+        logger.warning(f"[PositionTracker] No pudo leer portfolio.md: {e}")
+    return stops
+
+
+def _send_position_alert(alert: dict, twilio_from: str, twilio_to: str):
+    level = alert["level"]
+    ticker = alert["ticker"]
+    pnl_pct = alert["pnl_pct"]
+    message = alert["message"]
+    action = alert["action"]
+
+    emoji = {"URGENTE": "🔴", "ATENCION": "⚠️", "INFO": "📊"}.get(level, "📊")
+    body = (
+        f"{emoji} {level} — {ticker}\n"
+        f"P&L: {pnl_pct:+.1f}%\n"
+        f"{message}\n"
+        f"→ {action}"
+    )
+
+    try:
+        from twilio.rest import Client as TwilioClient
+        from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
+        sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
+        if sid and token and twilio_to:
+            client = TwilioClient(sid, token)
+            if channel == "whatsapp":
+                client.messages.create(
+                    body=body,
+                    from_=WHATSAPP_SANDBOX_FROM,
+                    to=f"whatsapp:{twilio_to}",
+                )
+            else:
+                client.messages.create(body=body, from_=twilio_from, to=twilio_to)
+    except Exception as e:
+        logger.error(f"[PositionTracker] Error SMS: {e}")
+
+
+MOVE_EXPLAIN_THRESHOLD = 3.0   # % de cambio en una posición que merece explicación
+MOVE_EXPLAIN_COOLDOWN  = 60    # minutos entre explains del mismo ticker
+
+
+def _explain_large_moves(
+    current_positions: list,
+    prev_snapshot: dict,
+    metrics: "MetricsStore",
+    twilio_to: str,
+):
+    """
+    Compara posiciones actuales con el snapshot anterior.
+    Si alguna se movió >3% entre polls, envía SMS explicando si hay noticia o es volatilidad.
+    """
+    if not prev_snapshot:
+        return
+
+    for pos in current_positions:
+        ticker  = pos["ticker"]
+        current = pos.get("current_rate", 0)
+        prev    = prev_snapshot.get(ticker, {}).get("current_rate", 0)
+
+        if not prev or not current:
+            continue
+
+        move_pct = (current - prev) / prev * 100
+
+        if abs(move_pct) < MOVE_EXPLAIN_THRESHOLD:
+            continue
+
+        # Dedup: no spamear el mismo ticker en menos de 60 min
+        from utils.dedup_store import DedupStore
+        dedup_exp = DedupStore("data/seen_ids.db")
+        flag_key  = f"explain_{ticker}_{int(pos.get('open_rate', 0) * 100)}"
+        if dedup_exp.has_flag(flag_key):
+            continue
+
+        # Buscar noticias recientes para explicar el move
+        recent_news = metrics.get_recent_news_for_ticker(ticker, minutes=90)
+        direction   = pos.get("direction", "BUY")
+        against     = (move_pct < 0 and direction == "BUY") or (move_pct > 0 and direction == "SELL")
+
+        if recent_news:
+            cataliz = recent_news[0].get("resumen_cataliz", "")[:100]
+            prio    = recent_news[0].get("prioridad", "?")
+            news_line = f"Noticia detectada ({prio}): {cataliz}"
+            advice = "Revisar si el catalizador sigue vigente." if against else "Catalizador alineado con tu posicion."
+        else:
+            news_line = "Sin catalizador identificado en los ultimos 90 min."
+            advice    = "Volatilidad normal del mercado." if abs(move_pct) < 6 else "Movimiento fuerte sin noticia — verificar manualmente."
+
+        direction_tag = "CONTRA tu posicion" if against else "A FAVOR de tu posicion"
+        body = (
+            f"[POSICION] {ticker} {direction}\n"
+            f"Movimiento: {move_pct:+.1f}% en el ultimo poll ({direction_tag})\n"
+            f"Precio: ${prev:.2f} → ${current:.2f}\n"
+            f"P&L actual: {pos.get('net_profit_pct', 0):+.1f}%\n"
+            f"\n"
+            f"{news_line}\n"
+            f"→ {advice}"
+        )
+
+        _send_twilio_raw(body, twilio_to)
+        dedup_exp.set_flag(flag_key, ttl_hours=MOVE_EXPLAIN_COOLDOWN / 60)
+        logger.info(
+            f"[PositionTracker] Explain enviado: {ticker} {move_pct:+.1f}% "
+            f"({'con noticia' if recent_news else 'sin noticia'})"
+        )
+
+
+def position_tracker_loop(twilio_from: str, twilio_to: str):
+    """Thread que corre cada 10 min. Verifica posiciones abiertas vs stops y T1."""
+    POLL_INTERVAL = 600   # 10 minutos
+    T1_THRESHOLD  = 8.0   # % P&L para notificar T1
+    PEAK_RETRACE  = 4.0   # % retroceso desde pico para alertar
+
+    dedup   = DedupStore("data/seen_ids.db")
+    metrics = MetricsStore()
+
+    while True:
+        try:
+            portfolio_stops = _parse_portfolio_stops()
+            etoro_data = get_portfolio()
+
+            if etoro_data.get("error"):
+                logger.debug(f"[PositionTracker] eToro no disponible: {etoro_data['error']}")
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            positions = etoro_data.get("positions", [])
+
+            # Detectar trades cerrados comparando con snapshot anterior
+            prev_tickers = metrics.get_open_tickers_last_snapshot()
+            if prev_tickers and positions is not None:
+                current_keys = {p["ticker"] for p in positions}
+                for ticker_closed, snap in prev_tickers.items():
+                    if ticker_closed not in current_keys:
+                        # Posición desapareció → cerrada
+                        # Intentar obtener precio actual de Alpaca como close_rate
+                        try:
+                            from utils.alpaca_price import get_realtime_price
+                            pd = get_realtime_price(ticker_closed)
+                            close_rate = pd.get("current_price") or snap.get("current_rate", 0)
+                        except Exception:
+                            close_rate = snap.get("current_rate", 0)
+                        from datetime import datetime as _dt
+                        close_ts = _dt.now(LIMA).strftime("%Y-%m-%dT%H:%M:%S")
+                        metrics.record_closed_trade(ticker_closed, snap, close_rate, close_ts)
+                        metrics.refresh_daily_summary()
+
+            # Guardar snapshot actual (aunque sea lista vacía, marca el estado)
+            if positions:
+                metrics.log_position_snapshot(positions)
+
+            if not positions:
+                logger.debug("[PositionTracker] Sin posiciones abiertas")
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            alerts_to_send = []
+
+            # Detectar movimientos bruscos en posiciones abiertas y explicarlos
+            prev_snap = metrics.get_open_tickers_last_snapshot()
+            _explain_large_moves(positions, prev_snap, metrics, twilio_to)
+
+            for pos in positions:
+                ticker   = pos["ticker"]
+                pnl_pct  = pos["net_profit_pct"]
+                entry    = pos["open_rate"]
+                current  = pos["current_rate"]
+
+                dedup.update_peak_pnl(ticker, entry, pnl_pct)
+                peak_pnl = dedup.get_peak_pnl(ticker, entry)
+
+                # Alerta 1: stop en riesgo
+                stop_info = portfolio_stops.get(ticker)
+                if stop_info and current <= stop_info["stop_alert_price"] * 1.01:
+                    flag_key = f"stop_alert_{ticker}_{int(entry * 100)}"
+                    if not dedup.has_flag(flag_key):
+                        alerts_to_send.append({
+                            "level": "URGENTE",
+                            "ticker": ticker,
+                            "pnl_pct": pnl_pct,
+                            "message": (
+                                f"Precio ${current:.2f} cerca del stop "
+                                f"(alerta: ${stop_info['stop_alert_price']:.2f})"
+                            ),
+                            "action": "Revisar en eToro AHORA. Considerar salida.",
+                        })
+                        dedup.set_flag(flag_key, ttl_hours=4)
+
+                # Alerta 2: T1 alcanzado
+                if pnl_pct >= T1_THRESHOLD:
+                    flag_key = f"t1_{ticker}_{int(entry * 100)}"
+                    if not dedup.has_flag(flag_key):
+                        alerts_to_send.append({
+                            "level": "INFO",
+                            "ticker": ticker,
+                            "pnl_pct": pnl_pct,
+                            "message": f"T1 alcanzado — P&L +{pnl_pct:.1f}%",
+                            "action": (
+                                f"Mover stop a breakeven (${entry:.2f}). "
+                                "Dejar correr segunda mitad."
+                            ),
+                        })
+                        dedup.set_flag(flag_key, ttl_hours=48)
+
+                # Alerta 3: retroceso desde pico (solo si ya superó T1)
+                if peak_pnl >= T1_THRESHOLD and (peak_pnl - pnl_pct) >= PEAK_RETRACE:
+                    flag_key = f"retrace_{ticker}_{int(entry * 100)}_{int(pnl_pct)}"
+                    if not dedup.has_flag(flag_key):
+                        alerts_to_send.append({
+                            "level": "ATENCION",
+                            "ticker": ticker,
+                            "pnl_pct": pnl_pct,
+                            "message": (
+                                f"Retroceso desde pico — ahora +{pnl_pct:.1f}% "
+                                f"(pico fue +{peak_pnl:.1f}%)"
+                            ),
+                            "action": "Considerar salida parcial o ajustar stop.",
+                        })
+                        dedup.set_flag(flag_key, ttl_hours=6)
+
+            for alert in alerts_to_send:
+                _send_position_alert(alert, twilio_from, twilio_to)
+                logger.info(
+                    f"[PositionTracker] {alert['level']} — {alert['ticker']}: "
+                    f"{alert['message']}"
+                )
+
+            logger.debug(
+                f"[PositionTracker] Ciclo OK — "
+                f"{len(positions)} posiciones, {len(alerts_to_send)} alertas enviadas"
+            )
+
+        except Exception as e:
+            logger.error(f"[PositionTracker] Error en ciclo: {e}")
+
+        time.sleep(POLL_INTERVAL)
 
 
 # ── Comando status ────────────────────────────────────────────────────────────
@@ -583,7 +946,7 @@ def main():
 
     _setup_logging()
     logger.info("=" * 56)
-    logger.info("OportunityAlert v1.0 — Iniciando")
+    logger.info("OportunityAlert v2.0 — Iniciando")
     logger.info("=" * 56)
 
     config = load_config("config.json")
@@ -609,6 +972,13 @@ def main():
     dedup = DedupStore("data/seen_ids.db")
     logger.info(f"DedupStore: {dedup.count()} entradas previas")
 
+    global _metrics
+    _metrics = MetricsStore()
+    logger.info("MetricsStore inicializado")
+
+    start_worker()
+    logger.info("DelayedAlerts worker iniciado")
+
     market_status = "ABIERTO" if is_market_open() else "CERRADO (modo acumulación activo)"
     logger.info(f"Estado mercado al inicio: {market_status}")
 
@@ -628,9 +998,10 @@ def main():
         # ("Reddit",      reddit_loop,          (config, watchlist, dedup), shared),
         ("Price24h",      price_update_loop,    (),                         {}),
         ("Heartbeat",     heartbeat_loop,       (twilio_from, twilio_to),   {}),
-        ("WeekendDigest", weekend_digest_loop,  (twilio_from, twilio_to),   {}),
+        ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
+        ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
     ]
-    logger.info("Fuentes activas: EDGAR, Finnhub (Reddit desactivado — bloqueado por Oracle Cloud IP)")
+    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker (Reddit desactivado — bloqueado por Oracle Cloud IP)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(

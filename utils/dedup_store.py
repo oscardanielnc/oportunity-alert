@@ -48,9 +48,31 @@ class DedupStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ticker_events_ticker ON ticker_events(ticker)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ticker_events_fp ON ticker_events(event_fingerprint)")
 
+            # Tabla 3: flags con TTL para el position tracker
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS tracker_flags (
+                    key TEXT PRIMARY KEY,
+                    value TEXT DEFAULT '1',
+                    expires_at REAL NOT NULL
+                )
+            """)
+            # Tabla 4: pico de P&L por posición abierta
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS position_peaks (
+                    ticker TEXT NOT NULL,
+                    entry_price REAL NOT NULL,
+                    peak_pnl_pct REAL NOT NULL DEFAULT 0.0,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (ticker, entry_price)
+                )
+            """)
+
             # Limpiar registros viejos (>7 días)
             conn.execute("DELETE FROM seen_items WHERE seen_at < datetime('now', '-7 days')")
             conn.execute("DELETE FROM ticker_events WHERE created_at < datetime('now', '-7 days')")
+            # Limpiar flags expirados
+            import time as _time
+            conn.execute("DELETE FROM tracker_flags WHERE expires_at < ?", (_time.time(),))
             conn.commit()
 
     # ── Nivel 1: dedup por ID ──────────────────────────────────────────────
@@ -149,3 +171,56 @@ class DedupStore:
     def count(self) -> int:
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute("SELECT COUNT(*) FROM seen_items").fetchone()[0]
+
+    # ── Position tracker: flags con TTL ───────────────────────────────────────
+
+    def set_flag(self, key: str, ttl_hours: float = 48.0):
+        import time
+        expires = time.time() + ttl_hours * 3600
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO tracker_flags (key, expires_at) VALUES (?, ?)",
+                    (key, expires),
+                )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Error set_flag {key}: {e}")
+
+    def has_flag(self, key: str) -> bool:
+        import time
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM tracker_flags WHERE key = ? AND expires_at > ?",
+                (key, time.time()),
+            ).fetchone()
+        return row is not None
+
+    # ── Position tracker: pico de P&L ─────────────────────────────────────────
+
+    def update_peak_pnl(self, ticker: str, entry: float, pnl_pct: float):
+        import time
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                existing = conn.execute(
+                    "SELECT peak_pnl_pct FROM position_peaks WHERE ticker = ? AND entry_price = ?",
+                    (ticker, entry),
+                ).fetchone()
+                if existing is None or pnl_pct > existing[0]:
+                    conn.execute(
+                        """INSERT OR REPLACE INTO position_peaks
+                           (ticker, entry_price, peak_pnl_pct, updated_at)
+                           VALUES (?, ?, ?, ?)""",
+                        (ticker, entry, pnl_pct, time.time()),
+                    )
+                    conn.commit()
+        except Exception as e:
+            logger.error(f"Error update_peak_pnl {ticker}: {e}")
+
+    def get_peak_pnl(self, ticker: str, entry: float) -> float:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT peak_pnl_pct FROM position_peaks WHERE ticker = ? AND entry_price = ?",
+                (ticker, entry),
+            ).fetchone()
+        return row[0] if row else 0.0
