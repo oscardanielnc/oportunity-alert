@@ -19,6 +19,7 @@ PRICED_THRESHOLDS = {
     "MARA": 25, "RIOT": 25, "MSTR": 25,
     "SOUN": 25, "BBAI": 25, "INOD": 25, "APLD": 25, "IREN": 25,
     "RKLB": 20, "LUNR": 20, "JOBY": 20, "ACHR": 20,
+    "MU": 20,   # semiconductor volátil en earnings — +17% en Mayo-2026 era movimiento real, no priceado
     "NVDA": 15, "TSLA": 15, "SMCI": 15, "RIVN": 15,
     "LCID": 15, "WOLF": 15, "PLTR": 15, "APP": 15,
 }

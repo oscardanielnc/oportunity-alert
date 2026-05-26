@@ -26,7 +26,7 @@ from sources.finnhub_news import fetch_company_news, fetch_market_news
 from sources.reddit_monitor import fetch_reddit_mentions
 from filters.keyword_filter import passes_filter
 from filters.claude_scorer import score_with_claude
-from alerts.twilio_sms import send_sms, format_sms
+from alerts.twilio_sms import send_sms, format_sms, send_raw_message as _send_twilio_raw
 from alerts.alert_logger import log_alert, log_claude_analysis, update_24h_prices, get_recent_alerts
 from utils.alpaca_price import get_realtime_price
 from utils.dedup_store import DedupStore
@@ -36,6 +36,7 @@ from utils.playbook_matcher import find_matching_strategies
 from utils.metrics_store import MetricsStore
 from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
 from utils.delayed_alerts import queue_followup, start_worker
+from utils.premarket_scanner import run_premarket_scan
 
 LIMA = timezone(timedelta(hours=-5))
 
@@ -124,20 +125,25 @@ def get_env_or_die(env_var: str) -> str:
 
 def is_market_open() -> bool:
     """
-    Retorna True si el mercado eToro está accesible para acciones US.
-    Cerrado: viernes 3pm Lima → domingo 7pm Lima.
+    Retorna True si eToro permite operar acciones US (sesión regular + after-hours).
+
+    Sesiones cubiertas (hora Lima, UTC-5):
+      - Lun-Jue: 00:00 → 23:59  (sin corte — pre-market inicia 3am Lima / 4am EDT)
+      - Viernes: 00:00 → 20:00  (after-hours eToro cierra ~8pm EDT = 7pm Lima;
+                                  antes cortaba a las 15:00 Lima y mandaba earnings
+                                  post-market al digest del fin de semana — bug corregido)
+      - Sábado:  CERRADO (digest acumula para domingo)
+      - Domingo: CERRADO hasta 19:00 Lima (eToro reabre ~7pm Lima con mercados asiáticos)
     """
     now = datetime.now(LIMA)
     weekday = now.weekday()   # 0=lun … 4=vie … 5=sab … 6=dom
-    hour = now.hour
-    minute = now.minute
-    total_minutes = hour * 60 + minute
+    total_minutes = now.hour * 60 + now.minute
 
-    if weekday == 4 and total_minutes >= 15 * 60:   # viernes ≥ 15:00 Lima
+    if weekday == 5:                                  # sábado completo
         return False
-    if weekday == 5:                                 # sábado completo
+    if weekday == 6 and total_minutes < 19 * 60:      # domingo antes de 19:00 Lima
         return False
-    if weekday == 6 and total_minutes < 19 * 60:    # domingo antes de 19:00 Lima
+    if weekday == 4 and total_minutes >= 20 * 60:     # viernes ≥ 20:00 Lima
         return False
     return True
 
@@ -163,29 +169,26 @@ def _supervised_thread(name: str, target_fn, *args, **kwargs):
 
 # ── Lógica central ────────────────────────────────────────────────────────────
 
-def _send_twilio_raw(body: str, to_number: str) -> bool:
-    """Envía SMS/WhatsApp de texto libre (para event mode y position tracker)."""
-    try:
-        from twilio.rest import Client as TwilioClient
-        from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
-        sid     = os.environ.get("TWILIO_ACCOUNT_SID", "")
-        token   = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-        if not (sid and token and to_number):
-            return False
-        client = TwilioClient(sid, token)
-        if channel == "whatsapp":
-            client.messages.create(
-                body=body, from_=WHATSAPP_SANDBOX_FROM,
-                to=f"whatsapp:{to_number}",
-            )
-        else:
-            from_ = os.environ.get("TWILIO_FROM", "")
-            client.messages.create(body=body, from_=from_, to=to_number)
-        return True
-    except Exception as e:
-        logger.error(f"[SMS] Error enviando mensaje raw: {e}")
-        return False
+
+_BEARISH_KEYWORDS = {
+    "MISSES ESTIMATES", "MISSES EXPECTATIONS", "FALLS SHORT", "BELOW ESTIMATES",
+    "BELOW CONSENSUS", "BELOW EXPECTATIONS", "DISAPPOINTS", "MISSED ESTIMATES",
+    "EARNINGS MISS", "REVENUE MISS", "LOWERS GUIDANCE", "CUTS GUIDANCE",
+    "GUIDANCE CUT", "WARNS ON", "PROFIT WARNING", "ISSUES WARNING",
+    "FDA REJECTED", "FDA REJECTION", "CLINICAL HOLD", "DOWNGRADE",
+    "LOWERED TO SELL", "SHORT SQUEEZE",  # squeeze puede ser bajista en el subyacente
+}
+
+
+def _guess_direction(article: dict) -> str:
+    """
+    Heurística rápida: si el artículo contiene señales bajistas claras → SHORT.
+    En caso de duda → LONG (más frecuente en catalizadores positivos).
+    """
+    text = article.get("raw_text", "").upper()
+    if any(kw in text for kw in _BEARISH_KEYWORDS):
+        return "SHORT"
+    return "LONG"
 
 
 def process_article(
@@ -209,7 +212,9 @@ def process_article(
         article=article,
         watchlist=watchlist,
         seen_ids=set(),
-        max_age_minutes=config.get("max_article_age_minutes", 45),
+        # None → usa la lógica source-aware en passes_filter (SEC_EDGAR=4h, Finnhub=90min).
+        # Si config.json define "max_article_age_minutes", ese valor overridea todo.
+        max_age_minutes=config.get("max_article_age_minutes"),
     )
     if not passes:
         with _stats_lock:
@@ -241,11 +246,12 @@ def process_article(
     last_alert = dedup.get_last_alert_on_ticker(ticker, hours=4)
 
     # ── Detección de tipo de evento ───────────────────────────────────────────
-    event_type  = detect_event_type(article, price_data)
-    event_mode  = is_event_mode(event_type)
+    event_type      = detect_event_type(article, price_data)
+    event_mode      = is_event_mode(event_type)
+    initial_dir     = _guess_direction(article)
 
     # ── Conviction Gates v2.0 (código puro, < 1 segundo, sin tokens) ──────────
-    conviction = evaluate_conviction(ticker, price_data, direction="LONG")
+    conviction = evaluate_conviction(ticker, price_data, direction=initial_dir)
 
     # En event mode: Gate 2 técnico se reemplaza por análisis de velas 1m
     if event_mode:
@@ -416,6 +422,10 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
             batch = watchlist[ticker_index: ticker_index + batch_size]
             ticker_index = (ticker_index + batch_size) % len(watchlist)
             fetched = 0
+            with _stats_lock:
+                dedup_before    = _stats["dedup"]
+                filtered_before = _stats["filtered"]
+                analyzed_before = _stats["analyzed"]
             for ticker in batch:
                 articles = fetch_company_news(ticker, hours_back=2)
                 fetched += len(articles)
@@ -431,12 +441,17 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
                 if article.get("tickers_found"):
                     process_article(article, watchlist, dedup, config, **kwargs)
                     fetched += 1
+            with _stats_lock:
+                n_dedup    = _stats["dedup"]    - dedup_before
+                n_filtered = _stats["filtered"] - filtered_before
+                n_claude   = _stats["analyzed"] - analyzed_before
             cycle += 1
             tickers_done = cycle * batch_size
             progress = min(tickers_done, len(watchlist))
             logger.info(
                 f"Finnhub: ciclo {cycle} | batch {batch[0] if batch else '?'}-{batch[-1] if batch else '?'} "
-                f"({progress}/{len(watchlist)} tickers) | {fetched} artículos obtenidos"
+                f"({progress}/{len(watchlist)} tickers) | {fetched} obtenidos | "
+                f"{n_dedup} vistos | {n_filtered} sin keywords | {n_claude} → Claude"
             )
         except Exception as e:
             logger.error(f"Error en Finnhub poll: {e}")
@@ -535,28 +550,14 @@ def weekend_digest_loop(twilio_from: str, twilio_to: str):
         lines.append("_Mercado abierto desde ahora — verificar precios antes de entrar_")
         msg_body = "\n".join(lines)
 
-        try:
-            from twilio.rest import Client as TwilioClient
-            from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
-            sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-            token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-            if sid and token and twilio_to:
-                client = TwilioClient(sid, token)
-                channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-                if channel == "whatsapp":
-                    client.messages.create(
-                        body=msg_body,
-                        from_=WHATSAPP_SANDBOX_FROM,
-                        to=f"whatsapp:{twilio_to}",
-                    )
-                else:
-                    client.messages.create(body=msg_body, from_=twilio_from, to=twilio_to)
-                logger.info(
-                    f"[WeekendDigest] Digest enviado: {len(top)} oportunidades "
-                    f"({n_alta} ALTA, {n_media} MEDIA)"
-                )
-        except Exception as e:
-            logger.error(f"[WeekendDigest] Error enviando digest: {e}")
+        sent = _send_twilio_raw(msg_body, twilio_to)
+        if sent:
+            logger.info(
+                f"[WeekendDigest] Digest enviado: {len(top)} oportunidades "
+                f"({n_alta} ALTA, {n_media} MEDIA)"
+            )
+        else:
+            logger.error("[WeekendDigest] Error enviando digest")
 
 
 def heartbeat_loop(twilio_from: str, twilio_to: str):
@@ -586,8 +587,6 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                                "sms_sent": 0, "dedup": 0, "filtered": 0})
 
             fecha = datetime.now(LIMA).strftime("%d/%m/%Y")
-            channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-
             # Estado del mercado y cola acumulada
             market_open = is_market_open()
             with _weekend_lock:
@@ -614,22 +613,8 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 f"{market_line}\n"
                 f"{etoro_line}"
             )
-            from twilio.rest import Client as TwilioClient
-            from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
-            sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-            token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-            if sid and token and twilio_to:
-                client = TwilioClient(sid, token)
-                if channel == "whatsapp":
-                    client.messages.create(
-                        body=msg_body,
-                        from_=WHATSAPP_SANDBOX_FROM,
-                        to=f"whatsapp:{twilio_to}",
-                    )
-                else:
-                    client.messages.create(
-                        body=msg_body, from_=twilio_from, to=twilio_to
-                    )
+            sent = _send_twilio_raw(msg_body, twilio_to)
+            if sent:
                 logger.info(f"Heartbeat enviado: {msg_body.replace(chr(10), ' | ')}")
         except Exception as e:
             logger.error(f"Error en heartbeat: {e}")
@@ -679,24 +664,7 @@ def _send_position_alert(alert: dict, twilio_from: str, twilio_to: str):
         f"→ {action}"
     )
 
-    try:
-        from twilio.rest import Client as TwilioClient
-        from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
-        sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-        token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-        if sid and token and twilio_to:
-            client = TwilioClient(sid, token)
-            if channel == "whatsapp":
-                client.messages.create(
-                    body=body,
-                    from_=WHATSAPP_SANDBOX_FROM,
-                    to=f"whatsapp:{twilio_to}",
-                )
-            else:
-                client.messages.create(body=body, from_=twilio_from, to=twilio_to)
-    except Exception as e:
-        logger.error(f"[PositionTracker] Error SMS: {e}")
+    _send_twilio_raw(body, twilio_to)
 
 
 MOVE_EXPLAIN_THRESHOLD = 3.0   # % de cambio en una posición que merece explicación
@@ -788,7 +756,9 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            positions = etoro_data.get("positions", [])
+            raw_positions = etoro_data.get("positions", [])
+            # Filtrar posiciones con ticker inválido (eToro a veces retorna datos malformados)
+            positions = [p for p in raw_positions if p.get("ticker", "UNKNOWN") != "UNKNOWN"]
 
             # Detectar trades cerrados comparando con snapshot anterior
             prev_tickers = metrics.get_open_tickers_last_snapshot()
@@ -900,6 +870,77 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
         time.sleep(POLL_INTERVAL)
 
 
+# ── Pre-market Scanner ───────────────────────────────────────────────────────
+
+def premarket_scanner_loop(watchlist: list, twilio_to: str, dedup):
+    """
+    Corre a las 6:00am Lima (pasada 1, todo el watchlist) y 7:00am Lima
+    (pasada 2, solo tickers MEDIA de pasada 1) en días hábiles Lun-Vie.
+
+    Detecta momentum pre-market sostenido LONG (≥+2.5%) y SHORT (≤-3.5%)
+    en el rango 3am-6am Lima antes de la apertura regular.
+    """
+    while True:
+        now = datetime.now(LIMA)
+
+        # Próximo 6am Lima en día hábil
+        target = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if now.hour >= 7:
+            # Ya pasó la ventana de hoy — avanzar al día siguiente
+            target += timedelta(days=1)
+        # Saltar sábado (5) y domingo (6)
+        while target.weekday() >= 5:
+            target += timedelta(days=1)
+
+        wait_secs = (target - now).total_seconds()
+        logger.info(
+            f"[PreMarket] Próximo scan en {wait_secs / 3600:.1f}h "
+            f"({target.strftime('%Y-%m-%d %H:%M Lima')})"
+        )
+        time.sleep(max(wait_secs, 1))
+
+        # ── Pasada 1: 6:00am Lima — todo el watchlist ────────────────────────
+        media_tickers = []
+        try:
+            logger.info("[PreMarket] Iniciando pasada 1 — 6:00am Lima")
+            media_tickers = run_premarket_scan(
+                watchlist=watchlist,
+                twilio_to=twilio_to,
+                dedup=dedup,
+                pass_number=1,
+                media_tickers=None,
+            )
+        except Exception as e:
+            logger.error(f"[PreMarket] Error en pasada 1: {e}")
+
+        logger.info(
+            f"[PreMarket] Pasada 1 completada — "
+            f"{len(media_tickers)} tickers MEDIA para re-eval en 60 min"
+        )
+
+        # Esperar hasta 7:00am Lima para la segunda pasada
+        time.sleep(3600)
+
+        # ── Pasada 2: 7:00am Lima — solo tickers MEDIA ───────────────────────
+        if media_tickers:
+            try:
+                logger.info(
+                    f"[PreMarket] Iniciando pasada 2 — 7:00am Lima | "
+                    f"tickers: {media_tickers}"
+                )
+                run_premarket_scan(
+                    watchlist=watchlist,
+                    twilio_to=twilio_to,
+                    dedup=dedup,
+                    pass_number=2,
+                    media_tickers=set(media_tickers),
+                )
+            except Exception as e:
+                logger.error(f"[PreMarket] Error en pasada 2: {e}")
+        else:
+            logger.info("[PreMarket] Pasada 2 omitida — sin tickers MEDIA")
+
+
 # ── Comando status ────────────────────────────────────────────────────────────
 
 def show_status():
@@ -1000,8 +1041,9 @@ def main():
         ("Heartbeat",     heartbeat_loop,       (twilio_from, twilio_to),   {}),
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
+        ("PreMarket",        premarket_scanner_loop,   (watchlist, twilio_to, dedup), {}),
     ]
-    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker (Reddit desactivado — bloqueado por Oracle Cloud IP)")
+    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker, PreMarket (Reddit desactivado — bloqueado por Oracle Cloud IP)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(

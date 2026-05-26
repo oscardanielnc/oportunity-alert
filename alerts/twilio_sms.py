@@ -102,6 +102,37 @@ def format_sms(result: dict) -> str:
     return msg
 
 
+def send_raw_message(body: str, to_number: str) -> bool:
+    """
+    Envía texto libre via el canal configurado (WhatsApp o SMS).
+    Función compartida por todos los módulos del sistema:
+      position_tracker, event_mode, pre-market scanner, weekend_digest, heartbeat.
+    """
+    channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
+    client  = _get_twilio_client()
+    if not client:
+        return False
+
+    to_wa = f"whatsapp:{to_number}" if not to_number.startswith("whatsapp:") else to_number
+
+    try:
+        if channel == "whatsapp":
+            msg = client.messages.create(
+                body=body, from_=WHATSAPP_SANDBOX_FROM, to=to_wa,
+            )
+        else:
+            from_ = os.environ.get("TWILIO_FROM", "")
+            if not from_:
+                logger.error("[Twilio] TWILIO_FROM no configurado para canal SMS")
+                return False
+            msg = client.messages.create(body=body, from_=from_, to=to_number)
+        logger.info(f"[Twilio] Mensaje enviado — SID: {msg.sid} ({len(body)} chars)")
+        return True
+    except Exception as e:
+        logger.error(f"[Twilio] Error en send_raw_message: {e}")
+        return False
+
+
 def send_sms(result: dict, from_number: str, to_number: str) -> bool:
     """
     Envía alerta via el canal configurado: WhatsApp (preferido) o SMS.

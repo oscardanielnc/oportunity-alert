@@ -153,13 +153,20 @@ def health_check() -> dict:
         return {"ok": False, "status": str(e)[:60], "failures": _cb_failures}
 
 
+_INVALID_TICKERS = {"UNKNOWN", "UNKNOW", "N/A", "NULL", "NONE", ""}
+
 def _extract_ticker(pos: dict) -> str:
     for field in ["ticker", "symbol", "instrumentName", "Instrument"]:
         val = pos.get(field, "")
-        if val and len(val) <= 6 and str(val).isupper():
+        if val and len(val) <= 6 and str(val).isupper() and str(val) not in _INVALID_TICKERS:
             return str(val)
     raw = pos.get("instrumentName", pos.get("Instrument", "UNKNOWN"))
-    return str(raw)[:6].upper().replace(" ", "")
+    candidate = str(raw)[:6].upper().replace(" ", "")
+    # Si el nombre completo es algo como "Unknown" o empieza con caracteres no-alpha,
+    # retornar "UNKNOWN" explícitamente para que el position tracker lo filtre.
+    if not candidate.isalpha() or candidate in _INVALID_TICKERS:
+        return "UNKNOWN"
+    return candidate
 
 
 def _calc_pnl_pct(pos: dict) -> float:

@@ -27,32 +27,7 @@ _queued_lock = threading.Lock()
 _worker_started = False
 
 
-# ── Envío de SMS (reutiliza infraestructura Twilio) ───────────────────────────
-
-def _send_raw_sms(body: str, twilio_to: str):
-    try:
-        from twilio.rest import Client as TwilioClient
-        from alerts.twilio_sms import WHATSAPP_SANDBOX_FROM
-        sid     = os.environ.get("TWILIO_ACCOUNT_SID", "")
-        token   = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-        if not (sid and token and twilio_to):
-            logger.warning("[DelayedAlert] Twilio no configurado")
-            return False
-        client = TwilioClient(sid, token)
-        if channel == "whatsapp":
-            client.messages.create(
-                body=body,
-                from_=WHATSAPP_SANDBOX_FROM,
-                to=f"whatsapp:{twilio_to}",
-            )
-        else:
-            from_ = os.environ.get("TWILIO_FROM", "")
-            client.messages.create(body=body, from_=from_, to=twilio_to)
-        return True
-    except Exception as e:
-        logger.error(f"[DelayedAlert] Error enviando SMS: {e}")
-        return False
+from alerts.twilio_sms import send_raw_message as _send_raw_sms
 
 
 # ── Worker que procesa la cola ────────────────────────────────────────────────
