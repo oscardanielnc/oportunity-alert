@@ -715,9 +715,9 @@ def _parse_portfolio_stops() -> dict:
             }
         logger.info(f"[PositionTracker] Stops cargados: {list(stops.keys())}")
     except FileNotFoundError:
-        logger.warning("[PositionTracker] portfolio.md no encontrado — sin stops")
+        pass  # portfolio.md es opcional — stops vienen de eToro directamente
     except Exception as e:
-        logger.warning(f"[PositionTracker] No pudo leer portfolio.md: {e}")
+        logger.debug(f"[PositionTracker] portfolio.md: {e}")
     return stops
 
 
