@@ -139,6 +139,36 @@ class MetricsStore:
                     win_rate              REAL DEFAULT 0
                 );
 
+                CREATE TABLE IF NOT EXISTS premarket_scans (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scan_date        TEXT NOT NULL,
+                    pass_number      INTEGER DEFAULT 1,
+                    ticker           TEXT NOT NULL,
+                    direction        TEXT,
+                    code_score       INTEGER,
+                    ai_conviccion    INTEGER,
+                    ai_continuacion  TEXT,
+                    tipo_catalizador TEXT,
+                    resumen_cataliz  TEXT,
+                    entry_style      TEXT,
+                    change_pct       REAL,
+                    rvol             REAL,
+                    total_vol        INTEGER,
+                    stop_pct         REAL,
+                    target_pct       REAL,
+                    prioridad        TEXT,
+                    sms_sent         INTEGER DEFAULT 0,
+                    timestamp        TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS watchlist (
+                    ticker      TEXT PRIMARY KEY,
+                    category    TEXT DEFAULT 'extended',
+                    added_at    TEXT NOT NULL,
+                    notes       TEXT DEFAULT '',
+                    active      INTEGER DEFAULT 1
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_alerts_ticker  ON alerts(ticker);
                 CREATE INDEX IF NOT EXISTS idx_alerts_date    ON alerts(date_lima);
                 CREATE INDEX IF NOT EXISTS idx_alerts_prio    ON alerts(prioridad);
@@ -146,6 +176,8 @@ class MetricsStore:
                 CREATE INDEX IF NOT EXISTS idx_gate_date      ON gate_events(date_lima);
                 CREATE INDEX IF NOT EXISTS idx_trades_ticker  ON trades(ticker);
                 CREATE INDEX IF NOT EXISTS idx_snap_ticker    ON position_snapshots(ticker);
+                CREATE INDEX IF NOT EXISTS idx_pm_date        ON premarket_scans(scan_date);
+                CREATE INDEX IF NOT EXISTS idx_pm_ticker      ON premarket_scans(ticker);
             """)
             c.commit()
 
@@ -484,6 +516,194 @@ class MetricsStore:
                 ORDER BY close_ts DESC LIMIT ?
             """, (limit,)).fetchall()
         return [dict(r) for r in rows]
+
+    # ── Pre-market scans ──────────────────────────────────────────────────────
+
+    def log_premarket_scan(self, scan: dict):
+        now = datetime.now(LIMA)
+        try:
+            with _conn(self.db_path) as c:
+                c.execute("""
+                    INSERT INTO premarket_scans (
+                        scan_date, pass_number, ticker, direction,
+                        code_score, ai_conviccion, ai_continuacion,
+                        tipo_catalizador, resumen_cataliz, entry_style,
+                        change_pct, rvol, total_vol, stop_pct, target_pct,
+                        prioridad, sms_sent, timestamp
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    scan.get("scan_date", now.strftime("%Y-%m-%d")),
+                    scan.get("pass_number", 1),
+                    scan.get("ticker"),
+                    scan.get("direction"),
+                    scan.get("code_score"),
+                    scan.get("ai_conviccion"),
+                    scan.get("ai_continuacion"),
+                    scan.get("tipo_catalizador"),
+                    scan.get("resumen_cataliz", "")[:300],
+                    scan.get("entry_style"),
+                    scan.get("change_pct"),
+                    scan.get("rvol"),
+                    scan.get("total_vol"),
+                    scan.get("stop_pct"),
+                    scan.get("target_pct"),
+                    scan.get("prioridad"),
+                    1 if scan.get("sms_sent") else 0,
+                    now.strftime("%Y-%m-%dT%H:%M:%S"),
+                ))
+                c.commit()
+        except Exception as e:
+            logger.error(f"[Metrics] Error log_premarket_scan: {e}")
+
+    def get_premarket_scans(self, date: str = None, limit: int = 100) -> list:
+        d = date or datetime.now(LIMA).strftime("%Y-%m-%d")
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT * FROM premarket_scans
+                WHERE scan_date = ?
+                ORDER BY code_score DESC, ai_conviccion DESC
+                LIMIT ?
+            """, (d, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── Dashboard queries ─────────────────────────────────────────────────────
+
+    def get_alerts_recent(
+        self,
+        hours: int = 24,
+        prioridad: str = None,
+        ticker: str = None,
+    ) -> list:
+        cutoff = (datetime.now(LIMA) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S")
+        filters = ["ts >= ?"]
+        params: list = [cutoff]
+        if prioridad:
+            filters.append("prioridad = ?")
+            params.append(prioridad)
+        if ticker:
+            filters.append("ticker = ?")
+            params.append(ticker.upper())
+        where = " AND ".join(filters)
+        with _conn(self.db_path) as c:
+            rows = c.execute(f"""
+                SELECT id, alert_id, ticker, ts, date_lima,
+                       prioridad, tipo_catalizador, direccion, pct_estimado,
+                       conviction_score, entry_price, stop_code, target_code,
+                       precio_al_alerta, source, ai_engine, sms_enviado,
+                       horizonte_tiempo, resumen_cataliz, raw_json
+                FROM alerts
+                WHERE {where}
+                ORDER BY
+                    CASE prioridad
+                        WHEN 'ALTA'  THEN 1
+                        WHEN 'MEDIA' THEN 2
+                        WHEN 'BAJA'  THEN 3
+                        ELSE 4
+                    END,
+                    ts DESC
+            """, params).fetchall()
+
+        results = []
+        for r in rows:
+            row = dict(r)
+            raw_str = row.pop("raw_json") or "{}"
+            try:
+                raw = json.loads(raw_str)
+                row["stop"]              = raw.get("stop", "N/A")
+                row["target"]            = raw.get("target", "N/A")
+                row["timing_entrada"]    = raw.get("timing_entrada", "N/A")
+                row["riesgo"]            = raw.get("riesgo", "")
+                row["entrada_rango"]     = raw.get("entrada_rango", "N/A")
+                row["salida_fecha"]      = raw.get("salida_fecha", "")
+                row["confianza"]         = raw.get("confianza", "")
+                row["article_url"]       = raw.get("article_url", "")
+            except Exception:
+                pass
+            results.append(row)
+        return results
+
+    def get_latest_positions(self) -> list:
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT ticker, direction, open_rate, current_rate,
+                       units, invested, net_profit, net_profit_pct, ts
+                FROM position_snapshots
+                WHERE ts = (SELECT MAX(ts) FROM position_snapshots)
+                ORDER BY net_profit_pct DESC
+            """).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_daily_summary(self, date: str = None) -> dict:
+        d = date or datetime.now(LIMA).strftime("%Y-%m-%d")
+        with _conn(self.db_path) as c:
+            row = c.execute(
+                "SELECT * FROM daily_summary WHERE date = ?", (d,)
+            ).fetchone()
+        return dict(row) if row else {"date": d}
+
+    # ── Watchlist CRUD ────────────────────────────────────────────────────────
+
+    def get_watchlist(self) -> list:
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT ticker, category, added_at, notes
+                FROM watchlist WHERE active = 1
+                ORDER BY category, ticker
+            """).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_ticker(self, ticker: str, category: str = "extended", notes: str = "") -> bool:
+        now = datetime.now(LIMA).strftime("%Y-%m-%dT%H:%M:%S")
+        try:
+            with _conn(self.db_path) as c:
+                existing = c.execute(
+                    "SELECT active FROM watchlist WHERE ticker = ?", (ticker,)
+                ).fetchone()
+                if existing:
+                    if existing["active"]:
+                        return False
+                    c.execute(
+                        "UPDATE watchlist SET active=1, category=?, notes=? WHERE ticker=?",
+                        (category, notes, ticker),
+                    )
+                else:
+                    c.execute(
+                        "INSERT INTO watchlist (ticker, category, added_at, notes, active) VALUES (?,?,?,?,1)",
+                        (ticker, category, now, notes),
+                    )
+                c.commit()
+            return True
+        except Exception as e:
+            logger.error(f"[Metrics] Error add_ticker: {e}")
+            return False
+
+    def remove_ticker(self, ticker: str) -> bool:
+        try:
+            with _conn(self.db_path) as c:
+                cur = c.execute(
+                    "UPDATE watchlist SET active=0 WHERE ticker=? AND active=1", (ticker,)
+                )
+                c.commit()
+                return cur.rowcount > 0
+        except Exception as e:
+            logger.error(f"[Metrics] Error remove_ticker: {e}")
+            return False
+
+    def init_watchlist_from_list(self, tickers: list) -> int:
+        """Seed watchlist from list if table is empty. Returns number added."""
+        with _conn(self.db_path) as c:
+            count = c.execute("SELECT COUNT(*) FROM watchlist WHERE active=1").fetchone()[0]
+        if count > 0:
+            return 0
+        added = 0
+        primary = {"NVDA", "TSLA", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "AMD",
+                   "INTC", "MU", "PLTR", "APP", "SMCI", "MSTR", "MARA", "RIOT"}
+        for t in tickers:
+            cat = "primary" if t in primary else "extended"
+            if self.add_ticker(t, category=cat):
+                added += 1
+        logger.info(f"[Metrics] Watchlist inicializada: {added} tickers")
+        return added
 
     def get_summary_stats(self) -> dict:
         """Stats globales de todo el historial."""

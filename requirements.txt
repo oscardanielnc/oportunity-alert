@@ -30,3 +30,7 @@ anthropic==0.40.0
 python-dateutil==2.9.0
 pytz==2024.1
 python-dotenv==1.0.1
+
+# Dashboard API
+fastapi==0.115.0
+uvicorn==0.30.0

@@ -736,6 +736,7 @@ def run_premarket_scan(
     dedup,
     pass_number: int = 1,
     media_tickers: Optional[set] = None,
+    metrics=None,
 ) -> list:
     """
     Escanea el watchlist buscando momentum pre-market sostenido (LONG y SHORT).
@@ -873,14 +874,18 @@ def run_premarket_scan(
                     f"{ai_result['resumen_cataliz'][:65]}"
                 )
 
+                sms_sent      = False
+                final_prioridad = "BAJA"
+
                 if conviccion >= score_alta_effective:
+                    final_prioridad = "ALTA"
                     body = _format_premarket_sms(
                         ticker, direction, momentum, ai_result, prev_close,
                         code_score, score_breakdown,
                         is_second_pass=(pass_number == 2),
                     )
-                    sent = send_raw_message(body, twilio_to)
-                    if sent:
+                    sms_sent = send_raw_message(body, twilio_to)
+                    if sms_sent:
                         n_alerts += 1
                         dedup.set_flag(f"premarket_alta_{ticker}_{today_str}", ttl_hours=20)
                         dedup.set_flag(f"premarket_media_{ticker}_{today_str}", ttl_hours=20)
@@ -891,14 +896,15 @@ def run_premarket_scan(
                         )
 
                 elif conviccion >= SCORE_MEDIA and pass_number == 1:
+                    final_prioridad = "MEDIA"
                     media_key = f"premarket_media_{ticker}_{today_str}"
                     if not dedup.has_flag(media_key):
                         body = _format_premarket_sms(
                             ticker, direction, momentum, ai_result, prev_close,
                             code_score, score_breakdown,
                         )
-                        sent = send_raw_message(body, twilio_to)
-                        if sent:
+                        sms_sent = send_raw_message(body, twilio_to)
+                        if sms_sent:
                             n_alerts += 1
                             media_found.append(ticker)
                             dedup.set_flag(media_key, ttl_hours=20)
@@ -912,6 +918,28 @@ def run_premarket_scan(
                         f"[PreMarket] {ticker} {direction} silencio — "
                         f"IA={conviccion}/10 insuficiente"
                     )
+
+                # Registrar en métricas para el dashboard (todos los candidatos que pasaron IA)
+                if metrics:
+                    metrics.log_premarket_scan({
+                        "scan_date":       today_str,
+                        "pass_number":     pass_number,
+                        "ticker":          ticker,
+                        "direction":       direction,
+                        "code_score":      code_score,
+                        "ai_conviccion":   conviccion,
+                        "ai_continuacion": ai_result["continuacion"],
+                        "tipo_catalizador": ai_result["tipo_catalizador"],
+                        "resumen_cataliz": ai_result["resumen_cataliz"],
+                        "entry_style":     ai_result["entry_style"],
+                        "change_pct":      momentum["total_change_pct"],
+                        "rvol":            momentum.get("rvol", 0),
+                        "total_vol":       momentum.get("total_premarket_vol", 0),
+                        "stop_pct":        ai_result["stop_pct"],
+                        "target_pct":      ai_result["target_pct"],
+                        "prioridad":       final_prioridad,
+                        "sms_sent":        sms_sent,
+                    })
 
         except Exception as e:
             logger.error(f"[PreMarket] Error en {ticker}: {e}")

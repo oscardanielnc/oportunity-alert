@@ -37,6 +37,7 @@ from utils.metrics_store import MetricsStore
 from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
 from utils.delayed_alerts import queue_followup, start_worker
 from utils.premarket_scanner import run_premarket_scan
+from api.app import run_dashboard
 
 LIMA = timezone(timedelta(hours=-5))
 
@@ -909,6 +910,7 @@ def premarket_scanner_loop(watchlist: list, twilio_to: str, dedup):
                 dedup=dedup,
                 pass_number=1,
                 media_tickers=None,
+                metrics=_metrics,
             )
         except Exception as e:
             logger.error(f"[PreMarket] Error en pasada 1: {e}")
@@ -934,6 +936,7 @@ def premarket_scanner_loop(watchlist: list, twilio_to: str, dedup):
                     dedup=dedup,
                     pass_number=2,
                     media_tickers=set(media_tickers),
+                    metrics=_metrics,
                 )
             except Exception as e:
                 logger.error(f"[PreMarket] Error en pasada 2: {e}")
@@ -1017,6 +1020,11 @@ def main():
     _metrics = MetricsStore()
     logger.info("MetricsStore inicializado")
 
+    # Seed watchlist desde config si la tabla está vacía (primera vez)
+    seeded = _metrics.init_watchlist_from_list(watchlist)
+    if seeded:
+        logger.info(f"Watchlist inicial cargada en DB: {seeded} tickers")
+
     start_worker()
     logger.info("DelayedAlerts worker iniciado")
 
@@ -1042,6 +1050,7 @@ def main():
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("PreMarket",        premarket_scanner_loop,   (watchlist, twilio_to, dedup), {}),
+        ("Dashboard",        run_dashboard,            (),                            {}),
     ]
     logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker, PreMarket (Reddit desactivado — bloqueado por Oracle Cloud IP)")
 
