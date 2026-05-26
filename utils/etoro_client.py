@@ -230,6 +230,9 @@ def get_portfolio() -> dict:
         positions = []
         for p in raw_positions:
             ticker = _extract_ticker(p)
+            if ticker in _INVALID_TICKERS:
+                logger.debug(f"[eToro] Posicion con ticker invalido descartada: {p}")
+                continue
             positions.append({
                 "ticker": ticker,
                 "instrument_id": p.get("instrumentID") or p.get("instrumentId"),

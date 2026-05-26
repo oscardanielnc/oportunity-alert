@@ -346,8 +346,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
     <div id="p-noticias" class="panel on">
       <div class="stats-strip" id="n-stats">
         <div class="stat-cell"><div class="stat-label">Total alertas</div><div class="stat-value" id="ns-total">—</div><div class="stat-sub">últimas 24h</div></div>
-        <div class="stat-cell"><div class="stat-label">Alta prioridad</div><div class="stat-value c-red" id="ns-alta">—</div><div class="stat-sub">activas</div></div>
-        <div class="stat-cell"><div class="stat-label">Media prioridad</div><div class="stat-value c-yellow" id="ns-media">—</div><div class="stat-sub">activas</div></div>
+        <div class="stat-cell"><div class="stat-label">Score 7-10</div><div class="stat-value c-red" id="ns-alta">—</div><div class="stat-sub">SMS enviados</div></div>
+        <div class="stat-cell"><div class="stat-label">Score 4-6</div><div class="stat-value c-yellow" id="ns-media">—</div><div class="stat-sub">solo log</div></div>
         <div class="stat-cell"><div class="stat-label">SMS enviados</div><div class="stat-value c-green" id="ns-sms">—</div><div class="stat-sub">notificados</div></div>
       </div>
       <div class="filter-row">
@@ -358,12 +358,12 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
           <option value="72">Últimas 72h</option>
           <option value="168">Última semana</option>
         </select>
-        <label>Prioridad:</label>
+        <label>Score:</label>
         <select class="sel" id="f-prio" onchange="loadAlerts()">
-          <option value="">Todas</option>
-          <option value="ALTA">ALTA</option>
-          <option value="MEDIA">MEDIA</option>
-          <option value="BAJA">BAJA</option>
+          <option value="">Todos</option>
+          <option value="ALTA">7-10 (SMS)</option>
+          <option value="MEDIA">4-6 (log)</option>
+          <option value="BAJA">1-3 (bajo)</option>
         </select>
         <input class="inp inp-ticker" id="f-ticker" type="text"
                placeholder="Buscar ticker…" maxlength="6"
@@ -557,15 +557,15 @@ async function loadAlerts() {
     const data = await api(url);
     // stats strip
     const total = data.length;
-    const alta  = data.filter(a => a.prioridad === 'ALTA').length;
-    const media = data.filter(a => a.prioridad === 'MEDIA').length;
+    const alta  = data.filter(a => (a.score_ia ?? 0) >= 7).length;
+    const media = data.filter(a => (a.score_ia ?? 0) >= 4 && (a.score_ia ?? 0) < 7).length;
     const sms   = data.filter(a => a.sms_enviado).length;
     setText('ns-total', total);
     setText('ns-alta',  alta);
     setText('ns-media', media);
     setText('ns-sms',   sms);
     // hot badge
-    const hot = data.filter(a => a.prioridad === 'ALTA' && minsAgo(a.ts) < 60).length;
+    const hot = data.filter(a => (a.score_ia ?? 0) >= 7 && minsAgo(a.ts) < 60).length;
     const hb = document.getElementById('hb-badge');
     if (hot) { hb.textContent = `${hot} ALTA · <1h`; hb.style.display = ''; }
     else      { hb.style.display = 'none'; }
@@ -579,10 +579,24 @@ async function loadAlerts() {
   }
 }
 
+function scoreClass(s) {
+  if (s >= 9) return 'alta';
+  if (s >= 7) return 'alta';
+  if (s >= 4) return 'media';
+  return 'baja';
+}
+function scoreColor(s) {
+  if (s >= 9) return 'var(--red)';
+  if (s >= 7) return 'var(--yellow)';
+  if (s >= 4) return 'var(--text2)';
+  return 'var(--text3)';
+}
+
 function renderAlert(a) {
-  const p    = (a.prioridad || 'BAJA').toLowerCase();
+  const score = a.score_ia ?? 0;
+  const p    = scoreClass(score);
   const dir  = (a.direccion || '').toLowerCase();
-  const pct  = a.pct_estimado ? `~+${a.pct_estimado.toFixed(0)}%` : '';
+  const pct  = a.pct_estimado ? `~+${a.pct_estimado.toFixed(0)}% obj.` : '';
   const age  = timeAgo(a.ts);
   const src  = fmtSrc(a.source || '');
   const conv = a.conviction_score ?? '—';
@@ -594,10 +608,11 @@ function renderAlert(a) {
   const urlL = a.article_url ? `<a href="${a.article_url}" target="_blank">Ver fuente ↗</a>` : '';
   const risk = a.riesgo || '';
   const catT = a.tipo_catalizador ? `${catIcon(a.tipo_catalizador)} ${esc(a.tipo_catalizador.replace(/_/g,' '))}` : '';
+  const bar  = '█'.repeat(score) + '░'.repeat(10 - score);
 
   return `<div class="acard ${p}">
   <div class="acard-head">
-    <span class="prio ${p}">${a.prioridad || 'BAJA'}</span>
+    <span class="prio ${p}" style="font-size:12px;letter-spacing:0;padding:3px 10px;color:${scoreColor(score)}"><strong>${score}</strong><span style="font-size:9px;opacity:.7">/10</span></span>
     <span class="acard-ticker">${a.ticker}</span>
     ${dir ? `<span class="dir-pill ${dir}">${(a.direccion||'').toUpperCase()}</span>` : ''}
     ${pct ? `<span class="pct-badge">${pct}</span>` : ''}
@@ -612,7 +627,7 @@ function renderAlert(a) {
     ${tim  ? `<span>· ${esc(tim)}</span>` : ''}
     ${urlL ? `<span>· ${urlL}</span>` : ''}
     <span>· Conv. <strong>${conv}/7</strong></span>
-    ${a.confianza ? `<span>· IA <strong>${a.confianza}</strong></span>` : ''}
+    <span style="font-family:monospace;letter-spacing:0;color:${scoreColor(score)}">${bar}</span>
   </div>
   <div class="acard-nums">
     <div class="num-cell"><div class="nl">Entrada</div><div class="nv">${en}</div></div>

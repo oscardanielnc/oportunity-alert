@@ -29,8 +29,7 @@
     "twilio_to": "+51929178606"
   },
   "claude_model": "claude-sonnet-4-6",
-  "send_sms_priorities": ["ALTA", "MEDIA"],
-  "log_only_priorities": ["BAJA"],
+  "min_score_sms": 7,
   "sec_edgar": {
     "user_agent": "OportunityAlert oscar@pairus.ai",
     "feed_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom"

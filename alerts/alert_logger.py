@@ -17,12 +17,10 @@ ANALYSIS_LOG = os.path.join(os.path.dirname(__file__), "..", "data", "claude_ana
 
 def _is_actionable(result: dict) -> bool:
     """
-    Una alerta es accionable si tiene prioridad ALTA/MEDIA/BAJA
-    Y tiene entrada, stop y target reales (no N/A).
-    DESCARTADO, ERROR y alertas sin operativa → no se guardan en historial.
+    Una alerta es accionable si score_ia >= 1 y tiene entrada, stop y target reales.
+    Errores (score_ia=0) y alertas sin operativa no se guardan en historial.
     """
-    prioridad = result.get("prioridad", "")
-    if prioridad not in ("ALTA", "MEDIA", "BAJA"):
+    if int(result.get("score_ia") or 0) < 1:
         return False
     entrada = result.get("entrada_rango", "N/A") or "N/A"
     stop = result.get("stop", "N/A") or "N/A"
@@ -43,10 +41,10 @@ def log_claude_analysis(result: dict) -> None:
     os.makedirs(os.path.dirname(analysis_path), exist_ok=True)
 
     ticker = result.get("ticker", "?")
+    score_ia = int(result.get("score_ia") or 0)
     prioridad = result.get("prioridad", "?")
     direccion = result.get("direccion", "?")
     catalizador = result.get("resumen_cataliz", "?")
-    confianza = result.get("confianza", "?")
     precio = result.get("precio_al_alerta")
     source = result.get("source", "?")
     age = result.get("age_minutes", 0)
@@ -67,11 +65,12 @@ def log_claude_analysis(result: dict) -> None:
         target = result.get("target", "N/A")
         timing = result.get("timing_entrada", "N/A")
         horizonte = result.get("horizonte_tiempo", "N/A")
+        pct = result.get("pct_estimado", 0)
+        pct_str = f" ~+{pct:.0f}%" if pct else ""
 
         line = (
-            f"[{now}] {prioridad:<11} | {ticker:<6} {direccion:<5} | "
-            f"confianza={confianza:<5} | precio={precio_str} | "
-            f"fuente={source} | hace {age:.0f}min\n"
+            f"[{now}] {score_ia}/10 {prioridad:<5} | {ticker:<6} {direccion:<5} | "
+            f"precio={precio_str}{pct_str} | fuente={source} | hace {age:.0f}min\n"
             f"             catalizador: {catalizador}\n"
             f"             operativa: entrada={entrada} | stop={stop} | target={target}\n"
             f"             timing={timing} | horizonte={horizonte}"
@@ -87,11 +86,10 @@ def log_claude_analysis(result: dict) -> None:
     if error:
         logger.error(f"[CLAUDE ERROR] {ticker}: {error}")
     else:
-        icon = {"ALTA": "***", "MEDIA": "**", "BAJA": "*", "DESCARTADO": "---"}.get(prioridad, "?")
+        stars = "★" * min(score_ia, 10) + "☆" * (10 - min(score_ia, 10))
         logger.info(
-            f"[CLAUDE {icon}] {ticker} {prioridad} {direccion} | "
-            f"confianza={confianza} | precio={precio_str} | "
-            f"{catalizador[:70]}"
+            f"[CLAUDE {score_ia}/10] {ticker} {prioridad} {direccion} | "
+            f"precio={precio_str}{pct_str} | {catalizador[:70]}"
         )
 
 

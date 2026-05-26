@@ -45,10 +45,11 @@ def format_sms(result: dict) -> str:
     source = result.get("source", "")
     age = result.get("age_minutes", 0)
 
-    header_emoji = "🚨" if prioridad == "ALTA" else "⚠️"
+    score_ia = int(result.get("score_ia") or 0)
+    score_bar = "█" * score_ia + "░" * (10 - score_ia)
     dir_emoji = "📈" if direccion == "LONG" else "📉"
     precio_str = f"${precio:.2f}" if precio else "N/A"
-    pct_str = f" (~+{pct_estimado:.0f}% potencial)" if pct_estimado else ""
+    pct_str = f" (~+{pct_estimado:.0f}% objetivo ATR)" if pct_estimado else ""
     fuente_str = "SEC 8-K" if "EDGAR" in source else source.replace("FINNHUB_", "").replace("REDDIT_", "Reddit/")
 
     # Resumen de catalizador: primera oración o 120 chars
@@ -63,7 +64,7 @@ def format_sms(result: dict) -> str:
     consideraciones_str = "\n".join(consideraciones)
 
     msg = (
-        f"{header_emoji} *{prioridad}*\n"
+        f"🎯 *{score_ia}/10* [{score_bar}]\n"
         f"\n"
         f"*{ticker}* [{direccion}] {dir_emoji}\n"
         f"\n"

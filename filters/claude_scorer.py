@@ -130,8 +130,8 @@ def _build_prompt(
     system_prompt = (
         "Eres el sistema de alertas de trading de Oscar, 25 años, ingeniero, capital $6,000 en eToro. "
         "Oscar busca movimientos de 15-100%+ en 1-5 días. Opera LONG y SHORT en eToro 24h. "
-        "Tu trabajo: DETECTAR y CLASIFICAR catalizadores. NO calcules stops ni targets — "
-        "los calcula el código por ATR. Ante duda entre MEDIA y BAJA → usa MEDIA. "
+        "Tu trabajo: DETECTAR y CLASIFICAR catalizadores con un score_ia del 1 al 10. "
+        "NO calcules stops ni targets — los calcula el código por ATR. "
         "Responde SOLO con JSON válido, sin texto adicional, sin markdown."
     )
 
@@ -150,17 +150,22 @@ Resumen: {summary[:450]}
 RESPONDE SOLO con este JSON (entrada/stop/target los agrega el codigo — no los calcules):
 {{
   "ticker": "{ticker}",
-  "prioridad": "ALTA|MEDIA|BAJA|DESCARTADO",
+  "score_ia": 0,
   "tipo_catalizador": "DIRECTO|SECTORIAL|RUMOR",
   "direccion": "LONG|SHORT",
-  "pct_estimado": 0.0,
   "catalizador_priceado": false,
   "resumen_cataliz": "descripcion en 1 linea del catalizador",
   "timing_entrada": "ahora AH | apertura 8:30am Lima | esperar pullback a $X",
   "horizonte_tiempo": "mismo dia | Day+1 | 3-5 dias",
-  "riesgo": "descripcion del riesgo principal en 1 linea",
-  "confianza": "ALTA|MEDIA|BAJA"
-}}"""
+  "riesgo": "descripcion del riesgo principal en 1 linea"
+}}
+
+score_ia — escala ESTRICTA del 1 al 10 (entero):
+  9-10: catalizador transformacional directo, no priceado, direccion inequivoca (FDA aprobado, contrato billonario, earnings beat masivo)
+  7-8 : catalizador claro y nuevo, buena certeza de direccion, vale entrar sin dudas
+  5-6 : catalizador real pero con dudas notables de impacto, timing o si ya esta priceado
+  3-4 : señal debil, ambigua o catalizador ya parcialmente absorbido por el mercado
+  1-2 : especulativo, sin evidencia solida o precio ya movio lo que correspondia"""
 
     return system_prompt, user_prompt
 
@@ -198,14 +203,19 @@ def score_with_claude(
         logger.error(f"[Scorer] {ticker}: {msg}")
         return _error_result(article, ticker, msg)
 
+    # Derivar prioridad y pct_estimado desde código (no desde IA)
+    score_ia = int(result.get("score_ia") or 0)
+    result["score_ia"] = score_ia
+    result["prioridad"] = _score_to_prioridad(score_ia)
+
     # Post-procesamiento: inyectar stops/targets/convicción calculados por código
     if conviction:
         entry  = conviction.get("entry_price", 0)
         stop   = conviction.get("stop_code", 0)
         target = conviction.get("target_code", 0)
-        result["entrada_rango"]     = f"${entry:.2f}"
-        result["stop"]              = f"${stop:.2f}"
-        result["target"]            = f"${target:.2f}"
+        result["entrada_rango"]     = f"${entry:.2f}" if entry  > 0 else "N/A"
+        result["stop"]              = f"${stop:.2f}"   if stop   > 0 else "N/A"
+        result["target"]            = f"${target:.2f}" if target > 0 else "N/A"
         result["conviction_score"]  = conviction.get("conviction_score")
         result["gate_detail"]       = conviction.get("reasoning", "")
         result["salida_fecha"]      = _calc_exit_date(result.get("horizonte_tiempo", "3-5 dias"))
@@ -213,12 +223,20 @@ def score_with_claude(
             f"Salir si baja de ${stop:.2f} (stop ATR) "
             f"o RSI > 78 sin confirmación de volumen"
         )
+        # pct_estimado calculado por código desde target ATR (más confiable que estimado IA)
+        if entry > 0 and target > 0:
+            direction = result.get("direccion", "LONG")
+            raw_pct = (target - entry) / entry * 100 if direction == "LONG" else (entry - target) / entry * 100
+            result["pct_estimado"] = round(abs(raw_pct), 1)
+        else:
+            result["pct_estimado"] = 0.0
     else:
         result.setdefault("entrada_rango",    f"${price_data.get('current_price', 0):.2f}")
         result.setdefault("stop",             "N/A")
         result.setdefault("target",           "N/A")
         result.setdefault("salida_fecha",     _calc_exit_date(result.get("horizonte_tiempo", "3-5 dias")))
         result.setdefault("salida_anticipada", "Ver análisis")
+        result.setdefault("pct_estimado", 0.0)
 
     # Metadatos
     result["article_id"]         = article.get("id", "")
@@ -233,9 +251,20 @@ def score_with_claude(
     return result
 
 
+def _score_to_prioridad(score: int) -> str:
+    if score >= 7:
+        return "ALTA"
+    if score >= 4:
+        return "MEDIA"
+    if score >= 1:
+        return "BAJA"
+    return "ERROR"
+
+
 def _error_result(article: dict, ticker: str, error_msg: str) -> dict:
     return {
         "ticker":              ticker,
+        "score_ia":            0,
         "prioridad":           "ERROR",
         "tipo_catalizador":    "desconocido",
         "direccion":           "N/A",
@@ -250,7 +279,6 @@ def _error_result(article: dict, ticker: str, error_msg: str) -> dict:
         "salida_fecha":        "N/A",
         "salida_anticipada":   "N/A",
         "riesgo":              "Error en análisis",
-        "confianza":           "BAJA",
         "article_id":          article.get("id", ""),
         "article_url":         article.get("url", ""),
         "source":              article.get("source", ""),

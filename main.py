@@ -100,18 +100,55 @@ def load_config(path: str = "config.json") -> dict:
 
 
 def get_watchlist(config: dict) -> list[str]:
+    """
+    Fuentes en orden de prioridad (todas se fusionan):
+    1. metrics.db watchlist table  — gestionada por el frontend (fuente canónica)
+    2. config.json                 — seed inicial y fallback
+    3. watchlist.txt               — CLI legacy
+    """
+    tickers = []
+
+    # 1. DB watchlist (la que gestiona el frontend)
     try:
-        from watchlist import get_tickers
-        tickers = get_tickers()
-        if tickers:
-            return tickers
+        import sqlite3
+        from pathlib import Path
+        db_path = Path(__file__).parent / "data" / "metrics.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            rows = conn.execute(
+                "SELECT ticker FROM watchlist WHERE active=1 ORDER BY category, ticker"
+            ).fetchall()
+            conn.close()
+            tickers.extend(row[0] for row in rows)
     except Exception:
         pass
+
+    # 2. config.json (merge — agrega los que no estén ya en DB)
     wl = config.get("watchlist", {})
-    tickers = []
-    for cat in ["primary", "extended"]:
+    for cat in ["primary", "extended", "crypto"]:
         tickers.extend(wl.get(cat, []))
-    return list(dict.fromkeys(tickers))
+
+    # 3. watchlist.txt legacy
+    try:
+        from watchlist import get_tickers
+        tickers.extend(get_tickers())
+    except Exception:
+        pass
+
+    return list(dict.fromkeys(tickers))  # dedup preservando orden
+
+
+def get_live_watchlist() -> list[str]:
+    """
+    Versión dinámica: consulta la DB en tiempo real.
+    Usada por los loops para detectar tickers añadidos sin reiniciar el servicio.
+    """
+    if _metrics is None:
+        return []
+    try:
+        return [row["ticker"] for row in _metrics.get_watchlist()]
+    except Exception:
+        return []
 
 
 def get_env_or_die(env_var: str) -> str:
@@ -292,6 +329,7 @@ def process_article(
     model = os.environ.get("CLAUDE_MODEL", config.get("claude_model", "claude-sonnet-4-6"))
     result = score_with_claude(article, price_data, model=model, conviction=conviction)
 
+    score_ia  = int(result.get("score_ia") or 0)
     prioridad = result.get("prioridad", "BAJA")
     direction = result.get("direccion", "")
 
@@ -299,13 +337,14 @@ def process_article(
     playbook_matches = find_matching_strategies(result.get("resumen_cataliz", ""))
     result["playbook_matches"] = playbook_matches
 
-    # ── Gate 5: Portfolio gate eToro (puede degradar prioridad) ───────────────
+    # ── Gate 5: Portfolio gate eToro (puede reducir score si no puede entrar) ─
     portfolio_gate = check_portfolio_gate(ticker)
     result["portfolio_gate"] = portfolio_gate
 
-    if not portfolio_gate["can_enter"] and prioridad == "ALTA":
-        prioridad = "MEDIA"
-        result["prioridad"] = "MEDIA"
+    if not portfolio_gate["can_enter"] and score_ia >= 9:
+        score_ia = max(7, score_ia - 2)
+        result["score_ia"] = score_ia
+        result["prioridad"] = prioridad  # sigue ALTA (7+)
         result["resumen_cataliz"] = (
             f"[Portfolio: {portfolio_gate['reason']}] "
             + result.get("resumen_cataliz", "")
@@ -341,8 +380,9 @@ def process_article(
                 + result.get("resumen_cataliz", "")
             )
 
+    min_score_sms = config.get("min_score_sms", 7)
     sms_enviado = False
-    if prioridad in send_priorities:
+    if score_ia >= min_score_sms:
         market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
 
@@ -372,12 +412,12 @@ def process_article(
             with _weekend_lock:
                 _weekend_queue.append(result)
             logger.info(
-                f"[ACUMULADO] {ticker} {prioridad} — mercado cerrado, "
+                f"[ACUMULADO] {ticker} score={score_ia}/10 — mercado cerrado, "
                 f"se incluirá en digest del domingo 7pm Lima "
                 f"(cola: {len(_weekend_queue)} items)"
             )
 
-    if prioridad in send_priorities or prioridad in log_priorities:
+    if score_ia >= 1:  # loguear todo lo que la IA puntuó (excepto errores)
         log_alert(result, sms_enviado=sms_enviado, _skip_analysis_log=True)
         if _metrics:
             _metrics.log_alert(result, conviction=conviction, sms_enviado=sms_enviado)
@@ -392,13 +432,14 @@ def edgar_loop(config, watchlist, dedup, **kwargs):
     interval = config.get("intervals_seconds", {}).get("edgar", 90)
     while True:
         try:
-            articles = fetch_8k_filings(watchlist)
+            live_wl = get_live_watchlist() or watchlist
+            articles = fetch_8k_filings(live_wl)
             with _stats_lock:
                 dedup_before = _stats["dedup"]
                 filtered_before = _stats["filtered"]
                 analyzed_before = _stats["analyzed"]
             for article in articles:
-                process_article(article, watchlist, dedup, config, **kwargs)
+                process_article(article, live_wl, dedup, config, **kwargs)
             with _stats_lock:
                 n_dedup = _stats["dedup"] - dedup_before
                 n_filtered = _stats["filtered"] - filtered_before
@@ -420,8 +461,9 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
     cycle = 0
     while True:
         try:
-            batch = watchlist[ticker_index: ticker_index + batch_size]
-            ticker_index = (ticker_index + batch_size) % len(watchlist)
+            live_wl = get_live_watchlist() or watchlist
+            batch = live_wl[ticker_index: ticker_index + batch_size]
+            ticker_index = (ticker_index + batch_size) % len(live_wl)
             fetched = 0
             with _stats_lock:
                 dedup_before    = _stats["dedup"]
@@ -431,16 +473,16 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
                 articles = fetch_company_news(ticker, hours_back=2)
                 fetched += len(articles)
                 for article in articles:
-                    process_article(article, watchlist, dedup, config, **kwargs)
+                    process_article(article, live_wl, dedup, config, **kwargs)
             market_articles = fetch_market_news()
             for article in market_articles:
                 if not article.get("tickers_found"):
                     from filters.keyword_filter import extract_tickers_from_text
                     article["tickers_found"] = extract_tickers_from_text(
-                        article.get("raw_text", ""), watchlist
+                        article.get("raw_text", ""), live_wl
                     )
                 if article.get("tickers_found"):
-                    process_article(article, watchlist, dedup, config, **kwargs)
+                    process_article(article, live_wl, dedup, config, **kwargs)
                     fetched += 1
             with _stats_lock:
                 n_dedup    = _stats["dedup"]    - dedup_before
@@ -448,10 +490,10 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
                 n_claude   = _stats["analyzed"] - analyzed_before
             cycle += 1
             tickers_done = cycle * batch_size
-            progress = min(tickers_done, len(watchlist))
+            progress = min(tickers_done, len(live_wl))
             logger.info(
                 f"Finnhub: ciclo {cycle} | batch {batch[0] if batch else '?'}-{batch[-1] if batch else '?'} "
-                f"({progress}/{len(watchlist)} tickers) | {fetched} obtenidos | "
+                f"({progress}/{len(live_wl)} tickers) | {fetched} obtenidos | "
                 f"{n_dedup} vistos | {n_filtered} sin keywords | {n_claude} → Claude"
             )
         except Exception as e:
@@ -561,10 +603,33 @@ def weekend_digest_loop(twilio_from: str, twilio_to: str):
             logger.error("[WeekendDigest] Error enviando digest")
 
 
+def _startup_ping(twilio_to: str):
+    """
+    Envía mensaje de arranque al iniciar el sistema.
+    Sirve como verificación de canal WhatsApp y aviso de reinicio.
+    Si no llega → sesión sandbox expirada → enviar 'join <palabra>' al +14155238886.
+    """
+    now_str = datetime.now(LIMA).strftime("%d/%m/%Y %H:%M")
+    msg = (
+        f"OportunityAlert iniciado — {now_str} Lima\n"
+        f"Sistema activo. Si ves este mensaje, el canal WhatsApp funciona.\n"
+        f"Si NO recibes alertas → reenviar 'join <palabra>' al +14155238886"
+    )
+    sent = _send_twilio_raw(msg, twilio_to)
+    if sent:
+        logger.info("[Startup] Ping de arranque enviado — canal WhatsApp activo")
+    else:
+        logger.error(
+            "[Startup] CANAL WHATSAPP NO RESPONDE — "
+            "sesion sandbox probablemente expirada. "
+            "Reenviar 'join <palabra>' al +14155238886"
+        )
+
+
 def heartbeat_loop(twilio_from: str, twilio_to: str):
     """
     Envía SMS diario a las 8am Lima con resumen del sistema.
-    Si no recibes este SMS → el sistema está caído.
+    Si no recibes este SMS → el sistema está caído o la sesión WhatsApp expiró.
     """
     while True:
         now_lima = datetime.now(LIMA)
@@ -617,6 +682,12 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
             sent = _send_twilio_raw(msg_body, twilio_to)
             if sent:
                 logger.info(f"Heartbeat enviado: {msg_body.replace(chr(10), ' | ')}")
+            else:
+                logger.error(
+                    "[Heartbeat] FALLO DE ENTREGA — canal WhatsApp no responde. "
+                    "Sesion sandbox probablemente expirada. "
+                    "Reenviar 'join <palabra>' al +14155238886"
+                )
         except Exception as e:
             logger.error(f"Error en heartbeat: {e}")
 
@@ -757,9 +828,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            raw_positions = etoro_data.get("positions", [])
-            # Filtrar posiciones con ticker inválido (eToro a veces retorna datos malformados)
-            positions = [p for p in raw_positions if p.get("ticker", "UNKNOWN") != "UNKNOWN"]
+            positions = etoro_data.get("positions", [])
 
             # Detectar trades cerrados comparando con snapshot anterior
             prev_tickers = metrics.get_open_tickers_last_snapshot()
@@ -1030,6 +1099,10 @@ def main():
 
     market_status = "ABIERTO" if is_market_open() else "CERRADO (modo acumulación activo)"
     logger.info(f"Estado mercado al inicio: {market_status}")
+
+    # Ping de arranque: verifica que el canal WhatsApp está activo.
+    # Si no recibes este mensaje → sesión sandbox expirada → envía "join <palabra>" al +14155238886
+    _startup_ping(twilio_to)
 
     shared = dict(
         twilio_from=twilio_from,

@@ -257,20 +257,38 @@ def evaluate_conviction(
     entry = price_data.get("current_price") or 0.0
     result["entry_price"] = round(entry, 2)
 
-    if atr14 > 0 and entry > 0:
+    if entry > 0:
         sector = SECTOR_FOR_ATR.get(ticker, "DEFAULT")
         stop_m, target_m = ATR_MULT[sector]
-        if direction == "LONG":
-            result["stop_code"]   = round(entry - stop_m * atr14, 2)
-            result["target_code"] = round(entry + target_m * atr14, 2)
+
+        if atr14 > 0:
+            # ATR disponible — cálculo preciso
+            effective_atr = atr14
         else:
-            result["stop_code"]   = round(entry + stop_m * atr14, 2)
-            result["target_code"] = round(entry - target_m * atr14, 2)
+            # Alpaca no devolvió barras (AH, breaking news) — fallback: ATR estimado
+            # como % del precio según volatilidad típica del sector
+            PCT_FALLBACK = {
+                "QUANTUM":  0.08,   # ~8% de precio como ATR estimado
+                "SMALL_AI": 0.07,
+                "SPACE":    0.06,
+                "HIGHVOL":  0.05,
+                "DEFAULT":  0.04,
+            }
+            effective_atr = entry * PCT_FALLBACK.get(sector, 0.04)
+            result["atr14"] = round(effective_atr, 2)  # guardar el estimado para transparencia
+
+        if direction == "LONG":
+            result["stop_code"]   = round(entry - stop_m * effective_atr, 2)
+            result["target_code"] = round(entry + target_m * effective_atr, 2)
+        else:
+            result["stop_code"]   = round(entry + stop_m * effective_atr, 2)
+            result["target_code"] = round(entry - target_m * effective_atr, 2)
 
     # Reasoning legible
+    atr_src = "estimado" if (atr14 == 0 and result.get("atr14", 0) > 0) else "real"
     gate_str = (
         f"G1={g1_score} G2={g2_score}/3 G3={g3_score} | "
-        f"RSI={rsi14:.1f} EMA20=${ema20:.2f} ATR=${atr14:.2f}"
+        f"RSI={rsi14:.1f} EMA20=${ema20:.2f} ATR=${result.get('atr14', atr14):.2f}({atr_src})"
     )
     result["reasoning"] = (
         f"{'PASA' if not result['skip_ai'] else 'DESCARTADO'} ({total}/7) — {gate_str}"
