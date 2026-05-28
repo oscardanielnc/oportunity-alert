@@ -36,6 +36,35 @@ logger = logging.getLogger(__name__)
 TIMESTOP_SCANS       = {"1m": 30, "5m": 12, "15m": 6}
 TIMESTOP_ADVERSE_PCT = 0.5   # % move against position required to trigger
 
+# ── Session-aware entry thresholds ────────────────────────────────────────────
+# Minimum score/9 required for ENTRAR_LONG / ENTRAR_SHORT signals.
+# Backtest showed early pre-market (03-08h Lima, SIP 15min delay) is noisier:
+#   WR 45% vs 62% regular → raise threshold to filter weak signals.
+# Edit freely: add/modify entries; "default" applies to all other windows.
+SESSION_THRESHOLDS = {
+    "pre_market_early": {
+        "session":    "PRE_MARKET",   # must match _market_session() output
+        "hour_start": 3,              # Lima hour (inclusive)
+        "hour_end":   8,              # Lima hour (exclusive)
+        "threshold":  6,              # min score/9 for ENTRAR
+        "label":      "Pre-market temprano 03-08h",
+    },
+    "default": {
+        "threshold":  5,
+        "label":      "Estándar",
+    },
+}
+
+
+def _get_entry_threshold() -> int:
+    """Return the minimum ENTRAR score for the current session window."""
+    session = _market_session()
+    now_h   = datetime.now(LIMA).hour
+    pm = SESSION_THRESHOLDS["pre_market_early"]
+    if session == pm["session"] and pm["hour_start"] <= now_h < pm["hour_end"]:
+        return pm["threshold"]
+    return SESSION_THRESHOLDS["default"]["threshold"]
+
 LIMA = timezone(timedelta(hours=-5))
 
 app = FastAPI(title="OportunityAlert", docs_url=None, redoc_url=None)
@@ -150,6 +179,7 @@ def index():
 def health():
     now = datetime.now(LIMA)
     session = _market_session()
+    threshold = _get_entry_threshold()
     return {
         "ok":               True,
         "ts":               now.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -158,6 +188,8 @@ def health():
         "next_premarket":   _next_premarket(),
         "feed_mode":        "IEX" if session == "REGULAR" else "SIP",
         "sip_delay_warning": session != "REGULAR",
+        "entry_threshold":  threshold,
+        "default_threshold": SESSION_THRESHOLDS["default"]["threshold"],
     }
 
 
@@ -352,6 +384,16 @@ def _run_full_scan(ticker: str) -> None:
                 else:
                     w["position_scans_held"]   = 0
                     w["position_adverse_pct"]  = None
+
+        # ── Session-aware entry threshold filter ──────────────────────────────
+        if not time_stop_fired and signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+            entry_thresh = _get_entry_threshold()
+            sl = result.get("score_long", 0)
+            ss = result.get("score_short", 0)
+            if signal == "ENTRAR_LONG"  and sl < entry_thresh:
+                signal = "ESPERAR"
+            elif signal == "ENTRAR_SHORT" and ss < entry_thresh:
+                signal = "ESPERAR"
 
         # ── Apply direction lock (entry only) ─────────────────────────────────
         if not time_stop_fired and lock_remaining > 0 and lock_dir:

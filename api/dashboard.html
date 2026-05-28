@@ -84,6 +84,21 @@ button { cursor: pointer; font-family: var(--font); }
 .badge-closed { background: var(--card2); color: var(--text2); }
 .badge-alta   { background: var(--red-d);  color: var(--red); }
 .badge-accent { background: var(--accent-d); color: var(--accent); }
+
+/* ── Session pill ──────────────────────────────────────────────────── */
+.session-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px 4px 10px; white-space: nowrap;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.session-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.session-name { font-weight: 800; letter-spacing: .07em; }
+.session-sep  { color: var(--text3); font-weight: 400; }
+.session-wr   { color: var(--text2); font-weight: 600; }
+.session-feed { color: var(--text3); font-weight: 600; }
+.session-warn { color: var(--yellow); font-weight: 800; background: var(--yellow-d);
+                padding: 1px 6px; border-radius: 10px; }
 .topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .ts-text { color: var(--text3); font-size: 11px; white-space: nowrap; }
 .btn-ghost {
@@ -494,9 +509,16 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   <header class="topbar">
     <div class="logo">Opportunity<em>Alert</em></div>
     <div class="topbar-badges">
-      <span id="mkt-badge" class="badge badge-closed">● CERRADO</span>
-      <span id="pm-badge"  class="badge badge-accent" style="display:none"></span>
-      <span id="hb-badge"  class="badge badge-alta"   style="display:none"></span>
+      <div id="session-pill" class="session-pill">
+        <span class="session-dot" id="sdot" style="background:var(--text3)"></span>
+        <span class="session-name" id="sname">—</span>
+        <span class="session-sep">|</span>
+        <span class="session-wr"   id="swr">—</span>
+        <span class="session-sep">·</span>
+        <span class="session-feed" id="sfeed">—</span>
+        <span class="session-warn" id="swarn" style="display:none"></span>
+      </div>
+      <span id="hb-badge" class="badge badge-alta" style="display:none"></span>
     </div>
     <div class="topbar-right">
       <span id="ts-lbl" class="ts-text">—</span>
@@ -702,16 +724,37 @@ function refreshAll() {
   });
 }
 
+// ── Session info table (backtest-derived WR, easily editable) ────────────────
+// WR = win rate from super_backtest.py (1m, 1 week, 10 tickers)
+// elevated = true cuando el umbral de entrada sube respecto al default
+const SESSION_INFO = {
+  REGULAR:          { label: 'REGULAR',      dot: 'var(--green)',  wr: '62%', feed: 'IEX · real-time', warn: null },
+  PRE_MARKET_EARLY: { label: 'PRE-MARKET',   dot: 'var(--yellow)', wr: '45%', feed: 'SIP · 15min delay', warn: '⚠ umbral 6/9' },
+  PRE_MARKET:       { label: 'PRE-MARKET',   dot: 'var(--accent)', wr: '58%', feed: 'SIP · 15min delay', warn: null },
+  AFTER_HOURS:      { label: 'AFTER-HOURS',  dot: 'var(--blue)',   wr: '56%', feed: 'SIP · 15min delay', warn: null },
+  CLOSED:           { label: 'CERRADO',       dot: 'var(--text3)', wr: '—',   feed: '—',                warn: null },
+};
+
 async function updateTopbar() {
   try {
     const h = await fetch('/api/health').then(r => r.json());
-    const mb = document.getElementById('mkt-badge');
-    mb.textContent = `● ${h.market}`;
-    mb.className = `badge ${h.market === 'ABIERTO' ? 'badge-open' : 'badge-closed'}`;
-    const pb = document.getElementById('pm-badge');
-    pb.textContent = `Próx. scan: ${h.next_premarket}`;
-    pb.style.display = '';
-    document.getElementById('pm-next').textContent = h.next_premarket;
+
+    // Determine which SESSION_INFO key to use
+    const isEarlyPM = h.market_session === 'PRE_MARKET'
+                      && h.entry_threshold > (h.default_threshold ?? 5);
+    const key  = isEarlyPM ? 'PRE_MARKET_EARLY' : (h.market_session || 'CLOSED');
+    const info = SESSION_INFO[key] || SESSION_INFO['CLOSED'];
+
+    document.getElementById('sdot').style.background  = info.dot;
+    document.getElementById('sname').textContent       = info.label;
+    document.getElementById('swr').textContent         = `WR ${info.wr}`;
+    document.getElementById('sfeed').textContent       = info.feed;
+    const warnEl = document.getElementById('swarn');
+    if (info.warn) { warnEl.textContent = info.warn; warnEl.style.display = ''; }
+    else            { warnEl.style.display = 'none'; }
+
+    if (document.getElementById('pm-next'))
+      document.getElementById('pm-next').textContent = h.next_premarket;
   } catch {}
 }
 
