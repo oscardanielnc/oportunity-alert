@@ -96,7 +96,37 @@ Se resetea al cambiar position_state.
 
 - IEX (real-time): solo en horario regular 9:30am-4pm ET
 - SIP (15-min delay): pre-market, after-hours, y fallback cuando IEX esta desactualizado
-- Dashboard muestra banner amarillo de advertencia cuando usa SIP
+- Dashboard muestra pill de sesion en el topbar con WR historico y modo de feed
+
+---
+
+## Umbrales de entrada por sesion (SESSION_THRESHOLDS en app.py)
+
+El motor filtra senales ENTRAR segun el horario. Backtest mostro que el pre-market
+temprano (03-08h Lima, datos SIP con 15min de delay) tiene WR significativamente menor.
+
+| Sesion | Hora Lima | WR backtest | Umbral ENTRAR | Feed |
+|--------|-----------|-------------|---------------|------|
+| REGULAR | 08:30-15:00 | 62% | 5/9 | IEX real-time |
+| PRE-MARKET temprano | 03:00-07:59 | 45% | **6/9** | SIP 15min delay |
+| PRE-MARKET (apertura) | 08:00-08:29 | ~58% | 5/9 | SIP 15min delay |
+| AFTER-HOURS | 15:00-20:00 | 56% | 5/9 | SIP 15min delay |
+
+Nota: los WR por hora son aproximados (promedio de 1 semana, 10 tickers).
+En el futuro se refinaran con WR por franja horaria especifica.
+
+Para editar umbrales: modificar SESSION_THRESHOLDS en api/app.py.
+El dashboard refleja automaticamente el umbral activo via /api/health.
+
+### Badge de sesion en el topbar
+
+Pill visible en todo momento con:
+- Nombre de sesion + color (verde=REGULAR, amarillo=PM temprano, azul=AFTER-HOURS)
+- WR historico del backtest para esa sesion
+- Modo de feed (IEX / SIP 15min delay)
+- Aviso amarillo "umbral 6/9" cuando aplica restriccion adicional
+
+SESSION_INFO en dashboard.html es la tabla editable con los valores por sesion.
 
 ---
 
@@ -163,15 +193,23 @@ python backtest_multi.py
 
 # Super backtest: 10 tickers x 3 TFs
 python super_backtest.py
+
+# Backtest comparativo: todo el dia vs solo horario regular
+python backtest_regular_vs_all.py
 ```
 
 ---
 
-## Pendientes proxima sesion (2026-05-28)
+## Pendientes (2026-05-28+)
 
+### Alta prioridad
 1. Deploy a VM Oracle (bash deploy.sh) — Watcher v3 solo en local por ahora
 2. Calibrar umbrales para 5m y 15m (actualmente optimizado para 1m)
 3. Mostrar alertas de noticias del ticker en el Watcher card (datos disponibles en /api/alerts?ticker=X)
+
+### Media prioridad
 4. Analisis de sector — SPY/QQQ como contexto macro para reforzar/debilitar senales
 5. Ajustar parametros time-stop con mas historia (probar 25 scans / 0.4% adverso)
 6. Sugerir IONQ y QBTS como defaults en el dashboard (mejores segun backtest)
+7. WR por franja horaria especifica — refinar SESSION_INFO con datos de mas semanas
+   (actualmente usa promedios amplios: 03-08h=45%, REGULAR=62%, AH=56%)
