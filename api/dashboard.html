@@ -300,7 +300,179 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .skeleton { background: var(--card2); border-radius: 8px; height: 80px; margin-bottom: 8px;
             animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+/* ── Watcher ───────────────────────────────────────────────────────── */
+.watcher-add-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
+}
+.watcher-add-bar .wlabel { color: var(--text2); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
+.watcher-add-bar .wcount { color: var(--text3); font-size: 11px; margin-left: auto; white-space: nowrap; }
+/* Watcher tab bar */
+.wtab-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.wtab {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text2); padding: 6px 14px; border-radius: 8px;
+  cursor: pointer; font-size: 12px; font-weight: 700;
+  letter-spacing: .04em; transition: background .15s, border-color .15s, color .15s;
+  position: relative;
+}
+.wtab:hover { background: var(--card2); color: var(--text); }
+.wtab.wtab-on { background: var(--card2); color: var(--text); border-color: var(--accent); }
+.wtab.wtab-long  { background: rgba(38,166,154,.18); border-color: #26a69a; color: #26a69a; }
+.wtab.wtab-short { background: rgba(239,83,80,.18);  border-color: #ef5350; color: #ef5350; }
+.wtab.wtab-close { background: rgba(255,160,0,.18);  border-color: #ffa000; color: #ffa000; }
+.wtab.wtab-caution { background: rgba(240,200,80,.15); border-color: #e8c84a; color: #e8c84a; }
+.wtab.wtab-on.wtab-long  { border-width: 2px; }
+.wtab.wtab-on.wtab-short { border-width: 2px; }
+.wtab-badge { font-size: 13px; line-height: 1; }
+.watcher-empty-state { color: var(--text3); font-size: 13px; padding: 24px 0; text-align: center; }
+
+.wcard {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.wcard-header {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border);
+}
+.wcard-ticker { font-size: 16px; font-weight: 800; letter-spacing: .01em; }
+.wcard-price  { font-size: 13px; font-weight: 600; }
+.wcard-chg    { font-size: 11px; }
+.wcard-interval { display: inline-flex; gap: 2px; align-items: center; }
+.iv-btn {
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--text3);
+  cursor: pointer; transition: all .15s;
+}
+.iv-btn:hover { border-color: var(--border2); color: var(--text2); }
+.iv-btn.iv-active { background: var(--accent-d); border-color: var(--accent); color: var(--accent); }
+.wcard-scan   { font-size: 10px; color: var(--text3); }
+.btn-stop {
+  margin-left: auto; background: none; border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text3); font-size: 11px; padding: 4px 10px;
+  transition: all .15s;
+}
+.btn-stop:hover { border-color: var(--red); color: var(--red); }
+
+.wcard-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Signal box */
+.signal-box {
+  border-radius: 8px; padding: 14px 16px; text-align: center;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.signal-box.sig-esperar    { background: #2a3a4a; }
+.signal-box.sig-long       { background: #1a5c2a; }
+.signal-box.sig-short      { background: #5c1a1a; }
+.signal-box.sig-cerrar     { background: #b85c00; }
+.signal-box.sig-precaucion { background: #8a7a00; }
+.signal-box.sig-mantener   { background: #1a3a5c; }
+.signal-name {
+  font-size: 22px; font-weight: 800; letter-spacing: .04em;
+  line-height: 1.2; margin-bottom: 3px;
+}
+.signal-sub { font-size: 11px; opacity: .75; }
+.signal-candidate {
+  font-size: 11px; color: var(--yellow); margin-top: 4px; opacity: .9;
+}
+
+/* Score bar */
+.score-row { display: flex; align-items: center; gap: 10px; }
+.score-label { font-size: 11px; color: var(--text2); white-space: nowrap; min-width: 80px; }
+.score-bar-outer { flex: 1; height: 6px; background: var(--border); border-radius: 3px; }
+.score-bar-inner { height: 100%; border-radius: 3px; transition: width .4s; }
+.score-bar-l { background: var(--green); }
+.score-bar-s { background: var(--red); }
+.score-count { font-size: 11px; font-weight: 700; min-width: 28px; text-align: right; }
+
+/* Indicators grid */
+.ind-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.ind-card {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 12px;
+  display: flex; flex-direction: column; gap: 3px;
+  position: relative; cursor: default;
+  transition: border-color .15s;
+}
+.ind-card:hover { border-color: var(--accent); }
+.ind-card.bull { border-color: rgba(38,166,154,.6); background: rgba(38,166,154,.07); }
+.ind-card.bear { border-color: rgba(239,83,80,.6);  background: rgba(239,83,80,.07);  }
+.ind-card.neut { border-color: var(--border); }
+.ind-name  { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); }
+.ind-val   { font-size: 14px; font-weight: 700; }
+.ind-card.bull .ind-val { color: var(--green); }
+.ind-card.bear .ind-val { color: var(--red); }
+.ind-card.neut .ind-val { color: var(--text); }
+.ind-sub   { font-size: 10px; color: var(--text3); }
+/* Tooltip */
+.ind-tip {
+  display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
+  background: #2a2a35; border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 11px; font-size: 11px; line-height: 1.5; color: var(--text2);
+  width: 220px; z-index: 100; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+.ind-tip strong { color: var(--text); display: block; margin-bottom: 3px; }
+.ind-card:hover .ind-tip { display: block; }
+
+/* Position section */
+.pos-section { border-top: 1px solid var(--border); padding-top: 12px; }
+.pos-gauge { margin-top: 12px; background: var(--bg-deep); border-radius: 10px; padding: 14px 10px 10px; overflow: hidden; }
+.pos-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.pos-label { color: var(--text2); font-size: 11px; white-space: nowrap; min-width: 80px; }
+.pos-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+.inp-pos {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; padding: 5px 9px; width: 100px; outline: none;
+  font-family: var(--font);
+}
+.inp-pos:focus { border-color: var(--accent); }
+.pnl-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.pnl-cell { display: flex; flex-direction: column; gap: 2px; }
+.pnl-k { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.pnl-v { font-size: 14px; font-weight: 700; }
+.st-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+.st-cell { display: flex; flex-direction: column; gap: 2px; }
+.st-k    { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.st-v    { font-size: 12px; font-weight: 600; }
+.st-src  { font-size: 10px; color: var(--text3); }
+
+/* SMS toggle (disabled) */
+.sms-row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.sms-label { font-size: 11px; color: var(--text2); }
+.sms-badge { font-size: 10px; color: var(--text3); background: var(--card2);
+  padding: 2px 8px; border-radius: 10px; }
+
+/* Candlestick chart */
+.chart-section { border-top: 1px solid var(--border); padding-top: 10px; }
+.chart-toggle { background: none; border: none; color: var(--text2); font-size: 11px;
+  padding: 0; cursor: pointer; }
+.chart-toggle:hover { color: var(--text); }
+.chart-frame { margin-top: 8px; border-radius: 8px; overflow: hidden; background: #0f0f11; }
+
+/* Log section */
+.log-section { border-top: 1px solid var(--border); padding-top: 10px; }
+.log-toggle { background: none; border: none; color: var(--text2); font-size: 11px;
+  padding: 0; cursor: pointer; }
+.log-toggle:hover { color: var(--text); }
+.log-entries { margin-top: 8px; font-size: 11px; display: flex; flex-direction: column; gap: 3px;
+  max-height: 180px; overflow-y: auto; }
+.log-entry { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; flex-wrap: wrap; }
+.log-entry-confirmed { border-left: 2px solid var(--border); padding-left: 6px; margin-left: -8px; }
+  border-bottom: 1px solid var(--border); }
+.log-time { color: var(--text3); min-width: 36px; }
+.log-sig  { font-weight: 700; min-width: 100px; }
+.log-conf { color: var(--green); }
+.log-cand { color: var(--text3); }
+.log-rsn  { color: var(--text2); }
 </style>
+<script src="/static/lw-charts.js"></script>
 </head>
 <body>
 
@@ -338,6 +510,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
     <button class="tab"     onclick="go('premarket')">Pre-Market</button>
     <button class="tab"     onclick="go('posiciones')">Posiciones</button>
     <button class="tab"     onclick="go('watchlist')">Watchlist</button>
+    <button class="tab"     onclick="go('watcher')">📡 Watcher</button>
   </nav>
 
   <div class="main">
@@ -441,6 +614,36 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
       </div>
     </div>
 
+    <!-- ===== WATCHER ===== -->
+    <div id="p-watcher" class="panel">
+
+      <!-- Add bar -->
+      <div class="watcher-add-bar">
+        <span class="wlabel">📡 Ticker Watcher</span>
+        <input class="inp inp-ticker" id="w-ticker" type="text" placeholder="TICKER"
+               maxlength="8" style="width:90px"
+               onkeydown="if(event.key==='Enter')watcherAdd()">
+        <select class="sel" id="w-interval">
+          <option value="1m">1m — intraday</option>
+          <option value="5m">5m — swing</option>
+          <option value="15m">15m — posición</option>
+        </select>
+        <button class="btn-add" id="w-add-btn" onclick="watcherAdd()">+ Agregar</button>
+        <span class="wcount" id="w-count">0 / 5 activos</span>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="wtab-bar" id="watcher-tabs"></div>
+
+      <!-- Active panel -->
+      <div id="watcher-panel">
+        <div class="watcher-empty-state" id="watcher-empty">
+          Sin tickers monitoreados — ingresa un ticker y presiona Agregar.
+        </div>
+      </div>
+
+    </div><!-- /p-watcher -->
+
   </div><!-- /main -->
 </div><!-- /app -->
 
@@ -514,10 +717,11 @@ async function updateTopbar() {
 
 function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
-  if (active === 'noticias')   return loadAlerts();
-  if (active === 'pre-market') return loadPremarket();
-  if (active === 'posiciones') return loadPositions();
-  if (active === 'watchlist')  return loadWatchlist();
+  if (active === 'noticias')     return loadAlerts();
+  if (active === 'pre-market')   return loadPremarket();
+  if (active === 'posiciones')   return loadPositions();
+  if (active === 'watchlist')    return loadWatchlist();
+  if (active.includes('watcher')) return loadWatcherStatus();
   return Promise.resolve();
 }
 
@@ -525,7 +729,10 @@ function reloadActive() {
 function go(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
-  const tabs = { noticias:'Noticias', premarket:'Pre-Market', posiciones:'Posiciones', watchlist:'Watchlist' };
+  const tabs = {
+    noticias:'Noticias', premarket:'Pre-Market',
+    posiciones:'Posiciones', watchlist:'Watchlist', watcher:'📡 Watcher',
+  };
   const btn = [...document.querySelectorAll('.tab')]
     .find(t => t.textContent.trim() === tabs[name]);
   btn?.classList.add('on');
@@ -534,6 +741,7 @@ function go(name) {
   if (name === 'premarket')  loadPremarket();
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
+  if (name === 'watcher')    loadWatcherStatus();
 }
 
 // ── API fetch ──────────────────────────────────────────────────────────────────
@@ -844,6 +1052,1082 @@ function catIcon(cat) {
               merger_acq:'🤝', contract_gov:'🏛', upgrade_target:'📈',
               sin_catalizador:'⚠', otro:'🔔' };
   return m[cat] || '🔔';
+}
+
+// ── Watcher ───────────────────────────────────────────────────────────────────
+let _watcherTimer = null;
+let _watcherCounters = {};   // ticker → {interval_seconds, next_scan_seconds, ts}
+let _watcherState    = {};   // ticker → last full watcher payload
+let _activeWatcher   = null; // ticker currently shown in the panel
+
+async function watcherAdd() {
+  const ticker   = (document.getElementById('w-ticker').value || '').toUpperCase().trim();
+  const interval = document.getElementById('w-interval').value;
+  if (!ticker) return;
+  try {
+    const r = await fetch('/api/watcher/start', {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, interval }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.status);
+    document.getElementById('w-ticker').value = '';
+    await loadWatcherStatus();
+  } catch (e) { alert(`Error: ${e.message}`); }
+}
+
+async function watcherStop(ticker) {
+  if (!confirm(`¿Detener watcher de ${ticker}?`)) return;
+  try {
+    const r = await fetch('/api/watcher/stop', {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    delete _watcherCounters[ticker];
+    delete _watcherState[ticker];
+    if (_lwCharts[ticker]) { _lwCharts[ticker].chart.remove(); delete _lwCharts[ticker]; }
+    await loadWatcherStatus();
+  } catch (e) { alert(`Error: ${e.message}`); }
+}
+
+async function watcherSetInterval(ticker, interval) {
+  try {
+    const r = await fetch('/api/watcher/update', {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, interval }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    // Destroy existing chart so it re-initializes with new timeframe data
+    if (_lwCharts[ticker]) { _lwCharts[ticker].chart.remove(); delete _lwCharts[ticker]; }
+    await loadWatcherStatus();
+  } catch (e) { alert(`Error: ${e.message}`); }
+}
+
+async function watcherUpdatePos(ticker) {
+  const state    = document.getElementById(`w-pos-${ticker}`)?.value;
+  const entryEl  = document.getElementById(`w-entry-${ticker}`);
+  const amountEl = document.getElementById(`w-amount-${ticker}`);
+  const entry    = entryEl  ? parseFloat(entryEl.value)  || null : null;
+  const amount   = amountEl ? parseFloat(amountEl.value) || null : null;
+  try {
+    await fetch('/api/watcher/update', {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, position_state: state, entry_price: entry, amount }),
+    });
+    // Fetch fresh status and force full panel re-render
+    const data = await api('/api/watcher/status');
+    (data.watchers || []).forEach(w => { _watcherState[w.ticker] = w; });
+    _patchTabBar(data.watchers || []);
+    updateWatcherCount((data.watchers || []).length);
+    if (_activeWatcher === ticker) switchWatcherTab(ticker);
+  } catch (e) { console.error(e); }
+}
+
+// ── Tab helpers ───────────────────────────────────────────────────────────────
+
+function _tabClass(signal) {
+  if (signal === 'ENTRAR_LONG')          return 'wtab-long';
+  if (signal === 'ENTRAR_SHORT')         return 'wtab-short';
+  if (signal === 'CERRAR_LONG'  || signal === 'CERRAR_SHORT') return 'wtab-close';
+  if (signal === 'PRECAUCION')           return 'wtab-caution';
+  return '';
+}
+
+function _tabBadge(signal) {
+  if (signal === 'ENTRAR_LONG')  return '<span class="wtab-badge">⚡</span>';
+  if (signal === 'ENTRAR_SHORT') return '<span class="wtab-badge">⚡</span>';
+  if (signal === 'CERRAR_LONG' || signal === 'CERRAR_SHORT') return '<span class="wtab-badge">⚠</span>';
+  if (signal === 'PRECAUCION')   return '<span class="wtab-badge">⚠</span>';
+  return '';
+}
+
+function _renderTabBar(watchers) {
+  const bar = document.getElementById('watcher-tabs');
+  if (!bar) return;
+  bar.innerHTML = watchers.map(w => {
+    const isOn  = w.ticker === _activeWatcher;
+    const alert = _tabClass(w.signal);
+    const cls   = ['wtab', isOn ? 'wtab-on' : '', alert].filter(Boolean).join(' ');
+    return `<button class="${cls}" id="wtab-${w.ticker}" onclick="switchWatcherTab('${w.ticker}')">
+      ${w.ticker}${_tabBadge(w.signal)}
+    </button>`;
+  }).join('');
+}
+
+function _patchTabBar(watchers) {
+  watchers.forEach(w => {
+    const btn = document.getElementById(`wtab-${w.ticker}`);
+    if (!btn) return;
+    const isOn  = w.ticker === _activeWatcher;
+    const alert = _tabClass(w.signal);
+    btn.className = ['wtab', isOn ? 'wtab-on' : '', alert].filter(Boolean).join(' ');
+    const badge = _tabBadge(w.signal);
+    btn.innerHTML = `${w.ticker}${badge}`;
+  });
+}
+
+function switchWatcherTab(ticker) {
+  _activeWatcher = ticker;
+  const w = _watcherState[ticker];
+  if (!w) return;
+
+  // Update tab highlight
+  document.querySelectorAll('.wtab').forEach(b => b.classList.remove('wtab-on'));
+  const btn = document.getElementById(`wtab-${ticker}`);
+  if (btn) btn.classList.add('wtab-on');
+
+  // Render panel
+  const panel = document.getElementById('watcher-panel');
+  const logOpen   = panel.querySelector('.log-entries')?.style.display !== 'none';
+  const chartOpen = panel.querySelector('.chart-frame') ? panel.querySelector('.chart-frame').style.display !== 'none' : true;
+  panel.innerHTML = renderWatcherCard(w, logOpen, chartOpen);
+  _renderPosGauge(w);
+  if (w.candles && w.candles.length) _initChart(ticker);
+}
+
+async function loadWatcherStatus() {
+  try {
+    const data = await api('/api/watcher/status');
+    const watchers = data.watchers || [];
+
+    watchers.forEach(w => { _watcherState[w.ticker] = w; });
+
+    const incomingSet = watchers.map(w => w.ticker).sort().join(',');
+    const existingSet = Object.keys(_watcherCounters).sort().join(',');
+
+    if (incomingSet !== existingSet) {
+      // Ticker set changed — full re-render
+      renderWatchers(watchers);
+    } else {
+      // Surgical patch
+      _patchTabBar(watchers);
+      updateWatcherCount(watchers.length);
+
+      const active = watchers.find(w => w.ticker === _activeWatcher);
+      if (active) {
+        patchWatcherCard(active);
+        if (active.candles && active.candles.length) {
+          if (_lwCharts[active.ticker]) {
+            _updateChart(active.ticker, active.candles, active.price);
+          } else {
+            _initChart(active.ticker);  // initializes + draws on first data arrival
+          }
+        }
+      }
+
+      watchers.forEach(w => {
+        _watcherCounters[w.ticker] = {
+          interval_seconds: w.interval_seconds,
+          remaining:        w.next_scan_seconds ?? w.interval_seconds,
+          scanning:         w.scanning,
+          ts:               Date.now(),
+        };
+      });
+    }
+  } catch (e) { console.error('[Watcher]', e); }
+}
+
+function updateWatcherCount(n) {
+  const el = document.getElementById('w-count');
+  if (el) el.textContent = `${n} / 5 activos`;
+  const btn = document.getElementById('w-add-btn');
+  if (btn) { btn.disabled = n >= 5; btn.title = n >= 5 ? 'Límite: 5 tickers simultáneos' : ''; }
+}
+
+function patchWatcherCard(w) {
+  const card = document.querySelector(`#watcher-panel [data-ticker="${w.ticker}"]`);
+  if (!card) return;
+
+  const ind = w.indicators || {};
+  const sig = w.signal || 'ESPERAR';
+
+  // Price & change
+  const priceEl = card.querySelector('.wcard-price');
+  if (priceEl) {
+    const newPrice = w.price != null ? `$${w.price.toFixed(2)}` : '…';
+    if (priceEl.textContent !== newPrice) {
+      priceEl.textContent = newPrice;
+      priceEl.style.transition = 'color .3s';
+      priceEl.style.color = 'var(--accent)';
+      setTimeout(() => { priceEl.style.color = ''; }, 600);
+    }
+  }
+  const chgEl = card.querySelector('.wcard-chg');
+  if (chgEl && w.change_pct != null) {
+    chgEl.textContent = `${w.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(w.change_pct).toFixed(2)}%`;
+    chgEl.style.color = w.change_pct >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  // Signal box
+  const sigBox = card.querySelector('.signal-box');
+  if (sigBox) {
+    sigBox.className = `signal-box ${signalClass(sig)}`;
+    const sn = sigBox.querySelector('.signal-name');
+    if (sn) sn.textContent = `${signalIcon(sig)} ${signalLabel(sig)}`;
+    const ss = sigBox.querySelector('.signal-sub');
+    if (ss) ss.textContent = w.signal_confirmed ? 'Confirmado (2/2 scans)' : 'Sin señal confirmada';
+    let cEl = sigBox.querySelector('.signal-candidate');
+    const candText = (!w.signal_confirmed && w.candidate_signal && w.candidate_signal !== sig)
+      ? `⚡ posible cambio a ${signalLabel(w.candidate_signal)}` : '';
+    if (candText) {
+      if (!cEl) { cEl = document.createElement('div'); cEl.className = 'signal-candidate'; sigBox.appendChild(cEl); }
+      cEl.textContent = candText;
+    } else if (cEl) { cEl.remove(); }
+  }
+
+  // Scores
+  const scoreRows = card.querySelectorAll('.score-row');
+  if (scoreRows.length >= 2) {
+    const slW = Math.round((w.score_long || 0) / 9 * 100);
+    const ssW = Math.round((w.score_short || 0) / 9 * 100);
+    const lBar = scoreRows[0].querySelector('.score-bar-inner');
+    const lCnt = scoreRows[0].querySelector('.score-count');
+    if (lBar) lBar.style.width = `${slW}%`;
+    if (lCnt) lCnt.textContent = `${w.score_long || 0}/9`;
+    const sBar = scoreRows[1].querySelector('.score-bar-inner');
+    const sCnt = scoreRows[1].querySelector('.score-count');
+    if (sBar) sBar.style.width = `${ssW}%`;
+    if (sCnt) sCnt.textContent = `${w.score_short || 0}/9`;
+  }
+
+  // Indicators — patch ind-cards by data-key
+  const cr = w.criteria || {};
+  card.querySelectorAll('.ind-card[data-key]').forEach(el => {
+    const k    = el.dataset.key;
+    const vEl  = el.querySelector('.ind-val');
+    const sEl  = el.querySelector('.ind-sub');
+    let val, sub, bull = false, bear = false;
+
+    if (k === 'rsi') {
+      const r = ind.rsi;
+      val  = r != null ? String(r) : '—';
+      bull = r != null && r < 35;
+      bear = r != null && r > 65;
+      sub  = r != null ? (r < 35 ? 'sobreventa' : r > 65 ? 'sobrecompra' : 'zona neutra') : '—';
+    } else if (k === 'macd') {
+      const m = ind.macd_hist;
+      val  = m != null ? (m > 0 ? `+${m.toFixed(4)}` : m.toFixed(4)) : '—';
+      bull = cr.L3 === true; bear = cr.S3 === true;
+      sub  = m != null ? (m > 0 ? 'histograma positivo' : 'histograma negativo') : '—';
+    } else if (k === 'bb') {
+      val  = { upper:'banda superior', lower:'banda inferior', inside:'dentro de bandas', unknown:'—' }[ind.bb_position] || '—';
+      bull = ind.bb_position === 'lower'; bear = ind.bb_position === 'upper';
+      sub  = ind.bb_position === 'upper' ? 'posible sobrecompra' : ind.bb_position === 'lower' ? 'posible sobreventa' : 'rango normal';
+    } else if (k === 'vol') {
+      const v = ind.vol_ratio;
+      val  = v != null ? `${v.toFixed(2)}×` : '—';
+      bull = v != null && v > 1.2; bear = false;
+      sub  = v != null ? (v > 1.5 ? 'volumen alto' : v > 1.2 ? 'volumen elevado' : v < 0.8 ? 'volumen bajo' : 'volumen normal') : '—';
+    } else if (k === 'ema') {
+      val  = ind.ema8 != null ? `${ind.ema8} / ${ind.ema20}` : '—';
+      const px = w.price, e20 = ind.ema20, e8 = ind.ema8;
+      bull = px != null && e20 != null && px > e20 * 0.97;
+      bear = px != null && e8  != null && px < e8 && px < e20;
+      sub  = px != null && e20 != null ? (px > e20 ? 'precio sobre EMA20' : 'precio bajo EMA20') : '—';
+    } else if (k === 'support') {
+      val  = ind.support != null ? `$${ind.support}` : '—';
+      bull = cr.L4 === true; bear = false;
+      const diff = w.price != null && ind.support != null ? w.price - ind.support : null;
+      sub  = diff != null ? (diff <= ind.support * 0.005 ? 'precio en soporte' : `$${diff.toFixed(2)} sobre soporte`) : '—';
+    } else if (k === 'resistance') {
+      val  = ind.resistance != null ? `$${ind.resistance}` : '—';
+      bull = false; bear = cr.S4 === true;
+      const diff = w.price != null && ind.resistance != null ? ind.resistance - w.price : null;
+      sub  = diff != null ? (diff <= ind.resistance * 0.005 ? 'precio en resistencia' : `$${diff.toFixed(2)} hasta resistencia`) : '—';
+    } else if (k === 'atr') {
+      val = ind.atr != null ? `$${ind.atr}` : '—';
+      sub = 'volatilidad media/vela';
+    } else { return; }
+
+    const cls = bull ? 'bull' : bear ? 'bear' : 'neut';
+    el.className = `ind-card ${cls}`;
+    const badgeCol = bull ? 'var(--green)' : bear ? 'var(--red)' : 'var(--text3)';
+    const badge    = bull ? '▲ alcista' : bear ? '▼ bajista' : '● neutral';
+    if (vEl) vEl.textContent = val;
+    if (sEl) { sEl.textContent = `${sub} · ${badge}`; sEl.style.color = badgeCol; }
+  });
+
+  // Error
+  let errEl = card.querySelector('.signal-err');
+  if (w.error) {
+    if (!errEl) { errEl = document.createElement('div'); errEl.className = 'signal-err'; errEl.style.cssText='font-size:10px;color:var(--yellow);margin-top:4px'; sigBox?.appendChild(errEl); }
+    errEl.textContent = w.error;
+  } else if (errEl) { errEl.remove(); }
+
+  // Update position gauge
+  _renderPosGauge(w);
+}
+
+function renderWatchers(watchers) {
+  updateWatcherCount(watchers.length);
+
+  const empty = document.getElementById('watcher-empty');
+  const panel = document.getElementById('watcher-panel');
+
+  if (!watchers.length) {
+    document.getElementById('watcher-tabs').innerHTML = '';
+    panel.innerHTML = '';
+    if (empty) { empty.style.display = ''; panel.appendChild(empty); }
+    _activeWatcher = null;
+    _watcherCounters = {};
+    if (_watcherTimer) { clearInterval(_watcherTimer); _watcherTimer = null; }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  // Keep active ticker if still present, else pick first
+  if (!_activeWatcher || !watchers.find(w => w.ticker === _activeWatcher)) {
+    _activeWatcher = watchers[0].ticker;
+  }
+
+  // Preserve open states from current panel
+  const logOpen   = panel.querySelector('.log-entries')?.style.display !== 'none';
+  const chartOpen = panel.querySelector('.chart-frame') ? panel.querySelector('.chart-frame').style.display !== 'none' : true;
+
+  // Render tab bar
+  _renderTabBar(watchers);
+
+  // Render active panel
+  const aw = watchers.find(w => w.ticker === _activeWatcher);
+  panel.innerHTML = renderWatcherCard(aw, logOpen, chartOpen);
+  _renderPosGauge(aw);
+  if (aw.candles && aw.candles.length) _initChart(_activeWatcher);
+
+  // Counters for all tickers
+  _watcherCounters = {};
+  watchers.forEach(w => {
+    _watcherCounters[w.ticker] = {
+      interval_seconds: w.interval_seconds,
+      remaining:        w.next_scan_seconds ?? w.interval_seconds,
+      scanning:         w.scanning,
+      ts:               Date.now(),
+    };
+  });
+
+  if (_watcherTimer) clearInterval(_watcherTimer);
+  _watcherTimer = setInterval(tickWatcherCounters, 1000);
+}
+
+function tickWatcherCounters() {
+  const now = Date.now();
+  for (const [ticker, state] of Object.entries(_watcherCounters)) {
+    const el = document.getElementById(`w-scan-${ticker}`);
+    if (!el) continue;
+    if (state.scanning) {
+      el.textContent = '⟳ Escaneando...';
+      el.style.color = 'var(--accent)';
+      continue;
+    }
+    el.style.color = '';
+    const elapsed   = Math.floor((now - state.ts) / 1000);
+    const remaining = Math.max(0, state.remaining - elapsed);
+    el.textContent = remaining > 0 ? `Próx scan: ${fmtSecs(remaining)}` : '⟳ Escaneando...';
+  }
+}
+
+function fmtSecs(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}m ${String(sec).padStart(2,'0')}s` : `${sec}s`;
+}
+
+function signalClass(sig) {
+  if (!sig) return 'sig-esperar';
+  if (sig === 'ENTRAR_LONG')  return 'sig-long';
+  if (sig === 'ENTRAR_SHORT') return 'sig-short';
+  if (sig === 'CERRAR_LONG' || sig === 'CERRAR_SHORT') return 'sig-cerrar';
+  if (sig === 'PRECAUCION')   return 'sig-precaucion';
+  if (sig === 'MANTENER')     return 'sig-mantener';
+  return 'sig-esperar';
+}
+
+function signalIcon(sig) {
+  const m = {
+    ENTRAR_LONG:'🟢', ENTRAR_SHORT:'🔴', CERRAR_LONG:'🟠',
+    CERRAR_SHORT:'🟠', PRECAUCION:'🟡', ESPERAR:'⏳', MANTENER:'🔵',
+  };
+  return m[sig] || '⏳';
+}
+
+function signalLabel(sig) {
+  const m = {
+    ENTRAR_LONG:'ENTRAR LONG', ENTRAR_SHORT:'ENTRAR SHORT',
+    CERRAR_LONG:'CERRAR LONG', CERRAR_SHORT:'CERRAR SHORT',
+    PRECAUCION:'PRECAUCIÓN', ESPERAR:'ESPERAR', MANTENER:'MANTENER',
+  };
+  return m[sig] || (sig || 'ESPERAR');
+}
+
+const PATTERN_META = {
+  "Bullish Engulfing":   { w:3, desc:"La vela verde envuelve completamente el cuerpo de la roja anterior. Señal de reversión alcista muy fuerte." },
+  "Morning Star":        { w:3, desc:"3 velas: roja grande → pequeño cuerpo (indecisión) → verde que supera el punto medio de la primera. Reversión alcista fuerte." },
+  "Three White Soldiers":{ w:2, desc:"3 velas verdes consecutivas con cierres progresivamente más altos. Continuación alcista sólida." },
+  "Hammer":              { w:2, desc:"Mecha inferior ≥2× el cuerpo tras bajada previa. El mercado rechazó precios bajos. Reversión alcista." },
+  "Piercing Line":       { w:2, desc:"Verde abre por debajo del cierre rojo previo y cierra por encima de su punto medio. Reversión alcista moderada." },
+  "Dragonfly Doji":      { w:2, desc:"Cuerpo mínimo en la parte alta, mecha inferior muy larga. Fuerte rechazo de precios bajos. Señal alcista." },
+  "Bullish Harami":      { w:1, desc:"Pequeña vela verde contenida dentro del cuerpo de la roja previa. Señal débil, esperar confirmación." },
+  "Inverted Hammer":     { w:1, desc:"Mecha superior larga tras bajada. El mercado intentó subir. Necesita vela verde confirmatoria." },
+  "Bearish Engulfing":   { w:3, desc:"La vela roja envuelve completamente el cuerpo de la verde anterior. Señal de reversión bajista muy fuerte." },
+  "Evening Star":        { w:3, desc:"3 velas: verde grande → pequeño cuerpo → roja que cae bajo el punto medio de la primera. Reversión bajista fuerte." },
+  "Three Black Crows":   { w:2, desc:"3 velas rojas consecutivas con cierres progresivamente más bajos. Continuación bajista sólida." },
+  "Shooting Star":       { w:2, desc:"Mecha superior ≥2× el cuerpo tras subida previa. El mercado rechazó precios altos. Reversión bajista." },
+  "Dark Cloud Cover":    { w:2, desc:"Roja abre por encima del máximo verde y cierra por debajo de su punto medio. Reversión bajista moderada." },
+  "Gravestone Doji":     { w:2, desc:"Cuerpo mínimo en la parte baja, mecha superior muy larga. Fuerte rechazo de precios altos. Señal bajista." },
+  "Bearish Harami":      { w:1, desc:"Pequeña vela roja contenida dentro del cuerpo de la verde previa. Señal débil, esperar confirmación." },
+  "Hanging Man":         { w:1, desc:"Igual que el Hammer pero tras una subida. Posible agotamiento de la tendencia alcista. Señal débil." },
+};
+
+function patternChip(name, side) {
+  const meta  = PATTERN_META[name] || { w:1, desc:'' };
+  const dots  = '●'.repeat(meta.w) + '○'.repeat(3 - meta.w);
+  const color = side === 'bull' ? 'var(--green)' : 'var(--red)';
+  const bg    = side === 'bull' ? 'var(--green-d)' : 'var(--red-d)';
+  const arrow = side === 'bull' ? '▲' : '▼';
+  const tip   = `${dots}  Peso ${meta.w}/3\n\n${meta.desc}`;
+  return `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:${bg};color:${color};cursor:help;display:inline-flex;gap:5px;align-items:center" title="${tip}">
+    <span>${arrow} ${name}</span>
+    <span style="opacity:.55;letter-spacing:1px">${dots}</span>
+  </span>`;
+}
+
+function renderWatcherCard(w, logOpen, tvOpen) {
+  const ind  = w.indicators || {};
+  const sig  = w.signal || 'ESPERAR';
+  const hasPx = w.price != null;
+
+  // Price line
+  const priceStr = hasPx ? `$${w.price.toFixed(2)}` : '…';
+  const chgStr   = w.change_pct != null
+    ? `<span class="wcard-chg" style="color:${w.change_pct >= 0 ? 'var(--green)' : 'var(--red)'}">${w.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(w.change_pct).toFixed(2)}%</span>`
+    : '';
+
+  // Signal box
+  const confirmed   = w.signal_confirmed;
+  const candidate   = w.candidate_signal;
+  const confirmSub  = confirmed ? 'Confirmado (2/2 scans)' : 'Sin señal confirmada';
+  const candidateHtml = (!confirmed && candidate && candidate !== sig)
+    ? `<div class="signal-candidate">⚡ posible cambio a ${signalLabel(candidate)}</div>`
+    : '';
+
+  // Score bars
+  const sl = w.score_long || 0;
+  const ss = w.score_short || 0;
+  const slW = Math.round(sl / 9 * 100);
+  const ssW = Math.round(ss / 9 * 100);
+
+  // Indicators — bias and display values
+  const criteria = w.criteria || {};
+
+  function indCard(key, name, val, sub, bull, bear, tipTitle, tipBody) {
+    const cls = bull ? 'bull' : bear ? 'bear' : 'neut';
+    const badge = bull ? '▲ alcista' : bear ? '▼ bajista' : '● neutral';
+    const badgeCol = bull ? 'var(--green)' : bear ? 'var(--red)' : 'var(--text3)';
+    return `<div class="ind-card ${cls}" data-key="${key}">
+      <div class="ind-tip"><strong>${tipTitle}</strong>${tipBody}</div>
+      <div class="ind-name">${name}</div>
+      <div class="ind-val">${val}</div>
+      <div class="ind-sub" style="color:${badgeCol}">${sub} · ${badge}</div>
+    </div>`;
+  }
+
+  const rsi = ind.rsi;
+  const rsiBull = rsi != null && rsi < 35;
+  const rsiBear = rsi != null && rsi > 65;
+  const rsiSub  = rsi != null ? (rsi < 35 ? 'sobreventa' : rsi > 65 ? 'sobrecompra' : 'zona neutra') : '—';
+
+  const macdH = ind.macd_hist;
+  const macdBull = criteria.L3 === true;
+  const macdBear = criteria.S3 === true;
+  const macdVal  = macdH != null ? (macdH > 0 ? `+${macdH.toFixed(4)}` : macdH.toFixed(4)) : '—';
+  const macdSub  = macdH != null ? (macdH > 0 ? 'histograma positivo' : 'histograma negativo') : '—';
+
+  const bbPos   = ind.bb_position;
+  const bbBull  = bbPos === 'lower';
+  const bbBear  = bbPos === 'upper';
+  const bbNames = { upper:'banda superior', lower:'banda inferior', inside:'dentro de bandas', unknown:'—' };
+  const bbVal   = bbNames[bbPos] || '—';
+  const bbSub   = bbPos === 'upper' ? 'posible sobrecompra' : bbPos === 'lower' ? 'posible sobreventa' : 'rango normal';
+
+  const volR    = ind.vol_ratio;
+  const volBull = volR != null && volR > 1.2;
+  const volBear = false;
+  const volVal  = volR != null ? `${volR.toFixed(2)}×` : '—';
+  const volSub  = volR != null ? (volR > 1.5 ? 'volumen alto' : volR > 1.2 ? 'volumen elevado' : volR < 0.8 ? 'volumen bajo' : 'volumen normal') : '—';
+
+  const price  = w.price;
+  const ema8   = ind.ema8;
+  const ema20  = ind.ema20;
+  const emaBull = ema8 != null && ema20 != null && price != null && price > ema20 * 0.97;
+  const emaBear = ema8 != null && ema20 != null && price != null && price < ema20 * 1.03 && price < ema8;
+  const emaVal  = ema8 != null ? `${ema8} / ${ema20}` : '—';
+  const emaSub  = price != null && ema20 != null ? (price > ema20 ? 'precio sobre EMA20' : 'precio bajo EMA20') : '—';
+
+  const sup   = ind.support;
+  const res   = ind.resistance;
+  const supBull = criteria.L4 === true;
+  const resBear = criteria.S4 === true;
+
+  const atr   = ind.atr;
+  const atrVal = atr != null ? `$${atr}` : '—';
+
+  // Position section
+  const posState   = w.position_state || 'SIN_POSICION';
+  const inPosition = posState !== 'SIN_POSICION';
+  const entryVal   = w.entry_price != null ? w.entry_price : '';
+  const amountVal  = w.amount != null ? w.amount : '';
+
+  const pnlHtml = inPosition && w.pnl_pct != null ? `
+    <div class="pnl-row">
+      <div class="pnl-cell">
+        <div class="pnl-k">P&L %</div>
+        <div class="pnl-v" style="color:${w.pnl_pct >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${w.pnl_pct >= 0 ? '+' : ''}${w.pnl_pct.toFixed(2)}%
+        </div>
+      </div>
+      ${w.pnl_usd != null ? `<div class="pnl-cell">
+        <div class="pnl-k">P&L $</div>
+        <div class="pnl-v" style="color:${w.pnl_usd >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${w.pnl_usd >= 0 ? '+' : ''}$${Math.abs(w.pnl_usd).toFixed(2)}
+        </div>
+      </div>` : ''}
+    </div>` : '';
+
+  const stHtml = inPosition ? `
+    <div class="st-grid">
+      ${w.stop_suggested != null ? `<div class="st-cell">
+        <div class="st-k">Stop</div>
+        <div class="st-v c-red">$${w.stop_suggested}</div>
+        ${w.stop_label ? `<div class="st-src">${w.stop_label}</div>` : ''}
+      </div>` : ''}
+      ${w.target1_suggested != null ? `<div class="st-cell">
+        <div class="st-k">Target 1</div>
+        <div class="st-v c-green">$${w.target1_suggested}</div>
+        ${w.target1_label ? `<div class="st-src">${w.target1_label}</div>` : ''}
+      </div>` : ''}
+      ${w.target2_suggested != null ? `<div class="st-cell">
+        <div class="st-k">Target 2</div>
+        <div class="st-v c-green">$${w.target2_suggested}</div>
+        ${w.target2_label ? `<div class="st-src">${w.target2_label}</div>` : ''}
+      </div>` : ''}
+    </div>` : '';
+
+  // Chart
+  const chartIsOpen  = tvOpen !== false;   // open by default
+  const chartDisplay = chartIsOpen ? '' : 'none';
+  const chartArrow   = chartIsOpen ? '▲' : '▼';
+
+  // Log
+  const logDisplay = logOpen ? '' : 'none';
+  const logArrow   = logOpen ? '▲' : '▼';
+  const logHtml = (w.log || []).slice(0, 20).map(e => {
+    const isTimeStop = !!e.time_stop;
+    const sigCol = isTimeStop ? 'var(--red)'
+      : e.confirmed
+        ? (e.signal.includes('LONG')   ? 'var(--green)'
+         : e.signal.includes('SHORT')  ? 'var(--red)'
+         : e.signal.includes('CERRAR') ? 'var(--yellow)'
+         : 'var(--text)')
+        : 'var(--text3)';
+    const badge = isTimeStop
+      ? `<span style="font-size:9px;font-weight:700;background:rgba(240,64,85,.2);color:var(--red);padding:1px 5px;border-radius:3px">⏱ TIME-STOP</span>`
+      : e.confirmed
+        ? `<span class="log-conf">✓ confirmado</span>`
+        : `<span class="log-cand">pendiente</span>`;
+    return `<div class="log-entry ${e.confirmed ? 'log-entry-confirmed' : ''}" ${isTimeStop ? 'style="border-left:2px solid var(--red);padding-left:6px"' : ''}>
+      <span class="log-time">${esc(e.time)}</span>
+      <span class="log-sig" style="color:${sigCol}">${signalLabel(e.signal)}</span>
+      ${badge}
+      <span class="log-rsn">${esc(e.reason || '')}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text3);padding:4px">Sin cambios de señal aún…</div>';
+
+  return `<div class="wcard" data-ticker="${w.ticker}">
+  <!-- Header -->
+  <div class="wcard-header">
+    <span class="wcard-ticker">${w.ticker}</span>
+    <span class="wcard-price">${priceStr}</span>
+    ${chgStr}
+    <span class="wcard-interval">
+      ${['1m','5m','15m'].map(iv =>
+        `<button class="iv-btn${w.interval===iv?' iv-active':''}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}</button>`
+      ).join('')}
+    </span>
+    <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;${w.feed_mode==='IEX' ? 'color:var(--green);background:var(--green-d)' : 'color:var(--yellow);background:var(--yellow-d)'}">${w.feed_mode||'…'}</span>
+    ${w.htf_trend==='BULLISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--green);background:var(--green-d)" title="Tendencia HTF alcista — umbral de entrada LONG reducido">HTF ▲</span>`
+      : w.htf_trend==='BEARISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--red);background:var(--red-d)" title="Tendencia HTF bajista — umbral de entrada SHORT reducido">HTF ▼</span>`
+      : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--text3);background:var(--card2)" title="HTF neutro — umbrales normales 5/9">HTF —</span>`}
+    <span class="wcard-scan" id="w-scan-${w.ticker}">Próx scan: —</span>
+    <button class="btn-stop" onclick="watcherStop('${w.ticker}')">■ Detener</button>
+  </div>
+
+  ${w.market_session === 'CLOSED' ? `
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(150,150,170,.08);border-bottom:1px solid rgba(150,150,170,.2)">
+    <span style="font-size:15px">🌙</span>
+    <div>
+      <span style="color:var(--text2);font-weight:600;font-size:12px">Mercado completamente cerrado</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:8px">Sin actividad hasta pre-market (4am ET). Las velas y el precio no se actualizarán.</span>
+    </div>
+  </div>` : w.sip_delay_warning ? `
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(245,158,11,.1);border-bottom:1px solid rgba(245,158,11,.25)">
+    <span style="font-size:15px">⚠️</span>
+    <div>
+      <span style="color:var(--yellow);font-weight:600;font-size:12px">Fuera de sesión regular — feed SIP (15 min de delay)</span>
+      <span style="color:var(--text2);font-size:11px;margin-left:8px">Pre-market o after-hours. El precio y las velas tienen ~15 min de retraso.</span>
+    </div>
+  </div>` : ''}
+
+  <div class="wcard-body">
+
+    <!-- Signal -->
+    <div class="signal-box ${signalClass(sig)}">
+      <div class="signal-name">${signalIcon(sig)} ${signalLabel(sig)}</div>
+      <div class="signal-sub">${confirmSub}</div>
+      ${candidateHtml}
+      ${w.error ? `<div style="font-size:10px;color:var(--yellow);margin-top:4px">${esc(w.error)}</div>` : ''}
+    </div>
+
+    <!-- Patterns + Lock -->
+    ${(() => {
+      const bp   = w.patterns_bull || [];
+      const brp  = w.patterns_bear || [];
+      const lock = w.direction_lock_remaining || 0;
+      const lockDir = w.direction_lock_dir;
+      let html = '';
+      if (bp.length || brp.length) {
+        html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
+        bp.forEach(p  => { html += patternChip(p, 'bull'); });
+        brp.forEach(p => { html += patternChip(p, 'bear'); });
+        html += `</div>`;
+      }
+      if (lock > 0 && lockDir) {
+        html += `<div style="font-size:10px;color:var(--yellow);background:var(--yellow-d);padding:4px 8px;border-radius:6px;margin-bottom:8px">🔒 Bloqueado ${lockDir} · ${lock} scan${lock>1?'s':''} restantes</div>`;
+      }
+      // Time-stop progress indicator
+      const tsScans = w.position_scans_held || 0;
+      const tsMax   = w.timestop_max_scans  || 30;
+      const tsAdv   = w.position_adverse_pct;
+      const tsThresh = w.timestop_adverse_pct || 0.5;
+      if (tsScans > 0 && tsMax > 0) {
+        const pct     = Math.min(100, Math.round(tsScans / tsMax * 100));
+        const adverse = tsAdv != null ? tsAdv.toFixed(2) : '0.00';
+        const isAdverse = tsAdv != null && tsAdv > 0;
+        const isCritical = pct >= 70 && isAdverse;
+        const color   = isCritical ? 'var(--red)' : (pct >= 40 && isAdverse ? 'var(--yellow)' : 'var(--text3)');
+        const barColor = isCritical ? '#f04055' : (pct >= 40 && isAdverse ? '#f59e0b' : '#55556a');
+        html += `<div style="margin-bottom:8px;padding:6px 8px;border-radius:6px;background:${isCritical ? 'rgba(240,64,85,.08)' : 'rgba(80,80,100,.1)'}">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:10px;color:${color};font-weight:600">
+              ⏱ Time-stop: ${tsScans}/${tsMax} scans${isAdverse ? ' · adverso '+adverse+'%' : ''}
+            </span>
+            <span style="font-size:10px;color:${color}">activa si adverso >=${tsThresh}%</span>
+          </div>
+          <div style="height:4px;background:rgba(150,150,170,.2);border-radius:2px">
+            <div style="height:4px;width:${pct}%;background:${barColor};border-radius:2px;transition:width .4s"></div>
+          </div>
+        </div>`;
+      }
+      return html;
+    })()}
+
+    <!-- Score bars -->
+    <div>
+      <div class="score-row" style="margin-bottom:5px">
+        <span class="score-label" style="color:var(--green)">Alcistas</span>
+        <div class="score-bar-outer"><div class="score-bar-inner score-bar-l" style="width:${slW}%"></div></div>
+        <span class="score-count c-green">${sl}/9</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label" style="color:var(--red)">Bajistas</span>
+        <div class="score-bar-outer"><div class="score-bar-inner score-bar-s" style="width:${ssW}%"></div></div>
+        <span class="score-count c-red">${ss}/9</span>
+      </div>
+    </div>
+
+    <!-- Candlestick chart -->
+    <div class="chart-section">
+      <button class="chart-toggle" onclick="toggleChart('${w.ticker}')">
+        📊 Gráfico de velas <span id="chart-arrow-${w.ticker}">${chartArrow}</span>
+      </button>
+      <div id="chart-frame-${w.ticker}" class="chart-frame" style="display:${chartDisplay}">
+        <div id="chart-${w.ticker}" style="height:300px"></div>
+      </div>
+    </div>
+
+    <!-- Indicators -->
+    <div>
+      <div class="wl-section-title" style="margin-bottom:8px">Indicadores técnicos</div>
+      <div class="ind-grid">
+        ${indCard('rsi','RSI 14', rsi != null ? rsi : '—', rsiSub, rsiBull, rsiBear,
+          'RSI — Índice de Fuerza Relativa',
+          'Oscila entre 0 y 100. Por debajo de 35 indica sobreventa (precio caído en exceso, rebote probable → alcista). Por encima de 65 indica sobrecompra (precio subido en exceso, corrección probable → bajista).')}
+        ${indCard('macd','MACD histograma', macdVal, macdSub, macdBull, macdBear,
+          'MACD — Convergencia/Divergencia',
+          'El histograma es la diferencia entre la línea MACD (EMA12−EMA26) y su señal (EMA9). Histograma subiendo desde negativo → momentum alcista. Histograma bajando desde positivo → momentum bajista.')}
+        ${indCard('bb','Bollinger Bands', bbVal, bbSub, bbBull, bbBear,
+          'Bandas de Bollinger (20, 2σ)',
+          'Envuelven el precio ±2 desviaciones estándar. Precio tocando la banda inferior → posible sobreventa, rebote probable (alcista). Precio en la banda superior → posible sobrecompra (bajista).')}
+        ${indCard('vol','Volumen relativo', volVal, volSub, volBull, volBear,
+          'Ratio de volumen (barra actual / media 20)',
+          'Compara el volumen de la última vela con el promedio de las 20 anteriores. Volumen >1.2× confirma el movimiento actual (alcista si el precio sube con volumen alto). Sin volumen, los movimientos son poco fiables.')}
+        ${indCard('ema','EMA 8 / 20', emaVal, emaSub, emaBull, emaBear,
+          'Medias Móviles Exponenciales',
+          'EMA8 reacciona rápido, EMA20 da la tendencia. Precio por encima de EMA20 → tendencia alcista. Precio por debajo de EMA8 y EMA20 → tendencia bajista. El cruce de ambas señala cambios de tendencia.')}
+        ${indCard('support','Soporte', sup != null ? `$${sup}` : '—', sup != null && price != null ? (price <= sup * 1.005 ? 'precio en soporte' : `$${(price-sup).toFixed(2)} sobre soporte`) : '—', supBull, false,
+          'Nivel de soporte (swing low)',
+          'Mínimo reciente donde el precio rebotó anteriormente. Si el precio actual está cerca del soporte, los compradores tienden a aparecer → señal alcista.')}
+        ${indCard('resistance','Resistencia', res != null ? `$${res}` : '—', res != null && price != null ? (price >= res * 0.995 ? 'precio en resistencia' : `$${(res-price).toFixed(2)} hasta resistencia`) : '—', false, resBear,
+          'Nivel de resistencia (swing high)',
+          'Máximo reciente donde el precio fue rechazado. Si el precio se acerca a la resistencia, los vendedores suelen aparecer → señal bajista.')}
+        ${indCard('atr','ATR 14', atrVal, atr != null ? 'volatilidad media/vela' : '—', false, false,
+          'ATR — Average True Range',
+          'Mide la volatilidad promedio de las últimas 14 velas. No es direccional. Se usa para calibrar stops y targets: stop = entrada ± 1.5×ATR, target = entrada ± 2.5×ATR.')}
+      </div>
+    </div>
+
+    <!-- Position -->
+    <div class="pos-section">
+      <div class="wl-section-title" style="margin-bottom:8px">Posición</div>
+      <div class="pos-row">
+        <span class="pos-label">Estado</span>
+        <select class="sel" id="w-pos-${w.ticker}" onchange="togglePosFields('${w.ticker}')">
+          <option value="SIN_POSICION" ${posState==='SIN_POSICION'?'selected':''}>Sin posición</option>
+          <option value="LONG"         ${posState==='LONG'?'selected':''}>LONG</option>
+          <option value="SHORT"        ${posState==='SHORT'?'selected':''}>SHORT</option>
+        </select>
+        <button class="btn-ghost" style="font-size:11px" onclick="watcherUpdatePos('${w.ticker}')">Actualizar</button>
+      </div>
+      <div id="w-pos-fields-${w.ticker}" style="display:${inPosition?'':'none'}">
+        <div class="pos-row" style="margin-top:6px">
+          <span class="pos-label">Entrada</span>
+          <div class="pos-fields">
+            <input class="inp-pos" id="w-entry-${w.ticker}" type="number" step="0.01"
+                   placeholder="$0.00" value="${entryVal}">
+            <input class="inp-pos" id="w-amount-${w.ticker}" type="number" step="1"
+                   placeholder="Monto (opc.)" value="${amountVal}">
+          </div>
+        </div>
+        ${pnlHtml}
+        <div class="pos-gauge" id="pos-gauge-${w.ticker}"></div>
+      </div>
+    </div>
+
+    <!-- SMS -->
+    <div class="sms-row">
+      <span class="sms-label">Alertas SMS</span>
+      <span class="sms-badge" title="SMS disponible en Fase 2">Próximamente</span>
+    </div>
+
+    <!-- Log -->
+    <div class="log-section">
+      <button class="log-toggle" onclick="toggleSection('w-log-${w.ticker}','log-arrow-${w.ticker}')">
+        📋 Log de sesión <span id="log-arrow-${w.ticker}">${logArrow}</span>
+      </button>
+      <div id="w-log-${w.ticker}" class="log-entries" style="display:${logDisplay}">
+        ${logHtml}
+      </div>
+    </div>
+
+  </div><!-- /wcard-body -->
+</div>`;
+}
+
+function toggleSection(contentId, arrowId) {
+  const el = document.getElementById(contentId);
+  const ar = document.getElementById(arrowId);
+  if (!el) return;
+  const open = el.style.display === 'none';
+  el.style.display = open ? '' : 'none';
+  if (ar) ar.textContent = open ? '▲' : '▼';
+}
+
+function togglePosFields(ticker) {
+  const sel = document.getElementById(`w-pos-${ticker}`);
+  const fields = document.getElementById(`w-pos-fields-${ticker}`);
+  if (!sel || !fields) return;
+  fields.style.display = sel.value !== 'SIN_POSICION' ? '' : 'none';
+}
+
+// Poll watcher status every 10s when tab is active
+setInterval(() => {
+  const active = document.querySelector('.tab.on')?.textContent.trim() || '';
+  if (active.includes('Watcher') && _creds) loadWatcherStatus();
+}, 10000);
+
+// ── Position gauge (SVG, responsive) ─────────────────────────────────────────
+function _renderPosGauge(w) {
+  const el = document.getElementById(`pos-gauge-${w.ticker}`);
+  if (!el) return;
+  el.dataset.gaugeTicker = w.ticker;
+
+  const live   = w.price;
+  const entry  = w.entry_price;
+  const stop   = w.stop_suggested;
+  const t1     = w.target1_suggested;
+  const t2     = w.target2_suggested;
+  const isLong = w.position_state === 'LONG';
+  const isShort= w.position_state === 'SHORT';
+
+  if (!entry || !live || (!isLong && !isShort)) { el.innerHTML = ''; return; }
+
+  const cfg = { live, entry, stop, t1, t2, isLong, isShort };
+  _drawGauge(el, cfg);
+
+  if (!el._gaugeObs) {
+    el._gaugeObs = new ResizeObserver(() => {
+      const t  = el.dataset.gaugeTicker;
+      const ws = _watcherState[t];
+      if (ws) _renderPosGauge(ws);
+    });
+    el._gaugeObs.observe(el);
+  }
+}
+
+function _gaugeLevels(cfg) {
+  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
+  const all  = [live, entry, stop, t1, t2].filter(v => v != null);
+  const rMin = Math.min(...all), rMax = Math.max(...all);
+  const span = rMax - rMin || entry * 0.04;
+  const pad  = span * 0.22;
+  return { vMin: rMin - pad, vMax: rMax + pad };
+}
+
+function _gaugePct(price, entry, isShort) {
+  const d = (price - entry) / entry * 100 * (isShort ? -1 : 1);
+  return (d >= 0 ? '+' : '') + d.toFixed(2) + '%';
+}
+
+function _drawGauge(el, cfg) {
+  const wide = el.clientWidth >= 400;
+  el.innerHTML = wide ? _gaugeHtml_H(el.clientWidth, cfg) : _gaugeHtml_V(cfg);
+}
+
+/* ── HORIZONTAL (desktop ≥400px) ── */
+function _gaugeHtml_H(W, cfg) {
+  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
+  const { vMin, vMax } = _gaugeLevels(cfg);
+
+  // Layout constants
+  const PAD   = 28;
+  const BAR_Y = 66, BAR_H = 20;
+  const LIVE_SECTION = 48;          // height reserved below bar for LIVE label
+  const H = BAR_Y + BAR_H + LIVE_SECTION;
+  const usableW = W - PAD * 2;
+  const xOf = p => Math.max(PAD + 2, Math.min(W - PAD - 2,
+                    PAD + usableW * (p - vMin) / (vMax - vMin)));
+
+  const xEntry = xOf(entry);
+  const xLive  = xOf(live);
+  const xStop  = stop != null ? xOf(stop) : null;
+  const xT1    = t1   != null ? xOf(t1)   : null;
+  const xT2    = t2   != null ? xOf(t2)   : null;
+
+  let s = `<rect x="${PAD}" y="${BAR_Y}" width="${usableW}" height="${BAR_H}" fill="#1e1e24" rx="6"/>`;
+
+  // Colored zones
+  if (isLong) {
+    if (xStop != null) s += `<rect x="${xStop}"  y="${BAR_Y}" width="${xEntry - xStop}"  height="${BAR_H}" fill="#ef535058" rx="5"/>`;
+    if (xT1   != null) s += `<rect x="${xEntry}" y="${BAR_Y}" width="${xT1 - xEntry}"    height="${BAR_H}" fill="#26a69a68" rx="5"/>`;
+    if (xT1 != null && xT2 != null)
+                       s += `<rect x="${xT1}"    y="${BAR_Y}" width="${xT2 - xT1}"       height="${BAR_H}" fill="#26a69a32" rx="5"/>`;
+  } else {
+    if (xStop != null) s += `<rect x="${xEntry}" y="${BAR_Y}" width="${xStop - xEntry}"  height="${BAR_H}" fill="#ef535058" rx="5"/>`;
+    if (xT1   != null) s += `<rect x="${xT1}"    y="${BAR_Y}" width="${xEntry - xT1}"    height="${BAR_H}" fill="#26a69a68" rx="5"/>`;
+    if (xT1 != null && xT2 != null)
+                       s += `<rect x="${xT2}"    y="${BAR_Y}" width="${xT1 - xT2}"       height="${BAR_H}" fill="#26a69a32" rx="5"/>`;
+  }
+
+  // Build sorted label list (LIVE excluded — goes below bar separately)
+  const staticLvls = [
+    xStop  != null ? { x: xStop,  col: '#ef5350', tag: 'STOP',     price: stop,  pct: _gaugePct(stop,  entry, isShort) } : null,
+    { x: xEntry, col: '#9ca0aa', tag: 'ENTRADA',  price: entry, pct: '' },
+    xT1    != null ? { x: xT1,   col: '#26a69a', tag: 'TARGET 1', price: t1,    pct: _gaugePct(t1,   entry, isShort) } : null,
+    xT2    != null ? { x: xT2,   col: '#1a9e95', tag: 'TARGET 2', price: t2,    pct: _gaugePct(t2,   entry, isShort) } : null,
+  ].filter(Boolean).sort((a, b) => a.x - b.x);
+
+  // Assign rows above bar: row 1 (closer to bar) and row 2 (higher up)
+  // Minimum horizontal gap before we bump to row 2
+  const MIN_GAP = 95;
+  const rows = [];
+  for (let i = 0; i < staticLvls.length; i++) {
+    if (i === 0) { rows.push(1); continue; }
+    const gap = staticLvls[i].x - staticLvls[i - 1].x;
+    rows.push(gap < MIN_GAP ? (rows[i - 1] === 1 ? 2 : 1) : 1);
+  }
+
+  // Row y-positions (above bar)
+  const ROW1_TAG = BAR_Y - 26,  ROW1_PRC = BAR_Y - 13,  ROW1_LINE = BAR_Y - 4;
+  const ROW2_TAG = BAR_Y - 52,  ROW2_PRC = BAR_Y - 39,  ROW2_LINE = BAR_Y - 30;
+
+  staticLvls.forEach((lv, i) => {
+    const row  = rows[i];
+    const tagY = row === 1 ? ROW1_TAG  : ROW2_TAG;
+    const prY  = row === 1 ? ROW1_PRC  : ROW2_PRC;
+    const lnY  = row === 1 ? ROW1_LINE : ROW2_LINE;
+    const anc  = lv.x < PAD + 60 ? 'start' : lv.x > W - PAD - 60 ? 'end' : 'middle';
+    s += `
+      <line x1="${lv.x}" y1="${lnY}" x2="${lv.x}" y2="${BAR_Y}" stroke="${lv.col}" stroke-width="1.2" stroke-dasharray="3,2"/>
+      <circle cx="${lv.x}" cy="${BAR_Y + BAR_H / 2}" r="4" fill="${lv.col}"/>
+      <text x="${lv.x}" y="${tagY}" font-size="11" fill="${lv.col}" font-weight="700" text-anchor="${anc}" font-family="monospace">${lv.tag}</text>
+      <text x="${lv.x}" y="${prY}"  font-size="10" fill="${lv.col}cc" text-anchor="${anc}" font-family="monospace">$${Number(lv.price).toFixed(2)}${lv.pct ? '  ' + lv.pct : ''}</text>`;
+  });
+
+  // Live indicator — large dot on bar + label BELOW bar
+  const livePnl = (live - entry) / entry * 100 * (isShort ? -1 : 1);
+  const liveCol = livePnl >= 0 ? '#26a69a' : '#ef5350';
+  const livePct = `${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%`;
+  const liveAnc = xLive < PAD + 75 ? 'start' : xLive > W - PAD - 75 ? 'end' : 'middle';
+  s += `
+    <circle cx="${xLive}" cy="${BAR_Y + BAR_H / 2}" r="9" fill="${liveCol}" stroke="#1b1b1f" stroke-width="2.5"/>
+    <line x1="${xLive}" y1="${BAR_Y + BAR_H}" x2="${xLive}" y2="${BAR_Y + BAR_H + 8}" stroke="${liveCol}" stroke-width="1.8"/>
+    <text x="${xLive}" y="${BAR_Y + BAR_H + 22}" font-size="12" fill="${liveCol}" font-weight="800" text-anchor="${liveAnc}" font-family="monospace">▶ LIVE  $${Number(live).toFixed(2)}</text>
+    <text x="${xLive}" y="${BAR_Y + BAR_H + 38}" font-size="11" fill="${liveCol}cc" text-anchor="${liveAnc}" font-family="monospace">${livePct} respecto a entrada</text>`;
+
+  // Need extra top room if any label is in row 2
+  const topPad = rows.includes(2) ? 10 : 0;
+  const finalH = H + topPad;
+  const vbY    = -topPad;
+
+  return `<svg viewBox="0 ${vbY} ${W} ${finalH}" width="100%" height="${finalH}" style="display:block">${s}</svg>`;
+}
+
+/* ── VERTICAL (mobile <400px) ── */
+function _gaugeHtml_V(cfg) {
+  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
+  const { vMin, vMax } = _gaugeLevels(cfg);
+  const VW = 200, H = 230, PAD = 16;
+  const BAR_X = 14, BAR_W = 14;
+  const TXT_X = BAR_X + BAR_W + 10;
+  const usableH = H - PAD * 2;
+  const yOf = p => Math.max(PAD, Math.min(H - PAD, PAD + usableH * (vMax - p) / (vMax - vMin)));
+
+  const yEntry = yOf(entry);
+  const yLive  = yOf(live);
+  const yStop  = stop != null ? yOf(stop) : null;
+  const yT1    = t1   != null ? yOf(t1)   : null;
+  const yT2    = t2   != null ? yOf(t2)   : null;
+
+  let s = `<rect x="${BAR_X}" y="${PAD}" width="${BAR_W}" height="${usableH}" fill="#1e1e24" rx="5"/>`;
+
+  // Colored zones
+  if (isLong) {
+    if (yStop != null) s += `<rect x="${BAR_X}" y="${yEntry}" width="${BAR_W}" height="${yStop - yEntry}" fill="#ef535055" rx="4"/>`;
+    if (yT1   != null) s += `<rect x="${BAR_X}" y="${yT1}"   width="${BAR_W}" height="${yEntry - yT1}"  fill="#26a69a65" rx="4"/>`;
+    if (yT1 != null && yT2 != null) s += `<rect x="${BAR_X}" y="${yT2}" width="${BAR_W}" height="${yT1 - yT2}" fill="#26a69a30" rx="4"/>`;
+  } else {
+    if (yStop != null) s += `<rect x="${BAR_X}" y="${yStop}"  width="${BAR_W}" height="${yEntry - yStop}" fill="#ef535055" rx="4"/>`;
+    if (yT1   != null) s += `<rect x="${BAR_X}" y="${yEntry}" width="${BAR_W}" height="${yT1 - yEntry}"   fill="#26a69a65" rx="4"/>`;
+    if (yT1 != null && yT2 != null) s += `<rect x="${BAR_X}" y="${yT1}" width="${BAR_W}" height="${yT2 - yT1}" fill="#26a69a30" rx="4"/>`;
+  }
+
+  const lvl = (y, col, tag, price, pct) => {
+    if (y == null) return '';
+    return `
+      <line x1="${BAR_X + BAR_W}" y1="${y}" x2="${VW - 4}" y2="${y}" stroke="${col}" stroke-width="0.8" stroke-dasharray="3,2"/>
+      <circle cx="${BAR_X + BAR_W/2}" cy="${y}" r="4" fill="${col}"/>
+      <text x="${TXT_X}" y="${y - 4}"  font-size="10" fill="${col}" font-weight="700" font-family="monospace">${tag}</text>
+      <text x="${TXT_X}" y="${y + 8}"  font-size="9"  fill="${col}cc" font-family="monospace">$${Number(price).toFixed(2)}${pct ? '  ' + pct : ''}</text>`;
+  };
+
+  if (t2   != null) s += lvl(yT2,  '#1a9e95', 'TARGET 2', t2,   _gaugePct(t2, entry, isShort));
+  if (t1   != null) s += lvl(yT1,  '#26a69a', 'TARGET 1', t1,   _gaugePct(t1, entry, isShort));
+                    s += lvl(yEntry,'#9ca0aa', 'ENTRADA',  entry, '');
+  if (stop != null) s += lvl(yStop,'#ef5350', 'STOP',      stop, _gaugePct(stop, entry, isShort));
+
+  const livePnl = (live - entry) / entry * 100 * (isShort ? -1 : 1);
+  const liveCol = livePnl >= 0 ? '#26a69a' : '#ef5350';
+  s += `
+    <line x1="${BAR_X + BAR_W}" y1="${yLive}" x2="${VW - 4}" y2="${yLive}" stroke="${liveCol}" stroke-width="1.5"/>
+    <circle cx="${BAR_X + BAR_W/2}" cy="${yLive}" r="7" fill="${liveCol}" stroke="#1b1b1f" stroke-width="2"/>
+    <text x="${TXT_X}" y="${yLive - 4}"  font-size="11" fill="${liveCol}" font-weight="800" font-family="monospace">▶ LIVE</text>
+    <text x="${TXT_X}" y="${yLive + 9}"  font-size="10" fill="${liveCol}" font-family="monospace">$${Number(live).toFixed(2)}  ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%</text>`;
+
+  return `<svg viewBox="0 0 ${VW} ${H}" width="100%" style="display:block">${s}</svg>`;
+}
+
+// ── Candlestick chart (lightweight-charts) ────────────────────────────────────
+const _lwCharts = {};   // ticker -> { chart, candleSeries }
+
+function toggleChart(ticker) {
+  const frame = document.getElementById(`chart-frame-${ticker}`);
+  const arrow = document.getElementById(`chart-arrow-${ticker}`);
+  if (!frame) return;
+  const opening = frame.style.display === 'none';
+  frame.style.display = opening ? '' : 'none';
+  if (arrow) arrow.textContent = opening ? '▲' : '▼';
+  if (opening && !_lwCharts[ticker]) _initChart(ticker);
+}
+
+function _initChart(ticker) {
+  const el = document.getElementById(`chart-${ticker}`);
+  if (!el || typeof LightweightCharts === 'undefined') return;
+  if (_lwCharts[ticker]) { _updateChart(ticker, (_watcherState[ticker]||{}).candles, (_watcherState[ticker]||{}).price); return; }
+  const elWidth = el.offsetWidth || el.parentElement?.offsetWidth || 600;
+  const chart = LightweightCharts.createChart(el, {
+    width:  elWidth,
+    height: 300,
+    layout: { background: { color: '#0f0f11' }, textColor: '#9ca0aa' },
+    grid:   { vertLines: { color: '#2a2a30' }, horzLines: { color: '#2a2a30' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#2a2a30' },
+    timeScale: { borderColor: '#2a2a30', timeVisible: true, secondsVisible: false },
+  });
+  const series = chart.addCandlestickSeries({
+    upColor:   '#26a69a', downColor:  '#ef5350',
+    borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+    wickUpColor:   '#26a69a', wickDownColor:   '#ef5350',
+  });
+  _lwCharts[ticker] = { chart, series };
+
+  // Resize when container width changes
+  new ResizeObserver(() => chart.resize(el.clientWidth, 300)).observe(el);
+
+  // Draw with current candles if already available
+  const st = _watcherState[ticker];
+  if (st && st.candles && st.candles.length) _updateChart(ticker, st.candles, st.price);
+}
+
+function _updateChart(ticker, candles, livePrice) {
+  const entry = _lwCharts[ticker];
+  if (!entry || !candles || !candles.length) return;
+
+  const LIMA_OFFSET = -5 * 3600; // UTC-5 → shift timestamps so axis shows Lima time
+  const data = candles.map(c => ({
+    time:  Math.floor(new Date(c.t).getTime() / 1000) + LIMA_OFFSET,
+    open:  c.o, high: c.h, low: c.l, close: c.c,
+  })).sort((a, b) => a.time - b.time);
+
+  // Patch last bar's close with live price so chart matches the card
+  if (livePrice != null && data.length) {
+    const last = data[data.length - 1];
+    last.close = livePrice;
+    if (livePrice > last.high)  last.high  = livePrice;
+    if (livePrice < last.low)   last.low   = livePrice;
+  }
+
+  entry.series.setData(data);
+
+  // Live price line (dashed, labeled)
+  if (livePrice != null) {
+    if (entry.priceLine) {
+      entry.priceLine.applyOptions({ price: livePrice });
+    } else {
+      entry.priceLine = entry.series.createPriceLine({
+        price:     livePrice,
+        color:     '#e0c56e',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: 'Live',
+      });
+    }
+  }
+
+  entry.chart.timeScale().fitContent();
 }
 
 // ── Auto-login ────────────────────────────────────────────────────────────────
