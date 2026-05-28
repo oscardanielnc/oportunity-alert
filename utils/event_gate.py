@@ -226,7 +226,8 @@ def format_event_watch_sms(
     price     = price_data.get("current_price")
     change    = price_data.get("change_pct")
     cataliz   = result.get("resumen_cataliz", "")[:120]
-    prioridad = result.get("prioridad", "?")
+    score_ia   = int(result.get("score_ia") or 0)
+    score_bar  = "█" * score_ia + "░" * (10 - score_ia)
 
     price_str  = f"${price:.2f}" if price else "N/D"
     change_str = f"{change:+.1f}%" if change is not None else "N/D"
@@ -237,7 +238,7 @@ def format_event_watch_sms(
         f"{cataliz}\n"
         f"\n"
         f"Precio ahora: {price_str} ({change_str}){pct_str}\n"
-        f"Prioridad preliminar: {prioridad}\n"
+        f"Score IA: {score_ia}/10 [{score_bar}]\n"
         f"\n"
         f"MODO EVENTO — No entrar aun\n"
         f"Spike inicial en curso. Re-evaluacion automatica en {followup_minutes} min.\n"
@@ -263,7 +264,8 @@ def format_event_confirm_sms(
     entry      = result.get("entrada_rango", "N/D")
     stop       = result.get("stop", "N/D")
     target     = result.get("target", "N/D")
-    prioridad  = result.get("prioridad", "?")
+    score_ia   = int(result.get("score_ia") or 0)
+    score_bar  = "█" * score_ia + "░" * (10 - score_ia)
     conviction = result.get("conviction_score", "?")
 
     price_str = f"${price:.2f}" if price else "N/D"
@@ -292,5 +294,5 @@ def format_event_confirm_sms(
         f"{action_line}\n"
         f"{detail_line}\n"
         f"\n"
-        f"Conviccion: {conviction}/7 | Prioridad: {prioridad}"
+        f"Score IA: {score_ia}/10 [{score_bar}] | Conviccion tecnica: {conviction}/7"
     )

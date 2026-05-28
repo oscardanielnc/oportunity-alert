@@ -609,6 +609,7 @@ class MetricsStore:
             raw_str = row.pop("raw_json") or "{}"
             try:
                 raw = json.loads(raw_str)
+                row["score_ia"]          = raw.get("score_ia", 0)
                 row["stop"]              = raw.get("stop", "N/A")
                 row["target"]            = raw.get("target", "N/A")
                 row["timing_entrada"]    = raw.get("timing_entrada", "N/A")

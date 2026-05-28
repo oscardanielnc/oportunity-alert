@@ -12,7 +12,10 @@ from dateutil import parser as dateparser
 logger = logging.getLogger(__name__)
 
 ALPACA_BASE = "https://data.alpaca.markets"
-ALPACA_FEED = "iex"  # gratuito, incluye pre-market y AH
+# SIP feed for bars (free plan, covers AH/pre-market on all exchanges)
+# IEX feed for trades/latest (real-time, but only IEX exchange coverage)
+ALPACA_FEED_BARS   = "sip"
+ALPACA_FEED_TRADES = "iex"
 
 # Tickers que Alpaca IEX no cubre (crypto, ETFs inversos, etc.)
 # Para estos se devuelve precio sin error para no bloquear el pipeline
@@ -68,10 +71,10 @@ def get_realtime_price(ticker: str) -> dict:
     try:
         headers = _get_headers()
 
-        # Último trade
+        # Último trade (IEX — tiempo real durante mercado regular)
         trade_resp = requests.get(
             f"{ALPACA_BASE}/v2/stocks/{ticker}/trades/latest",
-            params={"feed": ALPACA_FEED},
+            params={"feed": ALPACA_FEED_TRADES},
             headers=headers,
             timeout=10,
         )
@@ -83,22 +86,49 @@ def get_realtime_price(ticker: str) -> dict:
         result["current_price"] = current_price
         result["last_trade_time"] = trade_time_str
 
-        # Calcular antigüedad del último trade
+        # Calcular antigüedad del último trade IEX
+        trade_age_minutes = None
         if trade_time_str:
             try:
                 trade_dt = dateparser.parse(trade_time_str)
                 now_utc = datetime.now(timezone.utc)
                 if trade_dt.tzinfo is None:
                     trade_dt = trade_dt.replace(tzinfo=timezone.utc)
-                age_minutes = (now_utc - trade_dt).total_seconds() / 60
-                result["last_trade_age_minutes"] = round(age_minutes, 1)
+                trade_age_minutes = (now_utc - trade_dt).total_seconds() / 60
+                result["last_trade_age_minutes"] = round(trade_age_minutes, 1)
             except Exception:
                 pass
 
-        # Snapshot para prev_close y change_pct
+        # Si el trade IEX tiene >5 min de antigüedad → usar último bar SIP (cubre AH/pre-market)
+        if trade_age_minutes is None or trade_age_minutes > 5:
+            try:
+                sip_start = (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+                sip_resp = requests.get(
+                    f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
+                    params={"timeframe": "1Min", "start": sip_start,
+                            "feed": "sip", "limit": 1, "sort": "desc"},
+                    headers=headers,
+                    timeout=8,
+                )
+                if sip_resp.status_code == 200:
+                    sip_bars = sip_resp.json().get("bars") or []
+                    if sip_bars and sip_bars[0].get("c"):
+                        current_price = float(sip_bars[0]["c"])
+                        result["current_price"] = current_price
+                        logger.debug(
+                            f"[alpaca_price] {ticker} IEX stale "
+                            f"({trade_age_minutes:.0f if trade_age_minutes else '?'} min) "
+                            f"→ SIP bar ${current_price:.2f}"
+                        )
+            except Exception as sip_e:
+                logger.debug(f"[alpaca_price] SIP bar fallback {ticker}: {sip_e}")
+
+        # Snapshot para prev_close y change_pct (IEX, solo necesitamos prevDailyBar)
         snap_resp = requests.get(
             f"{ALPACA_BASE}/v2/stocks/{ticker}/snapshot",
-            params={"feed": ALPACA_FEED},
+            params={"feed": ALPACA_FEED_TRADES},
             headers=headers,
             timeout=10,
         )
@@ -111,22 +141,40 @@ def get_realtime_price(ticker: str) -> dict:
                     (current_price - float(prev_close)) / float(prev_close) * 100, 2
                 )
 
-        # Velas de 1 minuto — últimas 10 (últimas 2h para asegurar)
+        # Velas de 1 minuto — IEX primero (real-time mercado regular), SIP si IEX está obsoleto
         now_utc = datetime.now(timezone.utc)
         start = (now_utc - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        bars_resp = requests.get(
-            f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-            params={
-                "timeframe": "1Min",
-                "start": start,
-                "feed": ALPACA_FEED,
-                "limit": 10,
-                "sort": "desc",
-            },
-            headers=headers,
-            timeout=10,
-        )
-        if bars_resp.status_code == 200:
+        bars = []
+        for _feed in ("iex", ALPACA_FEED_BARS):
+            bars_resp = requests.get(
+                f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
+                params={
+                    "timeframe": "1Min",
+                    "start": start,
+                    "feed": _feed,
+                    "limit": 10,
+                    "sort": "desc",
+                },
+                headers=headers,
+                timeout=10,
+            )
+            if bars_resp.status_code == 200:
+                _bars = bars_resp.json().get("bars") or []
+                if _bars:
+                    try:
+                        last_t = dateparser.parse(_bars[0].get("t", ""))
+                        if last_t:
+                            if last_t.tzinfo is None:
+                                last_t = last_t.replace(tzinfo=timezone.utc)
+                            age = (now_utc - last_t).total_seconds() / 60
+                            if age <= 30:   # IEX fresco → usarlo
+                                bars = _bars
+                                break
+                    except Exception:
+                        pass
+                    if not bars:
+                        bars = _bars   # IEX obsoleto pero SIP tiene algo
+        if bars_resp.status_code == 200 and not bars:
             bars = bars_resp.json().get("bars") or []
             result["candles_1m"] = [
                 {

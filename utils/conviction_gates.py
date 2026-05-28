@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 logger = logging.getLogger(__name__)
 
 ALPACA_BASE = "https://data.alpaca.markets"
-ALPACA_FEED = "iex"
+ALPACA_FEED_BARS = "sip"   # SIP bars: free plan, cubre AH/pre-market, volumen completo
 
 # Gate 1: umbral de cambio % para considerar catalizador ya priceado
 PRICED_THRESHOLDS = {
@@ -119,7 +119,7 @@ def _get_daily_bars(ticker: str) -> list:
         }
         resp = requests.get(
             f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-            params={"timeframe": "1Day", "limit": 60, "feed": ALPACA_FEED, "sort": "asc"},
+            params={"timeframe": "1Day", "limit": 60, "feed": ALPACA_FEED_BARS, "sort": "asc"},
             headers=headers,
             timeout=8,
         )

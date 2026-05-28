@@ -106,7 +106,7 @@ def _get_bars_range(
         "limit":     500,
     }
 
-    for feed in ("iex", "sip"):
+    for feed in ("sip", "iex"):   # SIP first: consolidated tape, full AH/pre-market volume
         params["feed"] = feed
         try:
             resp = requests.get(
@@ -139,7 +139,7 @@ def _get_prev_close(ticker: str) -> float:
                 return float(prev)
         resp2 = requests.get(
             f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-            params={"timeframe": "1Day", "limit": 3, "feed": "iex", "sort": "desc"},
+            params={"timeframe": "1Day", "limit": 3, "feed": "sip", "sort": "desc"},
             headers=headers, timeout=8,
         )
         if resp2.status_code == 200:
@@ -174,7 +174,7 @@ def _get_avg_premarket_vol(ticker: str, n_days: int = RVOL_HISTORY_DAYS) -> floa
                 "timeframe": "5Min",
                 "start":     start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "end":       end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "feed":      "iex",
+                "feed":      "sip",   # SIP: volumen consolidado real (IEX da 55x menos)
                 "sort":      "asc",
                 "limit":     2000,
             },
