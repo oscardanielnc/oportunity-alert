@@ -169,7 +169,7 @@ class TickerParamsStore:
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
-    def get_params(self, ticker: str, interval: str) -> dict | None:
+    def get_params(self, ticker: str, interval: str) -> "dict | None":
         """Returns signal params dict for use by the watcher. None if not calibrated."""
         try:
             with _conn(self.db_path) as c:

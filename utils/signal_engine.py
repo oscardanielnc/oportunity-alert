@@ -200,7 +200,7 @@ def fetch_latest_price(ticker: str) -> dict:
 
 # ── VWAP ──────────────────────────────────────────────────────────────────────
 
-def _compute_vwap(candles: list) -> float | None:
+def _compute_vwap(candles: list) -> "float | None":
     """
     Calcula el VWAP del dia desde la apertura regular (9:30am ET).
     Usa timestamps de las barras — no requiere API adicional.
@@ -464,7 +464,7 @@ def compute_htf_trend(htf_candles: list) -> str:
 
 def compute_signal(candles: list, position_state: str = "SIN_POSICION",
                    entry_price=None, htf_trend: str = "NEUTRAL",
-                   signal_params: dict | None = None) -> dict:
+                   signal_params: "dict | None" = None) -> dict:
     """
     Evaluate criteria and return a signal dict.
     Requires at least 30 bars.
