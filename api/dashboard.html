@@ -359,26 +359,31 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .hourly-toggle  { background: none; border: none; color: var(--text2); font-size: 11px;
                   padding: 0; cursor: pointer; }
 .hourly-toggle:hover { color: var(--text); }
-.hourly-body    { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .hourly-now-row {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
-  background: var(--bg-deep); border: 1px solid var(--border);
-  font-size: 12px;
+  padding: 8px 10px; border-radius: 8px; margin-bottom: 8px;
+  background: var(--bg-deep); border: 1px solid var(--border); font-size: 12px;
 }
 .hourly-now-label { color: var(--text2); }
 .hourly-now-val   { font-weight: 700; }
-.h-bar-row   { display: flex; align-items: center; gap: 7px; }
-.h-bar-lbl   { font-size: 10px; color: var(--text3); min-width: 28px; text-align: right; }
-.h-bar-outer { flex: 1; height: 8px; background: var(--border); border-radius: 4px;
-               min-width: 60px; position: relative; }
-.h-bar-inner { height: 100%; border-radius: 4px; transition: width .4s; }
-.h-bar-pct   { font-size: 10px; font-weight: 700; min-width: 34px; }
-.h-bar-meta  { font-size: 9px; color: var(--text3); }
-.h-bar-low   { font-size: 9px; color: var(--text3); background: var(--card2);
-               padding: 1px 5px; border-radius: 8px; }
-.h-now-mark  { position: absolute; top: -3px; bottom: -3px; width: 2px;
-               background: var(--accent); border-radius: 2px; }
+/* Hourly table */
+.htbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+.htbl th { padding: 5px 10px; text-align: center; font-size: 11px; color: var(--text3);
+           border-bottom: 1px solid var(--border); font-weight: 600;
+           cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+.htbl th:first-child { text-align: left; text-decoration: none; cursor: default; }
+.htbl td { padding: 6px 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.04); }
+.htbl td:first-child { text-align: left; font-size: 12px; white-space: nowrap; }
+.htbl tr.h-now  { background: rgba(124,111,247,.09); }
+.htbl tr.h-best { background: rgba(34,197,94,.06); }
+.htbl tr.h-worst { background: rgba(240,64,85,.06); }
+.htbl tr.h-nodata td { color: var(--text3); font-size: 11px; }
+.h-badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 6px;
+           border-radius:10px; vertical-align:middle; margin-left:4px; }
+.h-badge-now   { background:rgba(124,111,247,.25); color:var(--accent); }
+.h-badge-best  { background:rgba(34,197,94,.2);   color:var(--green); }
+.h-badge-worst { background:rgba(240,64,85,.2);   color:var(--red); }
+.h-badge-low   { background:var(--card2); color:var(--text3); }
 .h-bar-tag   { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px; }
 .h-bar-tag.best   { background: rgba(34,197,94,.2);  color: var(--green); }
 .h-bar-tag.avoid  { background: rgba(240,64,85,.2);  color: var(--red); }
@@ -1982,25 +1987,8 @@ function renderWatcherCard(w, logOpen, tvOpen) {
         const nlng = _netLong(w.ticker, iv);
         const nsht = _netShort(w.ticker, iv);
         let statHtml = '';
-        if (tfS) {
-          if (tfS.block_new) {
-            statHtml = `<span class="iv-btn-stat" style="color:var(--red)">BLOQ</span>`;
-          } else {
-            const wrLine = tfS.wr_pct != null
-              ? `<span class="iv-btn-stat">WR${tfS.wr_pct.toFixed(0)}%</span>` : '';
-            // Long net at current capital
-            let netLine = '';
-            if (nlng) {
-              const col = nlng.viable ? 'var(--green)' : 'var(--red)';
-              const sign = nlng.net_usd >= 0 ? '+' : '';
-              netLine = `<span class="iv-btn-stat" style="color:${col}">L${sign}$${nlng.net_usd.toFixed(0)}</span>`;
-            }
-            // Short net
-            if (nsht && nsht.viable) {
-              netLine += `<span class="iv-btn-stat" style="color:var(--yellow)"> S+$${nsht.net_usd.toFixed(0)}</span>`;
-            }
-            statHtml = wrLine + netLine;
-          }
+        if (tfS && tfS.block_new) {
+          statHtml = `<span class="iv-btn-stat" style="color:var(--red)">BLOQ</span>`;
         }
         return `<button class="iv-btn${w.interval===iv?' iv-active':''}" data-iv="${iv}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}${statHtml}</button>`;
       }).join('')}
@@ -2311,15 +2299,17 @@ function _renderRentabilidadPanel(ticker, interval) {
   const rows = ['LONG','SHORT'].map(dir => {
     const isLong = dir === 'LONG';
     const cells  = ivs.map(iv => {
-      const net  = isLong ? _netLong(ticker, iv) : _netShort(ticker, iv);
-      const tfS  = (_tfStatsCache[ticker] || {})[iv];
-      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px">—</td>';
-      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px">BLOQ</td>';
+      const net    = isLong ? _netLong(ticker, iv) : _netShort(ticker, iv);
+      const tfS    = (_tfStatsCache[ticker] || {})[iv];
+      const active = iv === interval;
+      const ring   = active ? ';box-shadow:inset 0 0 0 2px var(--accent)' : '';
+      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px' + ring + '">—</td>';
+      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px' + ring + '">BLOQ</td>';
       const f    = _fmtNet(net);
       const bg   = net.viable
         ? (net.net_usd >= 5 ? 'rgba(34,197,94,.08)' : 'rgba(245,158,11,.08)')
         : 'rgba(240,64,85,.07)';
-      return '<td style="text-align:center;padding:8px 12px;background:' + bg + '">' +
+      return '<td style="text-align:center;padding:8px 12px;background:' + bg + ring + '">' +
         '<span style="font-weight:700;color:' + f.color + '">' + f.text + '</span>' +
         ' <span style="font-size:12px">' + f.icon + '</span>' +
         '</td>';
@@ -2331,15 +2321,17 @@ function _renderRentabilidadPanel(ticker, interval) {
 
   // Recommendation row
   const recCells = ivs.map(iv => {
-    const nl = _netLong(ticker, iv);
-    const ns = _netShort(ticker, iv);
-    const lv = nl && nl.viable;
-    const sv = ns && ns.viable;
-    const tfS = (_tfStatsCache[ticker] || {})[iv];
-    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)">NO OPERAR</td>';
+    const nl     = _netLong(ticker, iv);
+    const ns     = _netShort(ticker, iv);
+    const lv     = nl && nl.viable;
+    const sv     = ns && ns.viable;
+    const tfS    = (_tfStatsCache[ticker] || {})[iv];
+    const active = iv === interval;
+    const ring   = active ? ';box-shadow:inset 0 0 0 2px var(--accent)' : '';
+    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)' + ring + '">NO OPERAR</td>';
     const txt = lv && sv ? 'L + S' : lv ? 'Solo L' : sv ? 'Solo S' : 'NO';
     const col = (lv || sv) ? 'var(--green)' : 'var(--red)';
-    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + '">' + txt + '</td>';
+    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + ring + '">' + txt + '</td>';
   });
 
   return '<div style="border-top:1px solid var(--border);padding-top:10px">' +
@@ -2351,10 +2343,13 @@ function _renderRentabilidadPanel(ticker, interval) {
     '<thead><tr style="border-bottom:1px solid var(--border)">' +
     '<th style="padding:6px 12px;text-align:left;color:var(--text3);font-size:10px"></th>' +
     ivs.map(iv => {
-      const tfS = (_tfStatsCache[ticker] || {})[iv];
-      const wr  = tfS && tfS.wr_pct != null ? ' WR' + tfS.wr_pct.toFixed(0) + '%' : '';
-      return '<th style="padding:6px 12px;text-align:center;color:var(--text2);font-size:10px;font-weight:700">' +
-        iv + wr + '</th>';
+      const tfS    = (_tfStatsCache[ticker] || {})[iv];
+      const wr     = tfS && tfS.wr_pct != null ? ' WR' + tfS.wr_pct.toFixed(0) + '%' : '';
+      const active = iv === interval;
+      const thStyle = active
+        ? 'padding:6px 12px;text-align:center;font-size:11px;font-weight:800;color:var(--accent);border-bottom:2px solid var(--accent)'
+        : 'padding:6px 12px;text-align:center;color:var(--text2);font-size:10px;font-weight:700';
+      return '<th style="' + thStyle + '">' + iv + wr + '</th>';
     }).join('') +
     '</tr></thead>' +
     '<tbody>' + rows.join('') + '</tbody>' +
@@ -2458,96 +2453,116 @@ function _renderHourlySection(ticker, interval) {
   const hourly = (_hourlyCache[ticker] || {})[interval];
   if (!hourly || !Object.keys(hourly).length) return '';
 
-  const curH   = _limaHour();
-  const hours  = Object.keys(hourly).map(Number).sort((a,b) => a-b);
+  const curH = _limaHour();
 
-  // Horas con suficiente muestra para estadísticas
-  const okHours = hours.filter(h => hourly[String(h)].ok);
-  const bestH   = okHours.length
-    ? okHours.reduce((a, b) =>
-        hourly[String(a)].wr_pct >= hourly[String(b)].wr_pct ? a : b)
+  // Rango fijo a mostrar: 07h-17h Lima (sesion relevante para Oscar)
+  // 07h Lima = 08h ET (pre-market activo)
+  // 08:30h Lima = 09:30h ET (apertura NYSE)
+  // 16h Lima = 17h ET (after-hours)
+  const DISPLAY_HOURS = [7,8,9,10,11,12,13,14,15,16];
+  // Anotaciones de sesion ET (Lima = ET + 1h en verano)
+  const SESSION_LABELS = {
+    7:  'pre-mkt',
+    8:  'pre-mkt',
+    9:  'abre 8:30ET',   // 8:30am Lima = 9:30am ET
+    10: '',
+    11: '',
+    12: '',
+    13: '',
+    14: '',
+    15: '',
+    16: 'cierra 3pmET',
+  };
+
+  // Horas con datos del backtest
+  const dataHours = Object.keys(hourly).map(Number);
+  const okHours   = dataHours.filter(h => hourly[String(h)].ok);
+  const bestH = okHours.length
+    ? okHours.reduce((a,b) => hourly[String(a)].wr_pct >= hourly[String(b)].wr_pct ? a : b)
     : null;
-  const worstH  = okHours.length
-    ? okHours.reduce((a, b) =>
-        hourly[String(a)].wr_pct <= hourly[String(b)].wr_pct ? a : b)
+  const worstH = okHours.length
+    ? okHours.reduce((a,b) => hourly[String(a)].wr_pct <= hourly[String(b)].wr_pct ? a : b)
     : null;
 
-  // Info de la hora actual
-  const curData = hourly[String(curH)];
-  const inRange = !!curData;
+  // Info hora actual
+  const curData  = hourly[String(curH)];
+  const inRange  = !!curData;
   const nowColor = !inRange ? 'var(--text3)'
     : curData.wr_pct >= 65 ? 'var(--green)'
     : curData.wr_pct >= 50 ? 'var(--yellow)' : 'var(--red)';
-  const nowLabel = !inRange ? `${curH}h — sin datos`
+  const nowLabel = !inRange
+    ? `${curH < 7 || curH > 16 ? 'Fuera del rango de trading' : curH + 'h — sin trades en el backtest'}`
     : curData.ok
-      ? `${curH}h Lima → WR ${curData.wr_pct}%  ·  PF ${curData.pf}  ·  n=${curData.n}`
-      : `${curH}h Lima → WR ${curData.wr_pct}% (n=${curData.n}, muestra baja)`;
+      ? `${curH}h Lima — WR ${curData.wr_pct}%  ·  PF ${curData.pf}  ·  n=${curData.n}`
+      : `${curH}h Lima — WR ${curData.wr_pct}% (n=${curData.n}, muestra baja)`;
 
-  // Barras por hora
-  const maxWr = Math.max(...hours.map(h => hourly[String(h)].wr_pct), 1);
-  const barsHtml = hours.map(h => {
+  // Formato de PF: 99 significa "sin pérdidas en el periodo" → mostrar como "sin perd."
+  const fmtPF = pf => pf >= 98 ? '<span style="color:var(--text3);font-size:11px">sin perd.</span>' : String(pf);
+  const fmtAvg = v => (v >= 0 ? '+' : '') + v + '%';
+
+  // Construir filas de la tabla
+  const rowsHtml = DISPLAY_HOURS.map(h => {
     const d      = hourly[String(h)];
-    const wr     = d.wr_pct;
     const isNow  = h === curH;
     const isBest = h === bestH;
     const isWrst = h === worstH;
+    const hLabel = String(h).padStart(2,'0') + ':00';
+    const sessLbl = SESSION_LABELS[h]
+      ? ` <span style="font-size:9px;color:var(--text3)">${SESSION_LABELS[h]}</span>` : '';
 
-    const barColor = wr >= 65 ? 'var(--green)' : wr >= 50 ? 'var(--yellow)' : 'var(--red)';
-    const barW     = Math.round(wr / 100 * 100);
-    // Small dot at current-WR position within the bar for context
-    const nowPct   = isNow ? Math.round(wr / maxWr * 100) : null;
+    const rowClass = isNow ? 'h-now' : isBest && d?.ok ? 'h-best' : isWrst && d?.ok ? 'h-worst' : (!d ? 'h-nodata' : '');
 
-    let tag = '';
-    if (isNow && isBest) tag = `<span class="h-bar-tag best active">★ MEJOR · AHORA</span>`;
-    else if (isNow && isWrst) tag = `<span class="h-bar-tag avoid active">✗ EVITAR · AHORA</span>`;
-    else if (isNow)  tag = `<span class="h-bar-tag active">▶ AHORA</span>`;
-    else if (isBest) tag = `<span class="h-bar-tag best">★ mejor</span>`;
-    else if (isWrst) tag = `<span class="h-bar-tag avoid">✗ evitar</span>`;
+    let badges = '';
+    if (isNow)  badges += '<span class="h-badge h-badge-now">AHORA</span>';
+    if (isBest && d?.ok)  badges += '<span class="h-badge h-badge-best">MEJOR</span>';
+    if (isWrst && d?.ok)  badges += '<span class="h-badge h-badge-worst">EVITAR</span>';
+    if (d && !d.ok) badges += '<span class="h-badge h-badge-low">muestra baja</span>';
 
-    const lowMark = !d.ok ? `<span class="h-bar-low">n<5</span>` : '';
-    const meta    = `<span class="h-bar-meta">PF ${d.pf} · avg ${d.avg_pnl>=0?'+':''}${d.avg_pnl}%</span>`;
+    if (!d) {
+      return `<tr class="${rowClass}">
+        <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
+        <td>—</td><td>—</td><td>—</td><td>—</td>
+      </tr>`;
+    }
 
-    return `<div class="h-bar-row" style="${isNow ? 'background:rgba(124,111,247,.06);border-radius:6px;padding:2px 4px;margin:0 -4px' : ''}">
-      <span class="h-bar-lbl" style="${isNow ? 'color:var(--accent);font-weight:700' : ''}">${h}h</span>
-      <div class="h-bar-outer">
-        <div class="h-bar-inner" style="width:${barW}%;background:${barColor};opacity:${d.ok ? 1 : 0.45}"></div>
-      </div>
-      <span class="h-bar-pct" style="color:${barColor}">${wr}%</span>
-      ${meta}${lowMark}${tag}
-    </div>`;
+    const wrColor = d.wr_pct >= 65 ? 'var(--green)' : d.wr_pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const avgColor = d.avg_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+    return `<tr class="${rowClass}">
+      <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
+      <td style="font-weight:700">${d.n}</td>
+      <td style="font-weight:700;color:${wrColor}">${d.wr_pct}%</td>
+      <td>${fmtPF(d.pf)}</td>
+      <td style="font-weight:600;color:${avgColor}">${fmtAvg(d.avg_pnl)}</td>
+    </tr>`;
   }).join('');
 
-  // Top 3 recomendadas (solo ok)
-  const top3 = okHours
-    .sort((a,b) => {
-      const da = hourly[String(a)], db = hourly[String(b)];
-      return (db.wr_pct*0.5 + db.pf*0.3 + db.avg_pnl*15*0.2) -
-             (da.wr_pct*0.5 + da.pf*0.3 + da.avg_pnl*15*0.2);
-    })
-    .slice(0, 3);
-
-  const top3Html = top3.length
-    ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">
-        Mejores horas:
-        ${top3.map(h => {
-          const d = hourly[String(h)];
-          return `<span style="color:var(--green);font-weight:600;margin:0 4px">${h}h <span style="color:var(--text2)">${d.wr_pct}% WR · PF ${d.pf}</span></span>`;
-        }).join('·')}
-       </div>` : '';
+  const noDataNote = dataHours.filter(h => !DISPLAY_HOURS.includes(h)).length
+    ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">Hay trades fuera del rango 07-16h Lima (madrugada / after-hours tardio) — no se muestran aqui.</div>`
+    : '';
 
   return `<div class="hourly-section">
     <button class="hourly-toggle" onclick="toggleSection('hourly-body-${ticker}','hourly-arrow-${ticker}')">
-      🕐 Análisis horario (${interval}) — hora Lima
+      Horario de operacion (${interval}) — hora Lima
       <span id="hourly-arrow-${ticker}" style="color:var(--accent);font-weight:700;margin-left:4px">${inRange && curData?.ok ? ` WR ${curData.wr_pct}%` : ''}</span>
       <span style="margin-left:4px">▼</span>
     </button>
     <div id="hourly-body-${ticker}" style="display:none;margin-top:8px">
       <div class="hourly-now-row">
-        <span class="hourly-now-label">Ahora:</span>
+        <span class="hourly-now-label">Ahora (${String(curH).padStart(2,'0')}:00h Lima):</span>
         <span class="hourly-now-val" style="color:${nowColor}">${nowLabel}</span>
       </div>
-      <div class="hourly-body">${barsHtml}</div>
-      ${top3Html}
+      <table class="htbl">
+        <thead><tr>
+          <th>Hora Lima</th>
+          <th title="Numero de trades que ocurrieron en esta hora durante el backtest. Menos de 5 = muestra baja, no confiable.">N</th>
+          <th title="Win Rate: porcentaje de trades ganadores en esta hora. 65%+ = bueno, 50-65% = aceptable, menos = evitar.">WR %</th>
+          <th title="Profit Factor: suma de ganancias dividido suma de perdidas. Mayor que 1 = rentable. 'sin perd.' = todos los trades fueron ganadores en el backtest (puede ser suerte con muestra baja).">PF</th>
+          <th title="Ganancia o perdida promedio por trade en porcentaje, antes de comisiones eToro.">Avg %</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      ${noDataNote}
     </div>
   </div>`;
 }
