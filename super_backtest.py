@@ -2,7 +2,10 @@
 """
 Super Backtest — 3 timeframes (1m, 5m, 15m) x 10 tickers x N semanas.
 Compara rendimiento por timeframe, identifica el mejor para hoy.
-Parametros time-stop ajustados: 30 scans (1m), 12 scans (5m), 6 scans (15m).
+Parametros time-stop optimizados por grid-search (2026-05-28):
+  1m:  20 scans (20min), adverse >= 0.5%
+  5m:  12 scans (60min), adverse >= 0.0%  (sale si plano O en perdida)
+  15m:  4 scans (60min), adverse >= 1.0%  (sale solo si perdiendo >=1%)
 """
 import os, sys, time
 from datetime import datetime, timezone, timedelta
@@ -25,29 +28,29 @@ TF_CONFIG = {
     "1m": {
         "tf":        "1Min",
         "htf":       "5Min",
-        "weeks":     1,        # 1 semana de historia (muchas barras)
-        "max_scans": 30,       # 30 min max por posicion
-        "adverse":   0.5,      # 0.5% movimiento adverso para time-stop
+        "weeks":     1,
+        "max_scans": 20,       # 20 min max (optimizado: era 30)
+        "adverse":   0.5,      # sale si adverso >= 0.5%
         "warmup":    30,
-        "label":     "1 minuto  (30-scan stop = 30 min)",
+        "label":     "1 minuto  (20-scan stop = 20 min, adv>=0.5%)",
     },
     "5m": {
         "tf":        "5Min",
         "htf":       "15Min",
-        "weeks":     6,        # 6 semanas de historia
-        "max_scans": 12,       # 60 min max por posicion
-        "adverse":   0.5,
+        "weeks":     6,
+        "max_scans": 12,       # 60 min max (sin cambio)
+        "adverse":   0.0,      # sale si plano O perdiendo (optimizado: era 0.5)
         "warmup":    30,
-        "label":     "5 minutos (12-scan stop = 60 min)",
+        "label":     "5 minutos (12-scan stop = 60 min, adv>=0.0%)",
     },
     "15m": {
         "tf":        "15Min",
         "htf":       "1Hour",
-        "weeks":     12,       # 12 semanas de historia
-        "max_scans": 6,        # 90 min max por posicion
-        "adverse":   0.5,
+        "weeks":     12,
+        "max_scans": 4,        # 60 min max (optimizado: era 6 = 90 min)
+        "adverse":   1.0,      # sale solo si perdiendo >= 1% (optimizado: era 0.5)
         "warmup":    30,
-        "label":     "15 minutos (6-scan stop  = 90 min)",
+        "label":     "15 minutos (4-scan stop = 60 min, adv>=1.0%)",
     },
 }
 
@@ -275,7 +278,7 @@ def run():
     print(f"  SUPER BACKTEST — {start_utc} Lima")
     print(f"  Tickers ({len(TICKERS)}): {', '.join(TICKERS)}")
     print(f"  Timeframes: 1m (1 semana)  |  5m (6 semanas)  |  15m (12 semanas)")
-    print(f"  Time-stop ajustado: 30/12/6 scans con 0.5% adverso")
+    print(f"  Time-stop optimizado: 1m=20sc/0.5% | 5m=12sc/0.0% | 15m=4sc/1.0%")
     print(f"{'='*W}\n")
 
     results   = {}   # tf -> {ticker -> {all_trades, today_trades}}

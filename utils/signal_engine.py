@@ -198,6 +198,38 @@ def fetch_latest_price(ticker: str) -> dict:
             "change_pct": change_pct, "error": None}
 
 
+# ── VWAP ──────────────────────────────────────────────────────────────────────
+
+def _compute_vwap(candles: list) -> float | None:
+    """
+    Calcula el VWAP del dia desde la apertura regular (9:30am ET).
+    Usa timestamps de las barras — no requiere API adicional.
+    Retorna None si no hay barras de la sesion actual.
+    """
+    if not candles:
+        return None
+    try:
+        last_t   = datetime.fromisoformat(candles[-1]["t"].replace("Z", "+00:00"))
+        is_edt   = 3 <= last_t.month <= 11
+        et_off   = timedelta(hours=-4 if is_edt else -5)
+        last_et  = last_t + et_off
+        # Apertura de sesion regular en ET del mismo dia
+        open_et  = last_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        # Solo si la ultima barra ya paso las 9:30am ET
+        if last_et < open_et:
+            return None
+        open_utc = open_et - et_off
+        session  = [c for c in candles
+                    if datetime.fromisoformat(c["t"].replace("Z", "+00:00")) >= open_utc]
+        if not session:
+            return None
+        cum_tpv = sum((b["h"] + b["l"] + b["c"]) / 3 * b["v"] for b in session)
+        cum_vol = sum(b["v"] for b in session)
+        return round(cum_tpv / cum_vol, 4) if cum_vol > 0 else None
+    except Exception:
+        return None
+
+
 # ── Math helpers ───────────────────────────────────────────────────────────────
 
 def _ema_series(values: list, period: int) -> list:
@@ -431,11 +463,23 @@ def compute_htf_trend(htf_candles: list) -> str:
 # ── Core signal computation ────────────────────────────────────────────────────
 
 def compute_signal(candles: list, position_state: str = "SIN_POSICION",
-                   entry_price=None, htf_trend: str = "NEUTRAL") -> dict:
+                   entry_price=None, htf_trend: str = "NEUTRAL",
+                   signal_params: dict | None = None) -> dict:
     """
     Evaluate criteria and return a signal dict.
     Requires at least 30 bars.
+
+    signal_params (calibratable per ticker, all optional):
+      c3_vol_min     (float, default 1.2): vol_ratio minimo para que MACD (C3/S3)
+                     cuente en el score. 0.0 = original (sin condicion de volumen).
+      use_vwap       (bool,  default False): activar criterio VWAP (L7/S7).
+      vwap_tolerance (float, default 0.0):  % de tolerancia bajo el VWAP para LONG
+                     y sobre el VWAP para SHORT. 0.005 = 0.5%.
     """
+    p              = signal_params or {}
+    c3_vol_min     = float(p.get("c3_vol_min",     1.2))
+    use_vwap       = bool( p.get("use_vwap",       False))
+    vwap_tolerance = float(p.get("vwap_tolerance", 0.0))
     if len(candles) < 30:
         return {
             "signal": "ESPERAR", "score_long": 0, "score_short": 0,
@@ -505,15 +549,27 @@ def compute_signal(candles: list, position_state: str = "SIN_POSICION",
     # ── Binary criteria ────────────────────────────────────────────────────────
     L1 = bb_lower is not None and price <= bb_lower * 1.003
     L2 = rsi < 35
-    L3 = macd_hist < 0 and macd_hist > macd_hist_prev     # improving from negative
+    # C3 raw (MACD improving from negative)
+    L3_raw = macd_hist < 0 and macd_hist > macd_hist_prev
     L4 = atr > 0 and price <= support + 0.5 * atr
     L6 = vol_ratio > 1.2
+    # C3 effective: condicionado a volumen si c3_vol_min > 0 (C3+C6 refinement)
+    # DNA: C3 solo → WR −9pp. C3 con vol_ratio >= c3_vol_min → WR 59%, PF 1.64
+    L3 = L3_raw if c3_vol_min == 0 else (L3_raw and vol_ratio >= c3_vol_min)
 
     S1 = bb_upper is not None and price >= bb_upper * 0.997
     S2 = rsi > 65
-    S3 = macd_hist > 0 and macd_hist < macd_hist_prev     # deteriorating from positive
+    S3_raw = macd_hist > 0 and macd_hist < macd_hist_prev
     S4 = atr > 0 and price >= resistance - 0.5 * atr
     S6 = vol_ratio > 1.2
+    S3 = S3_raw if c3_vol_min == 0 else (S3_raw and vol_ratio >= c3_vol_min)
+
+    # ── VWAP (L7/S7) ──────────────────────────────────────────────────────────
+    # L7: precio >= VWAP × (1 − tolerance)  → flujo institucional alcista
+    # S7: precio <= VWAP × (1 + tolerance)  → flujo institucional bajista
+    vwap   = _compute_vwap(candles) if use_vwap else None
+    L7     = bool(use_vwap and vwap and price >= vwap * (1.0 - vwap_tolerance))
+    S7     = bool(use_vwap and vwap and price <= vwap * (1.0 + vwap_tolerance))
 
     # ── Momentum context filter ────────────────────────────────────────────────
     # If price moved strongly in one direction in last 10 bars,
@@ -527,12 +583,24 @@ def compute_signal(candles: list, position_state: str = "SIN_POSICION",
         elif move_10 < -0.5: # strong downtrend — penalize weak bull patterns
             momentum_adj_bull = min(2, bull_pscore)
 
-    score_long  = sum([L1, L2, L3, L4, L6]) + max(0, bull_pscore - momentum_adj_bull)
-    score_short = sum([S1, S2, S3, S4, S6]) + max(0, bear_pscore - momentum_adj_bear)
+    # Cap pattern score at 2pts for entry scoring (DNA analysis 2026-05-28:
+    # strong patterns score 3-4 → PF 0.98 net-negative vs weak 1-2 → PF 1.66)
+    bull_pscore_entry = min(bull_pscore, 2)
+    bear_pscore_entry = min(bear_pscore, 2)
+
+    score_long  = sum([L1, L2, L3, L4, L6, L7]) + max(0, bull_pscore_entry - momentum_adj_bull)
+    score_short = sum([S1, S2, S3, S4, S6, S7]) + max(0, bear_pscore_entry - momentum_adj_bear)
+
+    # Binary criteria count (without patterns) for quality gate
+    n_binary_long  = sum([L1, L2, L3, L4, L6, L7])
+    n_binary_short = sum([S1, S2, S3, S4, S6, S7])
 
     # ── Decision ──────────────────────────────────────────────────────────────
     if position_state == "SIN_POSICION":
-        # HTF trend adjusts thresholds: aligned = easier entry, opposed = very hard
+        # HTF trend adjusts thresholds: aligned = easier entry, opposed = very hard.
+        # Note: DNA showed BULLISH/LONG PF 1.03 vs NEUTRAL PF 2.39, but removing
+        # the alignment discount collapsed trade count by 90% — too aggressive combined
+        # with n_binary >= 2. Keeping original thresholds; n_binary filter is enough.
         if htf_trend == "BULLISH":
             long_thresh, short_thresh = 4, 8
         elif htf_trend == "BEARISH":
@@ -540,9 +608,14 @@ def compute_signal(candles: list, position_state: str = "SIN_POSICION",
         else:  # NEUTRAL
             long_thresh, short_thresh = 5, 5
 
-        if   score_long  >= long_thresh:  signal = "ENTRAR_LONG"
-        elif score_short >= short_thresh: signal = "ENTRAR_SHORT"
-        else:                             signal = "ESPERAR"
+        # Require at least 2 binary criteria active (DNA 2026-05-28: n=1 → PF 0.64).
+        # Prevents pattern score alone driving an entry without technical confirmation.
+        can_long  = score_long  >= long_thresh  and n_binary_long  >= 2
+        can_short = score_short >= short_thresh and n_binary_short >= 2
+
+        if   can_long:  signal = "ENTRAR_LONG"
+        elif can_short: signal = "ENTRAR_SHORT"
+        else:           signal = "ESPERAR"
 
     elif position_state == "LONG":
         # RSI extreme override: overbought while long → exit immediately
@@ -575,16 +648,20 @@ def compute_signal(candles: list, position_state: str = "SIN_POSICION",
     parts = [f"RSI {rsi:.0f}"]
     if bb_pos != "inside":
         parts.append(f"BB {bb_pos}")
-    if L3: parts.append("MACD mejorando")
-    if S3: parts.append("MACD deteriorando")
+    if L3:  parts.append("MACD+vol mejorando" if c3_vol_min > 0 else "MACD mejorando")
+    if S3:  parts.append("MACD+vol deteriorando" if c3_vol_min > 0 else "MACD deteriorando")
+    if L3_raw and not L3 and c3_vol_min > 0:
+        parts.append(f"MACD sin vol (fil.)")   # MACD activo pero filtrado por volumen
     if L4: parts.append("en soporte")
     if S4: parts.append("en resistencia")
     if patterns["bull_patterns"]:
-        parts.append(patterns["bull_patterns"][0])   # strongest bull pattern
+        parts.append(patterns["bull_patterns"][0])
     if patterns["bear_patterns"]:
-        parts.append(patterns["bear_patterns"][0])   # strongest bear pattern
+        parts.append(patterns["bear_patterns"][0])
     if L6 or S6:
         parts.append(f"vol {vol_ratio:.1f}×")
+    if L7: parts.append(f"sobre VWAP ${vwap:.2f}" if vwap else "sobre VWAP")
+    if S7: parts.append(f"bajo VWAP ${vwap:.2f}" if vwap else "bajo VWAP")
     if htf_trend != "NEUTRAL":
         parts.append(f"HTF {htf_trend}")
     reason = ", ".join(parts)
@@ -611,12 +688,20 @@ def compute_signal(candles: list, position_state: str = "SIN_POSICION",
             "ema20":       round(ema20, 2) if ema20 else None,
         },
         "criteria": {
-            "L1": L1, "L2": L2, "L3": L3, "L4": L4, "L6": L6,
-            "S1": S1, "S2": S2, "S3": S3, "S4": S4, "S6": S6,
-            "bull_patterns": patterns["bull_patterns"],
-            "bear_patterns": patterns["bear_patterns"],
-            "bull_pscore":   bull_pscore,
-            "bear_pscore":   bear_pscore,
+            "L1": L1, "L2": L2, "L3": L3, "L4": L4, "L6": L6, "L7": L7,
+            "S1": S1, "S2": S2, "S3": S3, "S4": S4, "S6": S6, "S7": S7,
+            "L3_raw":             L3_raw,   # MACD sin condicion de volumen
+            "S3_raw":             S3_raw,
+            "bull_patterns":      patterns["bull_patterns"],
+            "bear_patterns":      patterns["bear_patterns"],
+            "bull_pscore":        bull_pscore,
+            "bear_pscore":        bear_pscore,
+            "bull_pscore_entry":  bull_pscore_entry,
+            "bear_pscore_entry":  bear_pscore_entry,
+            "n_binary_long":      n_binary_long,
+            "n_binary_short":     n_binary_short,
+            "vwap":               vwap,
+            "c3_vol_min_used":    c3_vol_min,
         },
     }
 

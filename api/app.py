@@ -23,6 +23,13 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 from utils.metrics_store import MetricsStore
+from utils.ticker_params_store import TickerParamsStore
+from utils.segment_config import (
+    TIMESTOP_SCANS, TIMESTOP_ADVERSE_PCT,
+    SESSION_THRESHOLDS, TICKER_THRESHOLDS,
+    TICKER_SEGMENT, SEGMENT_PARAMS, SEG_DEFAULT,
+    get_segment_params as _get_seg_params_base,
+)
 from utils.signal_engine import (
     fetch_bars, fetch_htf_bars, compute_htf_trend,
     fetch_latest_price, compute_signal, compute_stops_targets, compute_pnl,
@@ -32,38 +39,255 @@ from utils.signal_engine import (
 import logging
 logger = logging.getLogger(__name__)
 
-# Time-stop config (scans in position before auto-CERRAR if adverse >= TIMESTOP_ADVERSE_PCT)
-TIMESTOP_SCANS       = {"1m": 30, "5m": 12, "15m": 6}
-TIMESTOP_ADVERSE_PCT = 0.5   # % move against position required to trigger
-
-# ── Session-aware entry thresholds ────────────────────────────────────────────
-# Minimum score/9 required for ENTRAR_LONG / ENTRAR_SHORT signals.
-# Backtest showed early pre-market (03-08h Lima, SIP 15min delay) is noisier:
-#   WR 45% vs 62% regular → raise threshold to filter weak signals.
-# Edit freely: add/modify entries; "default" applies to all other windows.
-SESSION_THRESHOLDS = {
-    "pre_market_early": {
-        "session":    "PRE_MARKET",   # must match _market_session() output
-        "hour_start": 3,              # Lima hour (inclusive)
-        "hour_end":   8,              # Lima hour (exclusive)
-        "threshold":  6,              # min score/9 for ENTRAR
-        "label":      "Pre-market temprano 03-08h",
-    },
-    "default": {
-        "threshold":  5,
-        "label":      "Estándar",
-    },
+# ── Tablas de calibracion (Level B/C) — deben coincidir con backtest_perticker_v2.py ──
+_PATTERN_WEIGHTS_BASE = {
+    "Bullish Engulfing":3, "Morning Star":3, "Three White Soldiers":2,
+    "Hammer":2, "Piercing Line":2, "Dragonfly Doji":2,
+    "Bullish Harami":1, "Inverted Hammer":1,
+    "Bearish Engulfing":3, "Evening Star":3, "Three Black Crows":2,
+    "Shooting Star":2, "Dark Cloud Cover":2, "Gravestone Doji":2,
+    "Bearish Harami":1, "Hanging Man":1,
 }
+_PATTERN_SCHEME_MAPS = {
+    "default":      {3:3, 2:2, 1:1},
+    "disabled":     {3:0, 2:0, 1:0},
+    "flat":         {3:1, 2:1, 1:1},
+    "strong_only":  {3:3, 2:0, 1:0},
+    "conservative": {3:2, 2:1, 1:0},
+}
+_ALL_CRITERIA_MASK = {"bb":True, "rsi":True, "macd":True, "sr":True, "vol":True}
+
+# Macro context filter — QQQ+2 para 5m (backtest 2026-05-28: PF 1.03→1.13, PnL +4.21pp)
+# Cuando QQQ (15m) es BEARISH, LONG necesita +2 pts extra. Si BULLISH, SHORT +2 pts.
+# Solo activo en 5m. 15m backtest mostro que perjudica → desactivado.
+_QQQ_MACRO_CACHE: dict = {"trend": "NEUTRAL", "updated_at": 0.0}
+_QQQ_CACHE_TTL_SECS    = 900  # refrescar cada 15 min (igual que HTF 5m)
+
+# ── Ticker segmentation — configs importadas desde utils/segment_config.py ────
+# TIMESTOP_SCANS, TIMESTOP_ADVERSE_PCT, SESSION_THRESHOLDS, TICKER_THRESHOLDS,
+# TICKER_SEGMENT, SEGMENT_PARAMS, SEG_DEFAULT → ya importados arriba.
+# ── Ticker segmentation (backtest 2026-05-28: 2916 simulaciones) ──────────────
+# Categorias basadas en comportamiento tecnico observado en backtest:
+#   LARGE_CAP: alta liquidez, ATR moderado, patrones fiables → confirm_req=3 en 1m
+#   QUANTUM:   volatilidad extrema → 5m NO OPERAR (PF max 0.44), 15m solo LONG
+#   AI_SW:     AI/software/social → confirm_req=3 en 5m y 15m, SHORT bloqueado en 5m
+TICKER_SEGMENT: dict[str, str] = {
+    # LARGE_CAP
+    "NVDA": "LARGE_CAP", "AMD":  "LARGE_CAP", "AVGO": "LARGE_CAP",
+    "MU":   "LARGE_CAP", "MSFT": "LARGE_CAP", "INTC": "LARGE_CAP",
+    "ARM":  "LARGE_CAP", "MRVL": "LARGE_CAP", "ANET": "LARGE_CAP",
+    "VRT":  "LARGE_CAP", "SMCI": "LARGE_CAP", "SNDK": "LARGE_CAP",
+    "LITE": "LARGE_CAP", "COHR": "LARGE_CAP", "WOLF": "LARGE_CAP",
+    # QUANTUM
+    "IONQ": "QUANTUM", "QBTS": "QUANTUM",
+    "RGTI": "QUANTUM", "QUBT": "QUANTUM",
+    # AI_SW (software, social, fintech con alta volatilidad news-driven)
+    "PLTR": "AI_SW", "APP":  "AI_SW", "RDDT": "AI_SW",
+    "SOUN": "AI_SW", "CRWD": "AI_SW", "SHOP": "AI_SW",
+    "BBAI": "AI_SW", "INOD": "AI_SW", "APLD": "AI_SW",
+    "HOOD": "AI_SW", "SOFI": "AI_SW",
+    # Sin segmento: el resto usa parametros globales por defecto
+}
+
+# Parametros optimos por (segmento, tf) — resultado del grid-search
+# threshold_adj : ajuste al umbral base de entrada (0=sin cambio, +1=+1pt requerido)
+# n_binary_min  : minimo de criterios L1-L6/S1-S6 activos (sin contar patrones)
+# pattern_cap   : limite al puntaje de patrones (2=cap actual, 4=sin limite)
+# confirm_req   : scans consecutivos para confirmar una entrada (2=estandar, 3=mas selectivo)
+# max_scans     : time-stop en scans (None=usar TIMESTOP_SCANS global)
+# adverse_pct   : adversidad minima para time-stop (None=usar TIMESTOP_ADVERSE_PCT global)
+# block_new     : True=bloquear todas las entradas en este TF (ej: QUANTUM 5m)
+# block_short   : True=bloquear ENTRAR_SHORT en este segmento+TF
+SEGMENT_PARAMS: dict = {
+    # LARGE_CAP — confirm_req=3 en 1m: WR 58%→77%, PF 1.17→7.52
+    ("LARGE_CAP", "1m"):  {"threshold_adj":0, "n_binary_min":2, "pattern_cap":4,
+                            "confirm_req":3,   "max_scans":15,  "adverse_pct":0.7,
+                            "block_new":False, "block_short":False},
+    ("LARGE_CAP", "5m"):  {"threshold_adj":0, "n_binary_min":3, "pattern_cap":2,
+                            "confirm_req":2,   "max_scans":16,  "adverse_pct":0.5,
+                            "block_new":False, "block_short":False},
+    ("LARGE_CAP", "15m"): {"threshold_adj":1, "n_binary_min":2, "pattern_cap":4,
+                            "confirm_req":2,   "max_scans":3,   "adverse_pct":1.0,
+                            "block_new":False, "block_short":True},  # SHORT PF=0.61
+
+    # QUANTUM — 5m NO OPERAR (mejor PF posible: 0.44, estructuralmente no-rentable)
+    ("QUANTUM", "1m"):    {"threshold_adj":0, "n_binary_min":1, "pattern_cap":2,
+                            "confirm_req":2,   "max_scans":15,  "adverse_pct":0.3,
+                            "block_new":False, "block_short":False},
+    ("QUANTUM", "5m"):    {"threshold_adj":0, "n_binary_min":2, "pattern_cap":4,
+                            "confirm_req":2,   "max_scans":12,  "adverse_pct":0.3,
+                            "block_new":True,  "block_short":False},  # BLOQUEAR TODO
+    ("QUANTUM", "15m"):   {"threshold_adj":0, "n_binary_min":2, "pattern_cap":4,
+                            "confirm_req":3,   "max_scans":4,   "adverse_pct":1.0,
+                            "block_new":False, "block_short":True},  # SHORT PF=0.29
+
+    # AI_SW — confirm_req=3 clave: 15m PF 0.59→6.78, 5m PF 2.34→12.13
+    ("AI_SW", "1m"):      {"threshold_adj":0, "n_binary_min":3, "pattern_cap":2,
+                            "confirm_req":2,   "max_scans":15,  "adverse_pct":0.5,
+                            "block_new":False, "block_short":False},
+    ("AI_SW", "5m"):      {"threshold_adj":0, "n_binary_min":1, "pattern_cap":2,
+                            "confirm_req":3,   "max_scans":8,   "adverse_pct":0.0,
+                            "block_new":False, "block_short":True},   # SHORT PF=0.00
+    ("AI_SW", "15m"):     {"threshold_adj":0, "n_binary_min":1, "pattern_cap":4,
+                            "confirm_req":3,   "max_scans":3,   "adverse_pct":1.0,
+                            "block_new":False, "block_short":False},
+}
+
+_SEG_DEFAULT = {"threshold_adj":0, "n_binary_min":2, "pattern_cap":2,
+                "confirm_req":2,   "max_scans":None, "adverse_pct":None,
+                "block_new":False, "block_short":False}
 
 
 def _get_entry_threshold() -> int:
-    """Return the minimum ENTRAR score for the current session window."""
+    """Return the minimum ENTRAR score for the current session + hour window."""
     session = _market_session()
     now_h   = datetime.now(LIMA).hour
-    pm = SESSION_THRESHOLDS["pre_market_early"]
-    if session == pm["session"] and pm["hour_start"] <= now_h < pm["hour_end"]:
-        return pm["threshold"]
+    for key, cfg in SESSION_THRESHOLDS.items():
+        if key == "default":
+            continue
+        if cfg.get("session") and cfg["session"] != session:
+            continue
+        if cfg.get("hour_start", 0) <= now_h < cfg.get("hour_end", 24):
+            return cfg["threshold"]
     return SESSION_THRESHOLDS["default"]["threshold"]
+
+
+def _get_qqq_macro_trend() -> str:
+    """Retorna BULLISH/NEUTRAL/BEARISH de QQQ en 15m. Resultado cacheado 15 min."""
+    now = _time.time()
+    if now - _QQQ_MACRO_CACHE["updated_at"] < _QQQ_CACHE_TTL_SECS:
+        return _QQQ_MACRO_CACHE["trend"]
+    try:
+        bars  = fetch_htf_bars("QQQ", "5m")   # fetch_htf_bars("QQQ","5m") = 15m bars
+        trend = compute_htf_trend(bars) if len(bars) >= 20 else "NEUTRAL"
+    except Exception as exc:
+        logger.warning("[Watcher] QQQ macro fetch error: %s", exc)
+        trend = "NEUTRAL"
+    _QQQ_MACRO_CACHE["trend"]      = trend
+    _QQQ_MACRO_CACHE["updated_at"] = now
+    logger.debug("[Watcher] QQQ macro trend actualizado: %s", trend)
+    return trend
+
+
+def _apply_qqq_macro_filter(result: dict, qqq_trend: str, adj: int = 2) -> str:
+    """
+    Filtra entradas 5m usando el trend macro de QQQ.
+    Si QQQ BEARISH: LONG necesita +adj puntos. Si BULLISH: SHORT +adj puntos.
+    Salidas y posiciones abiertas no se tocan.
+    """
+    if qqq_trend == "NEUTRAL":
+        return result["signal"]
+    score_long  = result["score_long"]
+    score_short = result["score_short"]
+    htf         = result.get("htf_trend", "NEUTRAL")
+    if htf == "BULLISH":
+        long_thresh, short_thresh = 4, 8
+    elif htf == "BEARISH":
+        long_thresh, short_thresh = 8, 4
+    else:
+        long_thresh, short_thresh = 5, 5
+    if qqq_trend == "BEARISH":
+        long_thresh  += adj
+    elif qqq_trend == "BULLISH":
+        short_thresh += adj
+    if score_long  >= long_thresh:  return "ENTRAR_LONG"
+    if score_short >= short_thresh: return "ENTRAR_SHORT"
+    return "ESPERAR"
+
+def _get_segment_params(ticker: str, interval: str) -> dict:
+    """Jerarquia: DB calibrado > TICKER_PARAMS dict > SEGMENT_PARAMS > SEG_DEFAULT."""
+    db_params = _ticker_params.get_params(ticker, interval)
+    if db_params:
+        return db_params
+    return _get_seg_params_base(ticker, interval)
+
+
+def _get_confirm_req(ticker: str, interval: str) -> int:
+    return _get_segment_params(ticker, interval)["confirm_req"]
+
+
+def _compute_masked_entry_score(result: dict, is_long: bool, nb: int, pc: int,
+                                 mask: dict, scheme_map: dict) -> tuple:
+    """
+    Re-calcula score de entrada aplicando criteria_mask y pattern_scheme.
+    L3/S3 ya vienen condicionados por c3_vol_min desde compute_signal().
+    L7/S7 (VWAP) se incluyen sin mask separado (controlados por use_vwap).
+    Retorna (score, n_bin) con los valores modificados.
+    """
+    crit = result.get("criteria", {})
+    if is_long:
+        n_bin = sum([
+            bool(crit.get("L1")) and mask.get("bb",   True),
+            bool(crit.get("L2")) and mask.get("rsi",  True),
+            bool(crit.get("L3")) and mask.get("macd", True),  # ya es L3 efectivo
+            bool(crit.get("L4")) and mask.get("sr",   True),
+            bool(crit.get("L6")) and mask.get("vol",  True),
+            bool(crit.get("L7")),  # VWAP: sin mask adicional, controlado por use_vwap
+        ])
+        patterns = crit.get("bull_patterns", [])
+    else:
+        n_bin = sum([
+            bool(crit.get("S1")) and mask.get("bb",   True),
+            bool(crit.get("S2")) and mask.get("rsi",  True),
+            bool(crit.get("S3")) and mask.get("macd", True),
+            bool(crit.get("S4")) and mask.get("sr",   True),
+            bool(crit.get("S6")) and mask.get("vol",  True),
+            bool(crit.get("S7")),  # VWAP
+        ])
+        patterns = crit.get("bear_patterns", [])
+
+    raw_pat = min(4, sum(
+        scheme_map.get(_PATTERN_WEIGHTS_BASE.get(p, 1), 0) for p in patterns
+    ))
+    score = n_bin + min(raw_pat, pc)
+    return score, n_bin
+
+
+def _segment_entry_decision(result: dict, ticker: str, interval: str) -> str:
+    """
+    Re-evalua la decision de entrada con parametros especificos del ticker.
+    Aplica: block_new, block_short, threshold_adj, n_binary_min, pattern_cap,
+            criteria_mask (Level B) y pattern_scheme (Level C) si estan calibrados.
+    Salidas y ESPERAR pasan sin cambio.
+    """
+    params = _get_segment_params(ticker, interval)
+
+    if params["block_new"]:
+        logger.debug("[Watcher] %s/%s BLOCK_NEW", ticker, interval)
+        return "ESPERAR"
+
+    sig = result.get("signal", "ESPERAR")
+    if sig not in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+        return sig
+
+    if params["block_short"] and sig == "ENTRAR_SHORT":
+        logger.debug("[Watcher] %s/%s SHORT bloqueado", ticker, interval)
+        return "ESPERAR"
+
+    htf     = result.get("htf_trend", "NEUTRAL")
+    is_long = (sig == "ENTRAR_LONG")
+    th      = params["threshold_adj"]
+    nb      = params["n_binary_min"]
+    pc      = params["pattern_cap"]
+
+    # Obtener mask y scheme (Level B/C) — None/default = comportamiento original
+    mask        = params.get("criteria_mask")  or _ALL_CRITERIA_MASK
+    scheme_name = params.get("pattern_scheme") or "default"
+    scheme_map  = _PATTERN_SCHEME_MAPS.get(scheme_name, _PATTERN_SCHEME_MAPS["default"])
+
+    score, n_bin = _compute_masked_entry_score(result, is_long, nb, pc, mask, scheme_map)
+
+    if htf == "BULLISH":
+        thresh = max(3, 4 + th) if is_long else min(9, 8 + th)
+    elif htf == "BEARISH":
+        thresh = min(9, 8 + th) if is_long else max(3, 4 + th)
+    else:
+        thresh = max(3, 5 + th)
+
+    if score >= thresh and n_bin >= nb:
+        return sig
+    return "ESPERAR"
+
 
 LIMA = timezone(timedelta(hours=-5))
 
@@ -71,7 +295,8 @@ app = FastAPI(title="OportunityAlert", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 security = HTTPBasic()
 
-_metrics = MetricsStore()
+_metrics       = MetricsStore()
+_ticker_params = TickerParamsStore()
 
 # ── Watcher state ─────────────────────────────────────────────────────────────
 _watchers: dict = {}
@@ -83,6 +308,27 @@ LOG_MAX         = 50
 DASHBOARD_USER = os.environ.get("DASHBOARD_USER", "oscar")
 DASHBOARD_PASS = os.environ.get("DASHBOARD_PASS", "")
 HTML_PATH = Path(__file__).parent / "dashboard.html"
+
+
+def _get_available_capital() -> float:
+    """
+    Retorna el capital disponible para evaluar rentabilidad de trades.
+
+    AHORA: valor fijo leido de env TRADING_CAPITAL (default $5,000).
+
+    FUTURO (sistema automatico eToro):
+        from utils.etoro_client import get_portfolio
+        try:
+            p = get_portfolio()
+            return float(p.get("credit", 5000))
+        except Exception:
+            return float(os.environ.get("TRADING_CAPITAL", "5000"))
+
+    Este es el UNICO lugar donde cambiar cuando se active la automatizacion.
+    El resto del sistema (watcher, signal evaluation, frontend) ya lo consume
+    correctamente a traves de /api/health y watcher/status.
+    """
+    return float(os.environ.get("TRADING_CAPITAL", "5000"))
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -181,15 +427,17 @@ def health():
     session = _market_session()
     threshold = _get_entry_threshold()
     return {
-        "ok":               True,
-        "ts":               now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "market":           "ABIERTO" if _is_market_open() else "CERRADO",
-        "market_session":   session,
-        "next_premarket":   _next_premarket(),
-        "feed_mode":        "IEX" if session == "REGULAR" else "SIP",
+        "ok":                True,
+        "ts":                now.strftime("%Y-%m-%dT%H:%M:%S"),
+        "market":            "ABIERTO" if _is_market_open() else "CERRADO",
+        "market_session":    session,
+        "next_premarket":    _next_premarket(),
+        "feed_mode":         "IEX" if session == "REGULAR" else "SIP",
         "sip_delay_warning": session != "REGULAR",
-        "entry_threshold":  threshold,
+        "entry_threshold":   threshold,
         "default_threshold": SESSION_THRESHOLDS["default"]["threshold"],
+        "capital_disponible": _get_available_capital(),
+        "capital_source":    "env:TRADING_CAPITAL",  # cambiara a "etoro:live" cuando sea automatico
     }
 
 
@@ -357,7 +605,14 @@ def _run_full_scan(ticker: str) -> None:
         candles     = fetch_bars(ticker, interval, limit=100)
         htf_candles = fetch_htf_bars(ticker, interval)
         htf_trend   = compute_htf_trend(htf_candles)
-        result      = compute_signal(candles, pos_state, entry_px, htf_trend)
+        # Build signal_params from calibration (c3_vol_min, use_vwap, vwap_tolerance)
+        cal_p         = _get_segment_params(ticker, interval)
+        signal_params = {
+            "c3_vol_min":     cal_p.get("c3_vol_min",     1.2),
+            "use_vwap":       bool(cal_p.get("use_vwap",  False)),
+            "vwap_tolerance": cal_p.get("vwap_tolerance", 0.0),
+        }
+        result      = compute_signal(candles, pos_state, entry_px, htf_trend, signal_params)
         signal      = result["signal"]
         bar_price   = result.get("price")
 
@@ -375,8 +630,12 @@ def _run_full_scan(ticker: str) -> None:
                     else:
                         adverse = (cur_price_ts - entry_px) / entry_px * 100
                     w["position_adverse_pct"]  = round(adverse, 2)
-                    max_scans = TIMESTOP_SCANS.get(interval, 30)
-                    if scans_held >= max_scans and adverse >= TIMESTOP_ADVERSE_PCT:
+                    _sp = _get_segment_params(ticker, interval)
+                    max_scans   = (_sp["max_scans"]   if _sp["max_scans"]   is not None
+                                   else TIMESTOP_SCANS.get(interval, 20))
+                    adverse_pct = (_sp["adverse_pct"] if _sp["adverse_pct"] is not None
+                                   else TIMESTOP_ADVERSE_PCT.get(interval, 0.5))
+                    if scans_held >= max_scans and adverse >= adverse_pct:
                         signal = "CERRAR_LONG" if pos_state == "LONG" else "CERRAR_SHORT"
                         time_stop_fired = True
                         logger.warning("[Watcher] TIME-STOP %s %s — %d scans, adverso %.2f%%",
@@ -384,6 +643,11 @@ def _run_full_scan(ticker: str) -> None:
                 else:
                     w["position_scans_held"]   = 0
                     w["position_adverse_pct"]  = None
+
+        # ── Segment entry decision (category-specific params) ────────────────
+        # Aplica: block_new, block_short, threshold_adj, n_binary_min, pattern_cap
+        if not time_stop_fired and pos_state == "SIN_POSICION" and signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+            signal = _segment_entry_decision(result, ticker, interval)
 
         # ── Session-aware entry threshold filter ──────────────────────────────
         if not time_stop_fired and signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
@@ -394,6 +658,28 @@ def _run_full_scan(ticker: str) -> None:
                 signal = "ESPERAR"
             elif signal == "ENTRAR_SHORT" and ss < entry_thresh:
                 signal = "ESPERAR"
+
+        # ── Ticker-specific threshold (DNA analysis 2026-05-28) ───────────────
+        if not time_stop_fired and signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+            ticker_min = TICKER_THRESHOLDS.get(ticker)
+            if ticker_min is not None:
+                sc = (result.get("score_long", 0) if signal == "ENTRAR_LONG"
+                      else result.get("score_short", 0))
+                if sc < ticker_min:
+                    logger.debug("[Watcher] %s ticker-threshold %d blocks %s (score=%d)",
+                                 ticker, ticker_min, signal, sc)
+                    signal = "ESPERAR"
+
+        # ── Macro QQQ+2 filter (solo 5m, backtest 2026-05-28) ─────────────────
+        # QQQ BEARISH → LONG necesita +2pts. QQQ BULLISH → SHORT +2pts.
+        if not time_stop_fired and interval == "5m" and signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+            qqq_trend = _get_qqq_macro_trend()
+            if qqq_trend != "NEUTRAL":
+                new_sig = _apply_qqq_macro_filter(result, qqq_trend, adj=2)
+                if new_sig != signal:
+                    logger.debug("[Watcher] QQQ macro %s bloqueó %s en %s",
+                                 qqq_trend, signal, ticker)
+                    signal = new_sig
 
         # ── Apply direction lock (entry only) ─────────────────────────────────
         if not time_stop_fired and lock_remaining > 0 and lock_dir:
@@ -429,15 +715,19 @@ def _run_full_scan(ticker: str) -> None:
                 w["confirmed_at"]     = now
                 w["candidate_signal"] = None
                 w["candidate_count"]  = 0
-                scans_n = w.get("position_scans_held", 0)
+                scans_n   = w.get("position_scans_held", 0)
                 adverse_n = w.get("position_adverse_pct", 0)
-                max_scans = TIMESTOP_SCANS.get(interval, 30)
+                _sp2 = _get_segment_params(ticker, interval)
+                max_scans   = (_sp2["max_scans"]   if _sp2["max_scans"]   is not None
+                               else TIMESTOP_SCANS.get(interval, 20))
+                adverse_pct = (_sp2["adverse_pct"] if _sp2["adverse_pct"] is not None
+                               else TIMESTOP_ADVERSE_PCT.get(interval, 0.5))
                 w["log"].insert(0, {
                     "time":      now_str,
                     "signal":    signal,
                     "confirmed": True,
                     "reason":    (f"TIME-STOP: {scans_n}/{max_scans} scans, "
-                                  f"adverso {adverse_n:.2f}% >= {TIMESTOP_ADVERSE_PCT}%"),
+                                  f"adverso {adverse_n:.2f}% >= {adverse_pct}%"),
                     "time_stop": True,
                 })
                 if len(w["log"]) > LOG_MAX:
@@ -448,7 +738,7 @@ def _run_full_scan(ticker: str) -> None:
 
             elif signal == candidate:
                 count += 1
-                if count >= w["confirmation_required"]:
+                if count >= _get_confirm_req(ticker, interval):
                     # Signal confirmed — only log if it changed from current
                     if signal != w["current_signal"]:
                         w["current_signal"]   = signal
@@ -514,6 +804,24 @@ def _run_full_scan(ticker: str) -> None:
                 if w["direction_lock_remaining"] == 0:
                     w["direction_lock_dir"] = None
 
+            # ── Profitability check at current capital ─────────────────────────
+            # Usa fee_analysis cacheado en el estado del watcher (cargado en start).
+            # Hoy = TRADING_CAPITAL env var.
+            # Futuro: _get_available_capital() leerá eToro en vivo.
+            signal_profitable = True
+            if signal in ("ENTRAR_LONG", "ENTRAR_SHORT"):
+                capital  = _get_available_capital()
+                fa_cache = w.get("_fee_analysis_cache", {})
+                fa       = fa_cache.get(interval, {})
+                if signal == "ENTRAR_LONG" and "long" in fa:
+                    gross   = fa["long"].get("gross_avg_pnl", 0)
+                    net_usd = gross / 100 * capital - 2.0
+                    signal_profitable = net_usd > 0
+                elif signal == "ENTRAR_SHORT" and "short" in fa:
+                    gross   = fa["short"].get("gross_avg_pnl", 0)
+                    net_pct = gross - 0.30
+                    signal_profitable = net_pct > 0
+
             w["scanning"]          = False
             w["price"]             = price
             w["change_pct"]        = change_pct
@@ -536,6 +844,8 @@ def _run_full_scan(ticker: str) -> None:
             w["patterns_bull"]     = result.get("patterns", {}).get("bull_patterns", [])
             w["patterns_bear"]     = result.get("patterns", {}).get("bear_patterns", [])
             w["error"]             = result.get("error")
+            w["signal_profitable"] = signal_profitable
+            w["capital_checked"]   = _get_available_capital()
 
     except Exception:
         with _watchers_lock:
@@ -614,6 +924,9 @@ def watcher_start(body: dict, _: str = Depends(_require_auth)):
         raise HTTPException(400, "ticker requerido")
     if interval not in INTERVAL_SECS:
         raise HTTPException(400, "interval debe ser 1m, 5m o 15m")
+    if not _ticker_params.is_calibrated(ticker):
+        raise HTTPException(400,
+            f"{ticker} no calibrado — corre: python backtest_perticker_v2.py {ticker}")
 
     with _watchers_lock:
         active = sum(1 for w in _watchers.values() if w["active"])
@@ -665,6 +978,11 @@ def watcher_start(body: dict, _: str = Depends(_require_auth)):
             "position_adverse_pct":     None,
             "log":                      [],
             "error":                    None,
+            "signal_profitable":        True,
+            "capital_checked":          _get_available_capital(),
+            # Fee analysis cacheado en start — evita DB read en cada scan.
+            # Se recarga si el usuario sube una nueva calibracion.
+            "_fee_analysis_cache":      _ticker_params.get_fee_analysis(ticker),
             "_stop_event":              stop_event,
         }
 
@@ -763,12 +1081,64 @@ def watcher_status(_: str = Depends(_require_auth)):
                 "direction_lock_dir":      w.get("direction_lock_dir"),
                 "position_scans_held":     w.get("position_scans_held", 0),
                 "position_adverse_pct":    w.get("position_adverse_pct"),
-                "timestop_max_scans":      TIMESTOP_SCANS.get(w["interval"], 30),
-                "timestop_adverse_pct":    TIMESTOP_ADVERSE_PCT,
+                "timestop_max_scans":      TIMESTOP_SCANS.get(w["interval"], 20),
+                "timestop_adverse_pct":    TIMESTOP_ADVERSE_PCT.get(w["interval"], 0.5),
                 "log":                     w["log"][:20],
                 "error":                   w.get("error"),
+                "signal_profitable":       w.get("signal_profitable", True),
+                "capital_checked":         w.get("capital_checked", _get_available_capital()),
             })
     return {"watchers": out}
+
+
+# ── Ticker calibration endpoints ──────────────────────────────────────────────
+
+@app.post("/api/ticker-params/{ticker}", status_code=201)
+def upload_ticker_params(ticker: str, body: dict, _: str = Depends(_require_auth)):
+    """
+    Recibe el JSON generado por backtest_perticker_v2.py y lo guarda en DB.
+    Formato esperado: { "ticker":"NVDA", "tfs": { "1m":{params+stats}, ... } }
+    """
+    ticker = ticker.upper()
+    if "tfs" not in body:
+        raise HTTPException(400, "JSON debe contener campo 'tfs'")
+    body["ticker"] = ticker
+    ok, msg = _ticker_params.save_config(ticker, body)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "ticker": ticker, "message": msg}
+
+
+@app.get("/api/ticker-params/{ticker}")
+def get_ticker_params(ticker: str, _: str = Depends(_require_auth)):
+    """Devuelve stats por TF y calibrated_at para el ticker calibrado."""
+    ticker = ticker.upper()
+    rows   = _ticker_params.get_all_calibrated()
+    row    = next((r for r in rows if r["ticker"] == ticker), None)
+    if not row:
+        raise HTTPException(404, f"{ticker} no calibrado")
+    return {
+        "ticker":        ticker,
+        "calibrated":    True,
+        "calibrated_at": row.get("calibrated_at"),
+        "tfs":           row.get("tfs", {}),
+    }
+
+
+@app.delete("/api/ticker-params/{ticker}")
+def delete_ticker_params(ticker: str, _: str = Depends(_require_auth)):
+    """Elimina la calibracion de un ticker de la DB."""
+    ticker = ticker.upper()
+    ok = _ticker_params.delete_config(ticker)
+    if not ok:
+        raise HTTPException(404, f"{ticker} no encontrado")
+    return {"ok": True, "ticker": ticker}
+
+
+@app.get("/api/calibrated-tickers")
+def get_calibrated_tickers(_: str = Depends(_require_auth)):
+    """Lista todos los tickers calibrados con sus stats por TF."""
+    return {"tickers": _ticker_params.get_all_calibrated()}
 
 
 # ── Entry point (usado por el thread en main.py) ──────────────────────────────

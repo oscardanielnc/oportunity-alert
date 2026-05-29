@@ -309,6 +309,88 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .wl-feedback.ok  { color: var(--green); }
 .wl-feedback.err { color: var(--red); }
 
+/* ── Calibration ───────────────────────────────────────────────────── */
+.cal-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+}
+.cal-badge.ok  { background: rgba(34,197,94,.15);  color: var(--green); }
+.cal-badge.no  { background: var(--card2);          color: var(--text3); }
+
+/* ── Config upload form ─────────────────────────────────────────────── */
+.config-form {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 20px; margin-top: 16px;
+}
+.config-form-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 10px; }
+.config-textarea {
+  width: 100%; min-height: 90px; padding: 8px 12px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 11px; font-family: monospace;
+  resize: vertical; outline: none;
+}
+.config-textarea:focus { border-color: var(--accent); }
+.config-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.config-feedback { font-size: 11px; margin-top: 6px; }
+.config-feedback.ok  { color: var(--green); }
+.config-feedback.err { color: var(--red); }
+
+/* ── Watcher calibration messages ───────────────────────────────────── */
+.w-cal-err  {
+  color: var(--red); background: var(--red-d); font-size: 11px; font-weight: 600;
+  padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: none;
+}
+.w-cal-info {
+  display: none; gap: 6px; flex-wrap: wrap;
+  padding: 6px 10px; background: var(--card2); border-radius: 6px;
+  font-size: 11px; color: var(--text2); margin-top: 6px;
+}
+.tf-stat-chip {
+  display: inline-flex; flex-direction: column; align-items: center;
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+  gap: 1px;
+}
+.tf-stat-chip.bloq { border-color: var(--red); color: var(--red); }
+.tf-stat-chip .tf-stat-sub { font-size: 9px; font-weight: 400; color: var(--text3); }
+
+/* ── Hourly analysis panel ──────────────────────────────────────────── */
+.hourly-section { border-top: 1px solid var(--border); padding-top: 10px; }
+.hourly-toggle  { background: none; border: none; color: var(--text2); font-size: 11px;
+                  padding: 0; cursor: pointer; }
+.hourly-toggle:hover { color: var(--text); }
+.hourly-body    { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.hourly-now-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
+  background: var(--bg-deep); border: 1px solid var(--border);
+  font-size: 12px;
+}
+.hourly-now-label { color: var(--text2); }
+.hourly-now-val   { font-weight: 700; }
+.h-bar-row   { display: flex; align-items: center; gap: 7px; }
+.h-bar-lbl   { font-size: 10px; color: var(--text3); min-width: 28px; text-align: right; }
+.h-bar-outer { flex: 1; height: 8px; background: var(--border); border-radius: 4px;
+               min-width: 60px; position: relative; }
+.h-bar-inner { height: 100%; border-radius: 4px; transition: width .4s; }
+.h-bar-pct   { font-size: 10px; font-weight: 700; min-width: 34px; }
+.h-bar-meta  { font-size: 9px; color: var(--text3); }
+.h-bar-low   { font-size: 9px; color: var(--text3); background: var(--card2);
+               padding: 1px 5px; border-radius: 8px; }
+.h-now-mark  { position: absolute; top: -3px; bottom: -3px; width: 2px;
+               background: var(--accent); border-radius: 2px; }
+.h-bar-tag   { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px; }
+.h-bar-tag.best   { background: rgba(34,197,94,.2);  color: var(--green); }
+.h-bar-tag.avoid  { background: rgba(240,64,85,.2);  color: var(--red); }
+.h-bar-tag.active { background: var(--accent-d);     color: var(--accent); }
+
+/* ── TF button with stats ───────────────────────────────────────────── */
+.iv-btn {
+  display: inline-flex !important; flex-direction: column; align-items: center;
+  min-width: 46px;
+}
+.iv-btn-stat { font-size: 9px; font-weight: 600; opacity: .8; line-height: 1; }
+
 /* ── Empty & loading ───────────────────────────────────────────────── */
 .empty { text-align: center; padding: 56px 20px; color: var(--text3); font-size: 13px; }
 .empty strong { display: block; font-size: 15px; color: var(--text2); margin-bottom: 6px; }
@@ -609,6 +691,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
         <div class="stat-cell"><div class="stat-label">Primary</div><div class="stat-value c-accent" id="wl-cnt-p">—</div><div class="stat-sub">tickers</div></div>
         <div class="stat-cell"><div class="stat-label">Extended</div><div class="stat-value" id="wl-cnt-e">—</div><div class="stat-sub">tickers</div></div>
         <div class="stat-cell"><div class="stat-label">Total</div><div class="stat-value" id="wl-cnt-t">—</div><div class="stat-sub">monitoreados</div></div>
+        <div class="stat-cell"><div class="stat-label">Calibrados</div><div class="stat-value c-green" id="wl-cnt-cal">—</div><div class="stat-sub">para Watcher</div></div>
         <div class="stat-cell"><div class="stat-label">Activo desde</div><div class="stat-value c-dim" style="font-size:13px" id="wl-oldest">—</div><div class="stat-sub"></div></div>
       </div>
       <div class="wl-grid">
@@ -634,24 +717,55 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
         </div>
         <div id="wl-msg" class="wl-feedback"></div>
       </div>
+
+      <div class="config-form">
+        <div class="config-form-title">
+          Cargar Config de Calibracion
+          <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">
+            (genera con: <code style="background:var(--bg-deep);padding:1px 5px;border-radius:4px">python backtest_perticker_v2.py TICKER</code>)
+          </span>
+        </div>
+        <textarea class="config-textarea" id="cal-json"
+          placeholder='Pegar contenido de data/TICKER_config.json aqui...&#10;{"ticker":"NVDA","tfs":{"1m":{...},...}}'></textarea>
+        <div class="config-row">
+          <button class="btn-add" onclick="uploadCalConfig()">Cargar Config</button>
+          <button class="btn-ghost" style="font-size:11px" onclick="deleteCalConfigPrompt()">Eliminar calibracion</button>
+        </div>
+        <div id="cal-feedback" class="config-feedback"></div>
+      </div>
     </div>
 
     <!-- ===== WATCHER ===== -->
     <div id="p-watcher" class="panel">
 
       <!-- Add bar -->
-      <div class="watcher-add-bar">
-        <span class="wlabel">📡 Ticker Watcher</span>
-        <input class="inp inp-ticker" id="w-ticker" type="text" placeholder="TICKER"
-               maxlength="8" style="width:90px"
-               onkeydown="if(event.key==='Enter')watcherAdd()">
-        <select class="sel" id="w-interval">
-          <option value="1m">1m — intraday</option>
-          <option value="5m">5m — swing</option>
-          <option value="15m">15m — posición</option>
-        </select>
-        <button class="btn-add" id="w-add-btn" onclick="watcherAdd()">+ Agregar</button>
-        <span class="wcount" id="w-count">0 / 5 activos</span>
+      <div class="watcher-add-bar" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%">
+          <span class="wlabel">📡 Ticker Watcher</span>
+          <input class="inp inp-ticker" id="w-ticker" type="text" placeholder="TICKER"
+                 maxlength="8" style="width:90px"
+                 oninput="onWatcherTickerInput()"
+                 onkeydown="if(event.key==='Enter')watcherAdd()">
+          <select class="sel" id="w-interval">
+            <option value="1m">1m — intraday</option>
+            <option value="5m">5m — swing</option>
+            <option value="15m">15m — posicion</option>
+          </select>
+          <button class="btn-add" id="w-add-btn" onclick="watcherAdd()">+ Agregar</button>
+          <span class="wcount" id="w-count">0 / 5 activos</span>
+        </div>
+        <div id="w-cal-err" class="w-cal-err">Ticker no calibrado</div>
+        <div id="w-cal-info" class="w-cal-info"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:8px;border-top:1px solid var(--border)">
+          <span style="color:var(--text2);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Capital por trade:</span>
+          <span style="color:var(--text3);font-size:11px">$</span>
+          <input id="w-capital" type="number" value="5000" min="100" step="100"
+                 style="width:88px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                        color:var(--text);font-size:12px;font-weight:700;padding:4px 8px;outline:none;
+                        font-family:var(--font)"
+                 oninput="onCapitalChange()" onchange="onCapitalChange()">
+          <span id="w-capital-summary" style="font-size:11px;color:var(--text3)"></span>
+        </div>
       </div>
 
       <!-- Tab bar -->
@@ -673,6 +787,11 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 // ── State ─────────────────────────────────────────────────────────────────────
 let _creds = null;
 let _timer = null;
+let _calibratedMap  = {};   // ticker -> {ticker, calibrated_at, tfs:{...}}
+let _tfStatsCache   = {};   // ticker -> {interval -> {pf, wr_pct, avg_pnl, n_trades, block_new}}
+let _hourlyCache    = {};   // ticker -> {interval -> {hour -> {n, wr_pct, pf, avg_pnl, ok}}}
+let _feeCache       = {};   // ticker -> {interval -> {long:{...}, short:{...}}}
+let _capitalDisponible = 5000;  // inicializado desde /api/health, luego actualizable por el usuario
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function doLogin() {
@@ -739,6 +858,15 @@ async function updateTopbar() {
   try {
     const h = await fetch('/api/health').then(r => r.json());
 
+    // Sync capital from backend (fuente de verdad — hoy env var, futuro eToro live)
+    if (h.capital_disponible && h.capital_disponible !== _capitalDisponible) {
+      _capitalDisponible = h.capital_disponible;
+      const inp = document.getElementById('w-capital');
+      if (inp && parseFloat(inp.value) !== _capitalDisponible) {
+        inp.value = _capitalDisponible;
+      }
+    }
+
     // Determine which SESSION_INFO key to use
     const isEarlyPM = h.market_session === 'PRE_MARKET'
                       && h.entry_threshold > (h.default_threshold ?? 5);
@@ -784,7 +912,15 @@ function go(name) {
   if (name === 'premarket')  loadPremarket();
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
-  if (name === 'watcher')    loadWatcherStatus();
+  if (name === 'watcher') {
+    // Ensure calibration map is populated before watcher loads
+    if (!Object.keys(_calibratedMap).length) {
+      api('/api/calibrated-tickers').then(d => {
+        (d.tickers || []).forEach(c => { _calibratedMap[c.ticker] = c; });
+      }).catch(() => {});
+    }
+    loadWatcherStatus();
+  }
 }
 
 // ── API fetch ──────────────────────────────────────────────────────────────────
@@ -1006,10 +1142,74 @@ function renderPos(p) {
 </div>`;
 }
 
+// ── Ticker calibration upload/delete ─────────────────────────────────────────
+async function uploadCalConfig() {
+  const raw  = (document.getElementById('cal-json')?.value || '').trim();
+  const fbEl = document.getElementById('cal-feedback');
+  if (!raw) { if (fbEl) { fbEl.textContent = '✗ Pega el JSON primero.'; fbEl.className = 'config-feedback err'; } return; }
+
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { if (fbEl) { fbEl.textContent = '✗ JSON invalido — verifica el formato.'; fbEl.className = 'config-feedback err'; } return; }
+
+  const ticker = (parsed.ticker || '').toUpperCase();
+  if (!ticker) { if (fbEl) { fbEl.textContent = '✗ JSON no contiene campo "ticker".'; fbEl.className = 'config-feedback err'; } return; }
+
+  try {
+    const r = await fetch(`/api/ticker-params/${ticker}`, {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.status);
+    if (fbEl) { fbEl.textContent = `✓ ${j.message}`; fbEl.className = 'config-feedback ok'; }
+    document.getElementById('cal-json').value = '';
+    loadWatchlist();
+  } catch (e) {
+    if (fbEl) { fbEl.textContent = `✗ ${e.message}`; fbEl.className = 'config-feedback err'; }
+  }
+  setTimeout(() => { if (fbEl) fbEl.textContent = ''; }, 6000);
+}
+
+async function deleteCalConfigPrompt() {
+  const raw  = (document.getElementById('cal-json')?.value || '').trim();
+  const fbEl = document.getElementById('cal-feedback');
+  let ticker = '';
+  if (raw) {
+    try { ticker = (JSON.parse(raw).ticker || '').toUpperCase(); } catch {}
+  }
+  if (!ticker) {
+    ticker = prompt('Ticker a eliminar:');
+    if (!ticker) return;
+    ticker = ticker.toUpperCase().trim();
+  }
+  if (!confirm(`Eliminar calibracion de ${ticker}?`)) return;
+  try {
+    const r = await fetch(`/api/ticker-params/${ticker}`, { method: 'DELETE', headers: auth() });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.status);
+    if (fbEl) { fbEl.textContent = `✓ Calibracion de ${ticker} eliminada.`; fbEl.className = 'config-feedback ok'; }
+    loadWatchlist();
+  } catch (e) {
+    if (fbEl) { fbEl.textContent = `✗ ${e.message}`; fbEl.className = 'config-feedback err'; }
+  }
+  setTimeout(() => { if (fbEl) fbEl.textContent = ''; }, 5000);
+}
+
 // ── Tab: Watchlist ────────────────────────────────────────────────────────────
 async function loadWatchlist() {
   try {
-    const data = await api('/api/watchlist');
+    const [data, calData] = await Promise.all([
+      api('/api/watchlist'),
+      api('/api/calibrated-tickers').catch(() => ({ tickers: [] })),
+    ]);
+    // Build calibration map
+    _calibratedMap = {};
+    (calData.tickers || []).forEach(c => { _calibratedMap[c.ticker] = c; });
+    const nCal = Object.keys(_calibratedMap).length;
+    setText('wl-cnt-cal', nCal);
+
     const prim = data.filter(t => t.category === 'primary');
     const ext  = data.filter(t => t.category !== 'primary');
     document.getElementById('wl-p').innerHTML = renderChips(prim, true);
@@ -1029,12 +1229,18 @@ async function loadWatchlist() {
 function renderChips(tickers, isPrimary) {
   if (!tickers.length)
     return `<span style="color:var(--text3);font-size:12px">Sin tickers — agrega abajo</span>`;
-  return tickers.map(t =>
-    `<div class="wl-chip ${isPrimary ? 'primary' : ''}">
-       ${t.ticker}
-       <button class="rm" onclick="removeTicker('${t.ticker}')" title="Eliminar">×</button>
-     </div>`
-  ).join('');
+  return tickers.map(t => {
+    const cal     = _calibratedMap[t.ticker];
+    const calDate = cal?.calibrated_at ? cal.calibrated_at.slice(0,10) : '';
+    const badge   = cal
+      ? `<span class="cal-badge ok" title="Calibrado ${calDate}">✓ Cal</span>`
+      : `<span class="cal-badge no" title="Sin calibrar — corre backtest_perticker_v2.py ${t.ticker}">Sin cal</span>`;
+    return `<div class="wl-chip ${isPrimary ? 'primary' : ''}">
+      ${t.ticker}
+      ${badge}
+      <button class="rm" onclick="removeTicker('${t.ticker}')" title="Eliminar">×</button>
+    </div>`;
+  }).join('');
 }
 
 async function addTicker() {
@@ -1103,10 +1309,56 @@ let _watcherCounters = {};   // ticker → {interval_seconds, next_scan_seconds,
 let _watcherState    = {};   // ticker → last full watcher payload
 let _activeWatcher   = null; // ticker currently shown in the panel
 
+function _clearWCalFeedback() {
+  const errEl  = document.getElementById('w-cal-err');
+  const infoEl = document.getElementById('w-cal-info');
+  if (errEl)  { errEl.style.display = 'none'; errEl.textContent = ''; }
+  if (infoEl) { infoEl.style.display = 'none'; infoEl.innerHTML = ''; }
+}
+
+async function onWatcherTickerInput() {
+  const ticker = (document.getElementById('w-ticker').value || '').toUpperCase().trim();
+  _clearWCalFeedback();
+  if (!ticker || ticker.length < 1) return;
+  // Debounce — only check on full symbols (2+ chars)
+  if (ticker.length < 2) return;
+  try {
+    const r = await fetch(`/api/ticker-params/${ticker}`, { headers: auth() });
+    const infoEl = document.getElementById('w-cal-info');
+    const errEl  = document.getElementById('w-cal-err');
+    if (r.status === 404) {
+      if (errEl) {
+        errEl.textContent = `⚠ ${ticker} no calibrado — corre: python backtest_perticker_v2.py ${ticker}`;
+        errEl.style.display = '';
+      }
+      return;
+    }
+    if (!r.ok) return;
+    const data = await r.json();
+    const tfs  = data.tfs || {};
+    if (infoEl && Object.keys(tfs).length) {
+      const chips = ['1m','5m','15m'].map(iv => {
+        const s = tfs[iv];
+        if (!s) return '';
+        if (s.block_new) {
+          return `<span class="tf-stat-chip bloq">${iv}<span class="tf-stat-sub">BLOQ</span></span>`;
+        }
+        const wr  = s.wr_pct   != null ? `WR ${s.wr_pct.toFixed(0)}%`     : '';
+        const pf  = s.pf       != null ? `PF ${s.pf.toFixed(2)}`           : '';
+        const sub = wr || pf;
+        return `<span class="tf-stat-chip">${iv}<span class="tf-stat-sub">${sub}</span></span>`;
+      }).join('');
+      infoEl.innerHTML = `<span style="font-weight:600;color:var(--green)">✓ ${ticker} calibrado</span>${chips}`;
+      infoEl.style.display = 'flex';
+    }
+  } catch {}
+}
+
 async function watcherAdd() {
   const ticker   = (document.getElementById('w-ticker').value || '').toUpperCase().trim();
   const interval = document.getElementById('w-interval').value;
   if (!ticker) return;
+  _clearWCalFeedback();
   try {
     const r = await fetch('/api/watcher/start', {
       method: 'POST',
@@ -1114,8 +1366,16 @@ async function watcherAdd() {
       body: JSON.stringify({ ticker, interval }),
     });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || r.status);
+    if (!r.ok) {
+      const errEl = document.getElementById('w-cal-err');
+      if (errEl) {
+        errEl.textContent = `⚠ ${j.detail || r.status}`;
+        errEl.style.display = '';
+      }
+      return;
+    }
     document.getElementById('w-ticker').value = '';
+    _clearWCalFeedback();
     await loadWatcherStatus();
   } catch (e) { alert(`Error: ${e.message}`); }
 }
@@ -1239,6 +1499,22 @@ async function loadWatcherStatus() {
     const watchers = data.watchers || [];
 
     watchers.forEach(w => { _watcherState[w.ticker] = w; });
+
+    // Fetch TF stats + calibration info for tickers not yet cached
+    const missing = watchers.filter(w => !_tfStatsCache[w.ticker]).map(w => w.ticker);
+    if (missing.length) {
+      await Promise.all(missing.map(async t => {
+        try {
+          const r = await api(`/api/ticker-params/${t}`);
+          _tfStatsCache[t]  = r.tfs || {};
+          _hourlyCache[t]   = r.hourly_analysis || {};
+          _feeCache[t]      = r.fee_analysis    || {};
+          _calibratedMap[t] = { ticker: t, calibrated_at: r.calibrated_at,
+                                 tfs: r.tfs || {}, hourly_analysis: r.hourly_analysis || {},
+                                 fee_analysis: r.fee_analysis || {} };
+        } catch { _tfStatsCache[t] = {}; _hourlyCache[t] = {}; }
+      }));
+    }
 
     const incomingSet = watchers.map(w => w.ticker).sort().join(',');
     const existingSet = Object.keys(_watcherCounters).sort().join(',');
@@ -1696,16 +1972,50 @@ function renderWatcherCard(w, logOpen, tvOpen) {
     <span class="wcard-price">${priceStr}</span>
     ${chgStr}
     <span class="wcard-interval">
-      ${['1m','5m','15m'].map(iv =>
-        `<button class="iv-btn${w.interval===iv?' iv-active':''}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}</button>`
-      ).join('')}
+      ${['1m','5m','15m'].map(iv => {
+        const tfS  = (_tfStatsCache[w.ticker] || {})[iv];
+        const nlng = _netLong(w.ticker, iv);
+        const nsht = _netShort(w.ticker, iv);
+        let statHtml = '';
+        if (tfS) {
+          if (tfS.block_new) {
+            statHtml = `<span class="iv-btn-stat" style="color:var(--red)">BLOQ</span>`;
+          } else {
+            const wrLine = tfS.wr_pct != null
+              ? `<span class="iv-btn-stat">WR${tfS.wr_pct.toFixed(0)}%</span>` : '';
+            // Long net at current capital
+            let netLine = '';
+            if (nlng) {
+              const col = nlng.viable ? 'var(--green)' : 'var(--red)';
+              const sign = nlng.net_usd >= 0 ? '+' : '';
+              netLine = `<span class="iv-btn-stat" style="color:${col}">L${sign}$${nlng.net_usd.toFixed(0)}</span>`;
+            }
+            // Short net
+            if (nsht && nsht.viable) {
+              netLine += `<span class="iv-btn-stat" style="color:var(--yellow)"> S+$${nsht.net_usd.toFixed(0)}</span>`;
+            }
+            statHtml = wrLine + netLine;
+          }
+        }
+        return `<button class="iv-btn${w.interval===iv?' iv-active':''}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}${statHtml}</button>`;
+      }).join('')}
     </span>
     <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;${w.feed_mode==='IEX' ? 'color:var(--green);background:var(--green-d)' : 'color:var(--yellow);background:var(--yellow-d)'}">${w.feed_mode||'…'}</span>
     ${w.htf_trend==='BULLISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--green);background:var(--green-d)" title="Tendencia HTF alcista — umbral de entrada LONG reducido">HTF ▲</span>`
       : w.htf_trend==='BEARISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--red);background:var(--red-d)" title="Tendencia HTF bajista — umbral de entrada SHORT reducido">HTF ▼</span>`
       : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--text3);background:var(--card2)" title="HTF neutro — umbrales normales 5/9">HTF —</span>`}
-    <span class="wcard-scan" id="w-scan-${w.ticker}">Próx scan: —</span>
-    <button class="btn-stop" onclick="watcherStop('${w.ticker}')">■ Detener</button>
+    ${(() => {
+      const cal = _tfStatsCache[w.ticker] ? Object.values(_tfStatsCache[w.ticker])[0] : null;
+      if (!cal) return '';
+      // calibrated_at not in tf stats, but we can check _calibratedMap
+      const calEntry = _calibratedMap[w.ticker];
+      if (!calEntry?.calibrated_at) return '';
+      const daysAgo = Math.round((Date.now() - new Date(calEntry.calibrated_at).getTime()) / 86400000);
+      const color   = daysAgo > 45 ? 'var(--yellow)' : 'var(--text3)';
+      return `<span style="font-size:9px;color:${color}" title="Calibrado el ${calEntry.calibrated_at.slice(0,10)}">cal ${daysAgo}d</span>`;
+    })()}
+    <span class="wcard-scan" id="w-scan-${w.ticker}">Proxim scan: —</span>
+    <button class="btn-stop" onclick="watcherStop('${w.ticker}')">&#9632; Detener</button>
   </div>
 
   ${w.market_session === 'CLOSED' ? `
@@ -1726,13 +2036,8 @@ function renderWatcherCard(w, logOpen, tvOpen) {
 
   <div class="wcard-body">
 
-    <!-- Signal -->
-    <div class="signal-box ${signalClass(sig)}">
-      <div class="signal-name">${signalIcon(sig)} ${signalLabel(sig)}</div>
-      <div class="signal-sub">${confirmSub}</div>
-      ${candidateHtml}
-      ${w.error ? `<div style="font-size:10px;color:var(--yellow);margin-top:4px">${esc(w.error)}</div>` : ''}
-    </div>
+    <!-- Signal + rentabilidad neta al capital configurado -->
+    ${_renderSignalWithNet(w, sig, confirmed, confirmSub, candidateHtml)}
 
     <!-- Patterns + Lock -->
     ${(() => {
@@ -1859,11 +2164,20 @@ function renderWatcherCard(w, logOpen, tvOpen) {
       </div>
     </div>
 
+    <!-- Fee context (detalle técnico de comisiones, colapsable) -->
+    ${_renderFeeContext(w.ticker, w.interval, sig, _capitalDisponible)}
+
     <!-- SMS -->
     <div class="sms-row">
       <span class="sms-label">Alertas SMS</span>
-      <span class="sms-badge" title="SMS disponible en Fase 2">Próximamente</span>
+      <span class="sms-badge" title="SMS disponible en Fase 2">Proxim.</span>
     </div>
+
+    <!-- Rentabilidad neta por TF/dirección -->
+    ${_renderRentabilidadPanel(w.ticker, w.interval)}
+
+    <!-- Hourly analysis -->
+    ${_renderHourlySection(w.ticker, w.interval)}
 
     <!-- Log -->
     <div class="log-section">
@@ -1877,6 +2191,360 @@ function renderWatcherCard(w, logOpen, tvOpen) {
 
   </div><!-- /wcard-body -->
 </div>`;
+}
+
+// ── Capital & fee helpers ─────────────────────────────────────────────────────
+
+function onCapitalChange() {
+  const v = parseFloat(document.getElementById('w-capital')?.value) || 0;
+  if (v >= 100) {
+    _capitalDisponible = v;
+    // Update summary
+    const el = document.getElementById('w-capital-summary');
+    if (el) el.textContent = `— se usa para calcular rentabilidad neta`;
+    // Re-render active watcher if visible
+    if (_activeWatcher && _watcherState[_activeWatcher]) {
+      switchWatcherTab(_activeWatcher);
+    }
+  }
+}
+
+function _netLong(ticker, interval) {
+  const fee = (_feeCache[ticker] || {})[interval];
+  if (!fee || !fee.long) return null;
+  const cap     = _capitalDisponible;
+  const gross   = fee.long.gross_avg_pnl;          // %
+  const net_pct = gross - (200.0 / cap);            // $2 fee as %
+  const net_usd = Math.round(net_pct / 100 * cap * 100) / 100;
+  return {
+    net_pct:  Math.round(net_pct * 1000) / 1000,
+    net_usd,
+    gross_pct: gross,
+    viable:   net_usd > 0,
+    breakeven: fee.long.breakeven_position_usd,
+  };
+}
+
+function _netShort(ticker, interval) {
+  const fee = (_feeCache[ticker] || {})[interval];
+  if (!fee || !fee.short) return null;
+  const cap     = _capitalDisponible;
+  const gross   = fee.short.gross_avg_pnl;          // %
+  const net_pct = gross - 0.30;                      // 0.30% fee fixed
+  const net_usd = Math.round(net_pct / 100 * cap * 100) / 100;
+  return {
+    net_pct:  Math.round(net_pct * 1000) / 1000,
+    net_usd,
+    gross_pct: gross,
+    viable:   net_usd > 0,
+  };
+}
+
+function _fmtNet(net) {
+  if (!net) return { text:'—', icon:'', color:'var(--text3)' };
+  if (!net.viable) return { text: `–$${Math.abs(net.net_usd).toFixed(2)}`, icon:'❌', color:'var(--red)' };
+  if (net.net_usd < 1)  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'🟡', color:'var(--yellow)' };
+  if (net.net_usd < 5)  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'✅', color:'var(--green)' };
+  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'✅✅', color:'var(--green)' };
+}
+
+// ── Signal + net render ───────────────────────────────────────────────────────
+
+function _renderSignalWithNet(w, sig, confirmed, confirmSub, candidateHtml) {
+  const isEntry = sig === 'ENTRAR_LONG' || sig === 'ENTRAR_SHORT';
+  const isLong  = sig === 'ENTRAR_LONG';
+  const net     = isEntry ? (isLong ? _netLong(w.ticker, w.interval)
+                                    : _netShort(w.ticker, w.interval)) : null;
+  // Dual check: frontend calc + backend confirmation (capital real desde _get_available_capital)
+  const backendOk = w.signal_profitable !== false;
+  const viable    = (net ? net.viable : true) && backendOk;
+
+  const cap     = _capitalDisponible;
+  const capStr  = cap >= 1000 ? '$' + (cap/1000).toFixed(cap%1000===0?0:1) + 'k' : '$' + cap;
+
+  let netHtml = '';
+  if (isEntry && net) {
+    if (viable) {
+      const sign = net.net_usd >= 0 ? '+' : '';
+      const col  = net.net_usd >= 5 ? '#22c55e' : net.net_usd >= 1 ? '#86efac' : '#f59e0b';
+      netHtml = '<div style="font-size:12px;font-weight:700;margin-top:6px;padding:5px 10px;' +
+        'border-radius:6px;background:rgba(34,197,94,.12);color:' + col + '">' +
+        'Net: ' + sign + '$' + net.net_usd.toFixed(2) + ' / trade &nbsp;·&nbsp; capital ' + capStr +
+        '</div>';
+    } else {
+      netHtml = '<div style="font-size:11px;margin-top:6px;padding:5px 10px;border-radius:6px;' +
+        'background:rgba(240,64,85,.15);color:#f04055;font-weight:700">' +
+        '⚠ No rentable a ' + capStr + ' — sube capital o cambia TF' +
+        '</div>';
+    }
+  }
+
+  const boxStyle = (isEntry && !viable)
+    ? 'opacity:.65;border:1px solid rgba(240,64,85,.35)'
+    : '';
+
+  return '<div class="signal-box ' + signalClass(sig) + '" style="' + boxStyle + '">' +
+    '<div class="signal-name">' + signalIcon(sig) + ' ' + signalLabel(sig) + '</div>' +
+    '<div class="signal-sub">' + confirmSub + '</div>' +
+    (candidateHtml || '') + netHtml +
+    (w.error ? '<div style="font-size:10px;color:var(--yellow);margin-top:4px">' + esc(w.error) + '</div>' : '') +
+    '</div>';
+}
+
+
+// ── Rentabilidad panel ────────────────────────────────────────────────────────
+
+function _renderRentabilidadPanel(ticker, interval) {
+  const hasFee = !!(_feeCache[ticker] && Object.keys(_feeCache[ticker]).length);
+  if (!hasFee) return '';
+
+  const cap    = _capitalDisponible;
+  const capStr = cap >= 1000 ? '$' + (cap/1000).toFixed(cap%1000===0?0:1) + 'k' : '$' + cap;
+  const ivs    = ['1m','5m','15m'];
+
+  // Build matrix rows
+  const rows = ['LONG','SHORT'].map(dir => {
+    const isLong = dir === 'LONG';
+    const cells  = ivs.map(iv => {
+      const net  = isLong ? _netLong(ticker, iv) : _netShort(ticker, iv);
+      const tfS  = (_tfStatsCache[ticker] || {})[iv];
+      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px">—</td>';
+      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px">BLOQ</td>';
+      const f    = _fmtNet(net);
+      const bg   = net.viable
+        ? (net.net_usd >= 5 ? 'rgba(34,197,94,.08)' : 'rgba(245,158,11,.08)')
+        : 'rgba(240,64,85,.07)';
+      return '<td style="text-align:center;padding:8px 12px;background:' + bg + '">' +
+        '<span style="font-weight:700;color:' + f.color + '">' + f.text + '</span>' +
+        ' <span style="font-size:12px">' + f.icon + '</span>' +
+        '</td>';
+    });
+    return '<tr>' +
+      '<td style="padding:8px 12px;color:var(--text2);font-weight:700;font-size:11px">' + dir + '</td>' +
+      cells.join('') + '</tr>';
+  });
+
+  // Recommendation row
+  const recCells = ivs.map(iv => {
+    const nl = _netLong(ticker, iv);
+    const ns = _netShort(ticker, iv);
+    const lv = nl && nl.viable;
+    const sv = ns && ns.viable;
+    const tfS = (_tfStatsCache[ticker] || {})[iv];
+    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)">NO OPERAR</td>';
+    const txt = lv && sv ? 'L + S' : lv ? 'Solo L' : sv ? 'Solo S' : 'NO';
+    const col = (lv || sv) ? 'var(--green)' : 'var(--red)';
+    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + '">' + txt + '</td>';
+  });
+
+  return '<div style="border-top:1px solid var(--border);padding-top:10px">' +
+    '<button class="hourly-toggle" onclick="toggleSection(\'rentab-body-' + ticker + '\',\'rentab-arrow-' + ticker + '\')">' +
+    '💰 Rentabilidad a ' + capStr + ' <span id="rentab-arrow-' + ticker + '">▼</span>' +
+    '</button>' +
+    '<div id="rentab-body-' + ticker + '" style="display:none;margin-top:8px;overflow-x:auto">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    '<thead><tr style="border-bottom:1px solid var(--border)">' +
+    '<th style="padding:6px 12px;text-align:left;color:var(--text3);font-size:10px"></th>' +
+    ivs.map(iv => {
+      const tfS = (_tfStatsCache[ticker] || {})[iv];
+      const wr  = tfS && tfS.wr_pct != null ? ' WR' + tfS.wr_pct.toFixed(0) + '%' : '';
+      return '<th style="padding:6px 12px;text-align:center;color:var(--text2);font-size:10px;font-weight:700">' +
+        iv + wr + '</th>';
+    }).join('') +
+    '</tr></thead>' +
+    '<tbody>' + rows.join('') + '</tbody>' +
+    '<tfoot><tr style="border-top:1px solid var(--border)">' +
+    '<td style="padding:4px 12px;font-size:9px;color:var(--text3)">Operar</td>' +
+    recCells.join('') +
+    '</tr></tfoot>' +
+    '</table>' +
+    '<div style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right">' +
+    'eToro x1: Long $2 fijos · Short 0.30%</div>' +
+    '</div></div>';
+}
+
+// ── Fee context helpers ───────────────────────────────────────────────────────
+
+function _renderFeeContext(ticker, interval, signal, amount) {
+  const feeData = (_feeCache[ticker] || {})[interval];
+  if (!feeData) return '';
+
+  const isLong  = signal === 'ENTRAR_LONG';
+  const isShort = signal === 'ENTRAR_SHORT';
+  if (!isLong && !isShort) return '';
+
+  let html = '';
+  const amt = parseFloat(amount) || 0;
+
+  if (isLong && feeData.long) {
+    const ld  = feeData.long;
+    const be  = ld.breakeven_position_usd;
+    const net = ld.net_by_position_size;
+
+    // Find net stats for user's amount (or closest size)
+    let netInfo = null;
+    if (amt > 0 && net) {
+      const sizes = Object.keys(net).map(Number).sort((a,b)=>a-b);
+      const closest = sizes.reduce((prev, curr) =>
+        Math.abs(curr - amt) < Math.abs(prev - amt) ? curr : prev
+      );
+      netInfo = net[String(closest)];
+    }
+
+    const beColor = !be ? 'var(--text3)'
+      : amt > 0 && amt >= be ? 'var(--green)'
+      : 'var(--red)';
+
+    const beMsg = be
+      ? `Posición mín LONG: <strong style="color:${beColor}">$${be.toLocaleString()}</strong>`
+      : 'Sin datos de break-even';
+
+    let amtMsg = '';
+    if (amt > 0 && netInfo) {
+      const netColor = netInfo.viable ? 'var(--green)' : 'var(--red)';
+      const netSign  = netInfo.net_avg_pnl >= 0 ? '+' : '';
+      amtMsg = `
+        <span style="margin-left:10px">
+          Con $${amt.toLocaleString()}:
+          <strong style="color:${netColor}">
+            ${netSign}${netInfo.net_avg_pnl}% neto  ·  ~$${netInfo.net_usd > 0 ? '+' : ''}${netInfo.net_usd}
+          </strong>
+          ${!netInfo.viable ? '<span style="color:var(--red);font-size:9px;margin-left:4px">NO RENTABLE</span>' : ''}
+        </span>`;
+    } else if (amt > 0 && be && amt < be) {
+      amtMsg = `<span style="color:var(--red);margin-left:8px">$${amt.toLocaleString()} < mínimo — trade no rentable</span>`;
+    }
+
+    html = `<div style="font-size:11px;padding:7px 10px;border-radius:7px;
+              background:rgba(124,111,247,.08);border:1px solid rgba(124,111,247,.2);
+              display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+      <span style="color:var(--text3)">eToro $2:</span>
+      <span>${beMsg}</span>${amtMsg}
+    </div>`;
+  }
+
+  if (isShort && feeData.short) {
+    const sd    = feeData.short;
+    const color = sd.viable ? 'var(--yellow)' : 'var(--red)';
+    const msg   = sd.viable
+      ? `SHORT viable — net avg: <strong style="color:var(--yellow)">${sd.net_avg_pnl > 0 ? '+' : ''}${sd.net_avg_pnl}%</strong> tras 0.30% comision`
+      : `SHORT <strong style="color:var(--red)">NO RENTABLE</strong> — gross avg ${sd.gross_avg_pnl > 0 ? '+' : ''}${sd.gross_avg_pnl}% < comision 0.30%`;
+
+    html = `<div style="font-size:11px;padding:7px 10px;border-radius:7px;
+              background:${sd.viable ? 'rgba(245,158,11,.08)' : 'rgba(240,64,85,.08)'};
+              border:1px solid ${color}40">
+      <span style="color:var(--text3)">eToro 0.30%:</span> ${msg}
+    </div>`;
+  }
+
+  return html ? `<div style="margin-top:-4px">${html}</div>` : '';
+}
+
+// ── Hourly analysis helpers ───────────────────────────────────────────────────
+
+function _limaHour() {
+  // Lima = UTC-5, usando UTC para evitar dependencia de zona del navegador
+  const now = new Date();
+  const limaMs = now.getTime() - 5 * 3600 * 1000;
+  return new Date(limaMs).getUTCHours();
+}
+
+function _renderHourlySection(ticker, interval) {
+  const hourly = (_hourlyCache[ticker] || {})[interval];
+  if (!hourly || !Object.keys(hourly).length) return '';
+
+  const curH   = _limaHour();
+  const hours  = Object.keys(hourly).map(Number).sort((a,b) => a-b);
+
+  // Horas con suficiente muestra para estadísticas
+  const okHours = hours.filter(h => hourly[String(h)].ok);
+  const bestH   = okHours.length
+    ? okHours.reduce((a, b) =>
+        hourly[String(a)].wr_pct >= hourly[String(b)].wr_pct ? a : b)
+    : null;
+  const worstH  = okHours.length
+    ? okHours.reduce((a, b) =>
+        hourly[String(a)].wr_pct <= hourly[String(b)].wr_pct ? a : b)
+    : null;
+
+  // Info de la hora actual
+  const curData = hourly[String(curH)];
+  const inRange = !!curData;
+  const nowColor = !inRange ? 'var(--text3)'
+    : curData.wr_pct >= 65 ? 'var(--green)'
+    : curData.wr_pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+  const nowLabel = !inRange ? `${curH}h — sin datos`
+    : curData.ok
+      ? `${curH}h Lima → WR ${curData.wr_pct}%  ·  PF ${curData.pf}  ·  n=${curData.n}`
+      : `${curH}h Lima → WR ${curData.wr_pct}% (n=${curData.n}, muestra baja)`;
+
+  // Barras por hora
+  const maxWr = Math.max(...hours.map(h => hourly[String(h)].wr_pct), 1);
+  const barsHtml = hours.map(h => {
+    const d      = hourly[String(h)];
+    const wr     = d.wr_pct;
+    const isNow  = h === curH;
+    const isBest = h === bestH;
+    const isWrst = h === worstH;
+
+    const barColor = wr >= 65 ? 'var(--green)' : wr >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const barW     = Math.round(wr / 100 * 100);
+    // Small dot at current-WR position within the bar for context
+    const nowPct   = isNow ? Math.round(wr / maxWr * 100) : null;
+
+    let tag = '';
+    if (isNow && isBest) tag = `<span class="h-bar-tag best active">★ MEJOR · AHORA</span>`;
+    else if (isNow && isWrst) tag = `<span class="h-bar-tag avoid active">✗ EVITAR · AHORA</span>`;
+    else if (isNow)  tag = `<span class="h-bar-tag active">▶ AHORA</span>`;
+    else if (isBest) tag = `<span class="h-bar-tag best">★ mejor</span>`;
+    else if (isWrst) tag = `<span class="h-bar-tag avoid">✗ evitar</span>`;
+
+    const lowMark = !d.ok ? `<span class="h-bar-low">n<5</span>` : '';
+    const meta    = `<span class="h-bar-meta">PF ${d.pf} · avg ${d.avg_pnl>=0?'+':''}${d.avg_pnl}%</span>`;
+
+    return `<div class="h-bar-row" style="${isNow ? 'background:rgba(124,111,247,.06);border-radius:6px;padding:2px 4px;margin:0 -4px' : ''}">
+      <span class="h-bar-lbl" style="${isNow ? 'color:var(--accent);font-weight:700' : ''}">${h}h</span>
+      <div class="h-bar-outer">
+        <div class="h-bar-inner" style="width:${barW}%;background:${barColor};opacity:${d.ok ? 1 : 0.45}"></div>
+      </div>
+      <span class="h-bar-pct" style="color:${barColor}">${wr}%</span>
+      ${meta}${lowMark}${tag}
+    </div>`;
+  }).join('');
+
+  // Top 3 recomendadas (solo ok)
+  const top3 = okHours
+    .sort((a,b) => {
+      const da = hourly[String(a)], db = hourly[String(b)];
+      return (db.wr_pct*0.5 + db.pf*0.3 + db.avg_pnl*15*0.2) -
+             (da.wr_pct*0.5 + da.pf*0.3 + da.avg_pnl*15*0.2);
+    })
+    .slice(0, 3);
+
+  const top3Html = top3.length
+    ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">
+        Mejores horas:
+        ${top3.map(h => {
+          const d = hourly[String(h)];
+          return `<span style="color:var(--green);font-weight:600;margin:0 4px">${h}h <span style="color:var(--text2)">${d.wr_pct}% WR · PF ${d.pf}</span></span>`;
+        }).join('·')}
+       </div>` : '';
+
+  return `<div class="hourly-section">
+    <button class="hourly-toggle" onclick="toggleSection('hourly-body-${ticker}','hourly-arrow-${ticker}')">
+      🕐 Análisis horario (${interval}) — hora Lima
+      <span id="hourly-arrow-${ticker}" style="color:var(--accent);font-weight:700;margin-left:4px">${inRange && curData?.ok ? ` WR ${curData.wr_pct}%` : ''}</span>
+      <span style="margin-left:4px">▼</span>
+    </button>
+    <div id="hourly-body-${ticker}" style="display:none;margin-top:8px">
+      <div class="hourly-now-row">
+        <span class="hourly-now-label">Ahora:</span>
+        <span class="hourly-now-val" style="color:${nowColor}">${nowLabel}</span>
+      </div>
+      <div class="hourly-body">${barsHtml}</div>
+      ${top3Html}
+    </div>
+  </div>`;
 }
 
 function toggleSection(contentId, arrowId) {
