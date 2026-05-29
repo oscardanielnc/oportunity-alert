@@ -1678,6 +1678,11 @@ function patchWatcherCard(w) {
     errEl.textContent = w.error;
   } else if (errEl) { errEl.remove(); }
 
+  // TF interval buttons — update active state
+  card.querySelectorAll('.iv-btn[data-iv]').forEach(btn => {
+    btn.classList.toggle('iv-active', btn.dataset.iv === w.interval);
+  });
+
   // Update position gauge
   _renderPosGauge(w);
 }
@@ -1997,7 +2002,7 @@ function renderWatcherCard(w, logOpen, tvOpen) {
             statHtml = wrLine + netLine;
           }
         }
-        return `<button class="iv-btn${w.interval===iv?' iv-active':''}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}${statHtml}</button>`;
+        return `<button class="iv-btn${w.interval===iv?' iv-active':''}" data-iv="${iv}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}${statHtml}</button>`;
       }).join('')}
     </span>
     <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;${w.feed_mode==='IEX' ? 'color:var(--green);background:var(--green-d)' : 'color:var(--yellow);background:var(--yellow-d)'}">${w.feed_mode||'…'}</span>

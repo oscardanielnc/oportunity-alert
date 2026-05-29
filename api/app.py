@@ -1118,10 +1118,12 @@ def get_ticker_params(ticker: str, _: str = Depends(_require_auth)):
     if not row:
         raise HTTPException(404, f"{ticker} no calibrado")
     return {
-        "ticker":        ticker,
-        "calibrated":    True,
-        "calibrated_at": row.get("calibrated_at"),
-        "tfs":           row.get("tfs", {}),
+        "ticker":           ticker,
+        "calibrated":       True,
+        "calibrated_at":    row.get("calibrated_at"),
+        "tfs":              row.get("tfs", {}),
+        "hourly_analysis":  row.get("hourly_analysis", {}),
+        "fee_analysis":     row.get("fee_analysis", {}),
     }
 
 

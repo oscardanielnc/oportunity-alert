@@ -45,8 +45,8 @@ from utils.segment_config import (
 ALPACA_BASE     = "https://data.alpaca.markets"
 LIMA_OFFSET     = -5
 QQQ_MACRO_ADJ   = 2
-MIN_TRADES      = 20        # raised from 15 — more statistical confidence
-BLOCK_PF_THRESH = 0.7
+MIN_TRADES_BY_TF = {"1m": 20, "5m": 12, "15m": 8}  # trades minimos por TF
+BLOCK_PF_THRESH  = 0.7
 
 # ── Comisiones eToro (x1, sin apalancamiento) ─────────────────────────────────
 # LONG:  $1.00 abrir + $1.00 cerrar = $2.00 fijos por trade (sin importar monto)
@@ -621,8 +621,8 @@ def etoro_fee_analysis(trades):
     return result
 
 
-def composite_score(s):
-    if s["n"] < MIN_TRADES: return -999.0
+def composite_score(s, min_trades=20):
+    if s["n"] < min_trades: return -999.0
     return round(0.5*min(s["pf"],6.0)/6.0*5 + 0.3*(s["pct_win"]/100)*5 +
                  0.2*min(max(s["avg"]*15,0),5), 4)
 
@@ -647,7 +647,7 @@ def run(ticker):
     print(f"  Segmento: {seg}  |  "
           f"Fase1: {n_p1} combos  |  "
           f"Fase2: {n_p2} combos  |  "
-          f"MIN_TRADES: {MIN_TRADES}")
+          f"MIN_TRADES: 1m={MIN_TRADES_BY_TF['1m']} 5m={MIN_TRADES_BY_TF['5m']} 15m={MIN_TRADES_BY_TF['15m']}")
     print(f"  Filtros: session-threshold + QQQ(5m) + dir-lock + criteria-mask + pattern-scheme")
     print(f"{'='*W}")
 
@@ -727,7 +727,7 @@ def run(ticker):
                                       qqq_macro_index=qqq_idx,
                                       bar_cache=_p1_cache)
                         s  = stats(t)
-                        cs = composite_score(s)
+                        cs = composite_score(s, MIN_TRADES_BY_TF[tf_key])
                         phase1_results.append({"th":th,"nb":nb,"pc":pc,"cr":cr,
                                                "bs":bs,"ms":ms,"adv":adv,
                                                "c3vm":c3vm,
@@ -736,7 +736,8 @@ def run(ticker):
                                                "stats":s,"score":cs})
 
         phase1_results.sort(key=lambda x: -x["score"])
-        viable1 = [r for r in phase1_results if r["stats"]["n"] >= MIN_TRADES]
+        _mt = MIN_TRADES_BY_TF[tf_key]
+        viable1 = [r for r in phase1_results if r["stats"]["n"] >= _mt]
         best1   = viable1[0] if viable1 else phase1_results[0]
         print(f"OK  n={best1['stats']['n']}  WR={best1['stats']['pct_win']}%  "
               f"PF={best1['stats']['pf']:.2f}  bs={best1['bs']}  c3vm={best1['c3vm']}")
@@ -771,7 +772,7 @@ def run(ticker):
                                   qqq_macro_index=qqq_idx,
                                   bar_cache=_p2_cache)
                     s  = stats(t)
-                    cs = composite_score(s)
+                    cs = composite_score(s, _mt)
                     phase2_results.append({
                         "th":p1_fixed["th"], "nb":nb, "pc":p1_fixed["pc"],
                         "cr":p1_fixed["cr"], "ms":p1_fixed["ms"], "adv":p1_fixed["adv"],
@@ -784,7 +785,7 @@ def run(ticker):
                     })
 
         phase2_results.sort(key=lambda x: -x["score"])
-        viable2 = [r for r in phase2_results if r["stats"]["n"] >= MIN_TRADES]
+        viable2 = [r for r in phase2_results if r["stats"]["n"] >= _mt]
         best2   = viable2[0] if viable2 else None
         if best2:
             improved = best2["score"] > best1["score"]
@@ -793,7 +794,7 @@ def run(ticker):
                   f"mask={best2['mask']}  scheme={best2['scheme']}"
                   f"{'  *** MEJOR QUE FASE1' if improved else ''}")
         else:
-            print(f"Sin combos con n>={MIN_TRADES}")
+            print(f"Sin combos con n>={_mt}")
 
         # Ganador: el mejor entre Fase 1 y Fase 2
         if best2 and best2["score"] > best1["score"]:
@@ -806,11 +807,11 @@ def run(ticker):
         # Veredicto final
         n     = best_final["stats"]["n"]
         pf    = best_final["stats"]["pf"]
-        viable_any = [r for r in (viable1 + (viable2 or [])) if r["stats"]["n"] >= MIN_TRADES]
+        viable_any = [r for r in (viable1 + (viable2 or [])) if r["stats"]["n"] >= _mt]
         best_viable_pf = max((r["stats"]["pf"] for r in viable_any), default=0.0)
 
         if not viable_any:
-            verdict = "USE_SEGMENT"
+            verdict = "BLOCK"   # sin datos suficientes → no operar (antes: USE_SEGMENT)
         elif best_viable_pf < BLOCK_PF_THRESH:
             verdict = "BLOCK"
         else:
@@ -818,7 +819,7 @@ def run(ticker):
 
         # Mostrar Top 5 de Fase 1 + ganador de Fase 2
         if viable1:
-            print(f"\n  [{tf_key}] FASE 1 — Top 5 (n>={MIN_TRADES}):")
+            print(f"\n  [{tf_key}] FASE 1 — Top 5 (n>={_mt}):")
             print(f"  {'R':>3}  {'th':>3}  {'nb':>3}  {'pc':>3}  {'cr':>3}  {'bs':>5}  "
                   f"{'ms':>4}  {'adv':>5}  {'N':>5}  {'WR':>4}  {'PF':>5}  {'Score':>6}  vs_seg")
             print(f"  {'-'*88}")
@@ -832,7 +833,7 @@ def run(ticker):
                       f"{s['pf']:>5.2f}  {r['score']:>6.3f}  dPF={fmt(d_pf)}{flag}")
 
         if viable2:
-            print(f"\n  [{tf_key}] FASE 2 — Top 5 (n>={MIN_TRADES}):")
+            print(f"\n  [{tf_key}] FASE 2 — Top 5 (n>={_mt}):")
             print(f"  {'R':>3}  {'mask':>12}  {'scheme':>12}  {'nb':>3}  "
                   f"{'c3vm':>5}  {'vwap':>9}  "
                   f"{'N':>5}  {'WR':>4}  {'PF':>5}  {'Score':>6}  vs_fase1")
@@ -869,7 +870,7 @@ def run(ticker):
         bf      = res["best_final"]
         seg_p   = get_segment_params(ticker, tf_key)
 
-        if verdict == "CUSTOM" and bf["stats"]["n"] >= MIN_TRADES:
+        if verdict == "CUSTOM" and bf["stats"]["n"] >= MIN_TRADES_BY_TF[tf_key]:
             mask_cfg   = bf.get("_mask_cfg", ALL_MASK)
             scheme_cfg = bf.get("_scheme_cfg", DEFAULT_SCHEME)
             params = {
