@@ -1688,6 +1688,12 @@ function patchWatcherCard(w) {
     btn.classList.toggle('iv-active', btn.dataset.iv === w.interval);
   });
 
+  // Re-render interval-dependent sections (rentabilidad + horario)
+  const rentabWrap = card.querySelector('.rentab-wrap');
+  if (rentabWrap) rentabWrap.innerHTML = _renderRentabilidadPanel(w.ticker, w.interval);
+  const hourlyWrap = card.querySelector('.hourly-wrap');
+  if (hourlyWrap) hourlyWrap.innerHTML = _renderHourlySection(w.ticker, w.interval);
+
   // Update position gauge
   _renderPosGauge(w);
 }
@@ -2167,10 +2173,10 @@ function renderWatcherCard(w, logOpen, tvOpen) {
     </div>
 
     <!-- Rentabilidad neta por TF/dirección -->
-    ${_renderRentabilidadPanel(w.ticker, w.interval)}
+    <div class="rentab-wrap">${_renderRentabilidadPanel(w.ticker, w.interval)}</div>
 
     <!-- Hourly analysis -->
-    ${_renderHourlySection(w.ticker, w.interval)}
+    <div class="hourly-wrap">${_renderHourlySection(w.ticker, w.interval)}</div>
 
     <!-- Log -->
     <div class="log-section">
@@ -2302,14 +2308,15 @@ function _renderRentabilidadPanel(ticker, interval) {
       const net    = isLong ? _netLong(ticker, iv) : _netShort(ticker, iv);
       const tfS    = (_tfStatsCache[ticker] || {})[iv];
       const active = iv === interval;
-      const ring   = active ? ';box-shadow:inset 0 0 0 2px var(--accent)' : '';
-      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px' + ring + '">—</td>';
-      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px' + ring + '">BLOQ</td>';
-      const f    = _fmtNet(net);
-      const bg   = net.viable
-        ? (net.net_usd >= 5 ? 'rgba(34,197,94,.08)' : 'rgba(245,158,11,.08)')
-        : 'rgba(240,64,85,.07)';
-      return '<td style="text-align:center;padding:8px 12px;background:' + bg + ring + '">' +
+      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px">—</td>';
+      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px">BLOQ</td>';
+      const f  = _fmtNet(net);
+      const bg = net.viable
+        ? (net.net_usd >= 5
+            ? (active ? 'rgba(34,197,94,.22)' : 'rgba(34,197,94,.08)')
+            : (active ? 'rgba(245,158,11,.22)' : 'rgba(245,158,11,.08)'))
+        : (active ? 'rgba(240,64,85,.18)' : 'rgba(240,64,85,.07)');
+      return '<td style="text-align:center;padding:8px 12px;background:' + bg + '">' +
         '<span style="font-weight:700;color:' + f.color + '">' + f.text + '</span>' +
         ' <span style="font-size:12px">' + f.icon + '</span>' +
         '</td>';
@@ -2326,12 +2333,12 @@ function _renderRentabilidadPanel(ticker, interval) {
     const lv     = nl && nl.viable;
     const sv     = ns && ns.viable;
     const tfS    = (_tfStatsCache[ticker] || {})[iv];
-    const active = iv === interval;
-    const ring   = active ? ';box-shadow:inset 0 0 0 2px var(--accent)' : '';
-    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)' + ring + '">NO OPERAR</td>';
+    const active  = iv === interval;
+    const activeBg = active ? ';background:rgba(255,255,255,.04)' : '';
+    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)' + activeBg + '">NO OPERAR</td>';
     const txt = lv && sv ? 'L + S' : lv ? 'Solo L' : sv ? 'Solo S' : 'NO';
     const col = (lv || sv) ? 'var(--green)' : 'var(--red)';
-    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + ring + '">' + txt + '</td>';
+    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + activeBg + '">' + txt + '</td>';
   });
 
   return '<div style="border-top:1px solid var(--border);padding-top:10px">' +
@@ -2521,17 +2528,28 @@ function _renderHourlySection(ticker, interval) {
     if (!d) {
       return `<tr class="${rowClass}">
         <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
-        <td>—</td><td>—</td><td>—</td><td>—</td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
       </tr>`;
     }
 
-    const wrColor = d.wr_pct >= 65 ? 'var(--green)' : d.wr_pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const wrLColor = d.wr_long == null ? 'var(--text3)'
+      : d.wr_long >= 65 ? 'var(--green)' : d.wr_long >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const wrSColor = d.wr_short == null ? 'var(--text3)'
+      : d.wr_short >= 65 ? 'var(--green)' : d.wr_short >= 50 ? 'var(--yellow)' : 'var(--red)';
     const avgColor = d.avg_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+    const wrLCell = d.wr_long  != null
+      ? `<span style="font-weight:700;color:${wrLColor}">${d.wr_long}%</span><span style="font-size:10px;color:var(--text3)"> (${d.n_long})</span>`
+      : `<span style="color:var(--text3)">—</span>`;
+    const wrSCell = d.wr_short != null
+      ? `<span style="font-weight:700;color:${wrSColor}">${d.wr_short}%</span><span style="font-size:10px;color:var(--text3)"> (${d.n_short})</span>`
+      : `<span style="color:var(--text3)">—</span>`;
 
     return `<tr class="${rowClass}">
       <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
       <td style="font-weight:700">${d.n}</td>
-      <td style="font-weight:700;color:${wrColor}">${d.wr_pct}%</td>
+      <td>${wrLCell}</td>
+      <td>${wrSCell}</td>
       <td>${fmtPF(d.pf)}</td>
       <td style="font-weight:600;color:${avgColor}">${fmtAvg(d.avg_pnl)}</td>
     </tr>`;
@@ -2555,10 +2573,11 @@ function _renderHourlySection(ticker, interval) {
       <table class="htbl">
         <thead><tr>
           <th>Hora Lima</th>
-          <th title="Numero de trades que ocurrieron en esta hora durante el backtest. Menos de 5 = muestra baja, no confiable.">N</th>
-          <th title="Win Rate: porcentaje de trades ganadores en esta hora. 65%+ = bueno, 50-65% = aceptable, menos = evitar.">WR %</th>
-          <th title="Profit Factor: suma de ganancias dividido suma de perdidas. Mayor que 1 = rentable. 'sin perd.' = todos los trades fueron ganadores en el backtest (puede ser suerte con muestra baja).">PF</th>
-          <th title="Ganancia o perdida promedio por trade en porcentaje, antes de comisiones eToro.">Avg %</th>
+          <th title="Numero total de trades (LONG + SHORT) en esta hora durante el backtest. Menos de 5 = muestra baja.">N</th>
+          <th title="Win Rate LONG: % de trades LONG ganadores en esta hora. Solo aparece si hubo trades LONG.">WR L</th>
+          <th title="Win Rate SHORT: % de trades SHORT ganadores en esta hora. Solo aparece si hubo trades SHORT.">WR S</th>
+          <th title="Profit Factor: suma de ganancias / suma de perdidas (LONG+SHORT combinados). >1 = rentable. 'sin perd.' = no hubo perdidas en el periodo (puede ser suerte si N es bajo).">PF</th>
+          <th title="Ganancia o perdida promedio por trade en porcentaje, antes de comisiones eToro. LONG+SHORT combinados.">Avg %</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>

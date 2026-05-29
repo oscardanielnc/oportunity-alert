@@ -509,32 +509,55 @@ def stats(trades):
 
 def hourly_stats(trades):
     """
-    Agrupa los trades por hora Lima de entrada y calcula WR/PF/avg por hora.
-    Usa el campo in_t que ya esta en formato "HH:MM" Lima.
+    Agrupa los trades por hora Lima de entrada (rango 7-16h).
+    Calcula WR/PF/avg total + WR separado por LONG y SHORT.
+    Horas fuera de 7-16 se descartan (pre-market madrugada / AH tardio).
     Marca horas con n < MIN_HOURLY_SAMPLE como insuficientes.
     """
     MIN_HOURLY_SAMPLE = 5
+    HOUR_RANGE = range(7, 17)   # 07:00 - 16:59 Lima
     by_hour = {}
     for t in trades:
         try:
             h = int(t["in_t"].split(":")[0])
         except Exception:
             continue
-        by_hour.setdefault(h, []).append(t["pnl"])
+        if h not in HOUR_RANGE:
+            continue
+        if h not in by_hour:
+            by_hour[h] = {"all": [], "long": [], "short": []}
+        by_hour[h]["all"].append(t["pnl"])
+        if t.get("side") == "LONG":
+            by_hour[h]["long"].append(t["pnl"])
+        else:
+            by_hour[h]["short"].append(t["pnl"])
+
+    def _wr(pnls):
+        if not pnls: return None
+        return round(len([p for p in pnls if p > 0]) / len(pnls) * 100)
+
+    def _pf(pnls):
+        wins = [p for p in pnls if p > 0]
+        losses = [p for p in pnls if p <= 0]
+        gw = sum(wins); gl = abs(sum(losses))
+        return round(gw/gl, 2) if gl > 0 else (99.0 if gw > 0 else 0.0)
 
     result = {}
     for h in sorted(by_hour.keys()):
-        pnls   = by_hour[h]
-        wins   = [p for p in pnls if p > 0]
-        losses = [p for p in pnls if p <= 0]
-        gw     = sum(wins); gl = abs(sum(losses))
-        pf     = round(gw/gl,2) if gl > 0 else (99.0 if gw > 0 else 0.0)
+        pnls  = by_hour[h]["all"]
+        lpnls = by_hour[h]["long"]
+        spnls = by_hour[h]["short"]
+        wins  = [p for p in pnls if p > 0]
         result[str(h)] = {
-            "n":       len(pnls),
-            "wr_pct":  round(len(wins)/len(pnls)*100),
-            "pf":      pf,
-            "avg_pnl": round(sum(pnls)/len(pnls), 3),
-            "ok":      len(pnls) >= MIN_HOURLY_SAMPLE,
+            "n":        len(pnls),
+            "wr_pct":   round(len(wins)/len(pnls)*100),
+            "pf":       _pf(pnls),
+            "avg_pnl":  round(sum(pnls)/len(pnls), 3),
+            "ok":       len(pnls) >= MIN_HOURLY_SAMPLE,
+            "n_long":   len(lpnls),
+            "wr_long":  _wr(lpnls),
+            "n_short":  len(spnls),
+            "wr_short": _wr(spnls),
         }
     return result
 
