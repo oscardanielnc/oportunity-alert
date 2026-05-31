@@ -2,8 +2,13 @@
 # Última actualización: 2026-05-31 (sesión: noticias Alpaca/Benzinga + eToro precio + robustez)
 # Dueño: Oscar Navarro | Asistente: Claude
 
-## ⚡ SESIÓN 2026-05-31 — 12 commits LOCALES sin pushear (Oscar pushea/despliega él mismo)
-Rama main, working tree limpio. Pendiente: `git push origin main` + `bash deploy.sh` en la VM.
+## ⚡ SESIÓN 2026-05-31 — ✅ PUSHEADA Y DESPLEGADA EN LA VM (10:55 Lima)
+Servicio `opportunity-alert` activo con el código nuevo. Logs de arranque confirman:
+`Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker` +
+`[AlpacaNews] WebSocket conectado y suscrito (fuente: Benzinga)` + WhatsApp de arranque OK.
+🔎 Falta confirmar en logs (corren ~5s tras arrancar, en thread daemon): el pre-warm
+`[Startup] Mapa de instrumentos eToro pre-cargado` y que la próxima noticia real traiga
+precio de eToro (no fallback). Si el token eToro muere → ahora llega SMS de aviso.
 Hecho esta sesión (todo verificado en vivo, imports + tests OK):
 - **Brazo de noticias en tiempo real**: Alpaca News = feed Benzinga GRATIS por WebSocket
   (descartado Benzinga pago). `sources/alpaca_news.py`. Ya desplegado antes (commit d63f757).
