@@ -11,6 +11,10 @@ data/
 *.log
 *.log.*
 
+# Salidas de scripts de research (datos de corrida, no codigo)
+research/latency_log.jsonl
+research/*_out.txt
+
 # Python
 __pycache__/
 *.py[cod]
