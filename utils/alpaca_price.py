@@ -51,30 +51,26 @@ def _try_etoro_price(ticker: str) -> dict:
         return {}
     current_price = px["current_price"]
 
-    # prev_close: cierre diario ANTERIOR, desde barras diarias SIP de Alpaca.
-    # OJO: el snapshot con feed=sip está BLOQUEADO en el plan free ("subscription does
-    # not permit querying recent SIP data"), pero las barras DIARIAS históricas SIP sí
-    # se permiten. Pedimos las últimas 2: si la más reciente es la sesión de hoy,
-    # prev_close = la anterior; si el mercado aún no abrió hoy, la más reciente ya es
-    # el cierre previo. Distinguimos por fecha.
+    # prev_close: cierre diario ANTERIOR, vía snapshot IEX de Alpaca.
+    # OJO IMPORTANTE: el plan free de Alpaca BLOQUEA todo dato SIP reciente (snapshot
+    # feed=sip → 403; barras diarias SIP recientes → {"bars":null}). Lo único que el
+    # free entrega para esto es el snapshot IEX, que trae prevDailyBar/dailyBar. Y para
+    # un CIERRE DIARIO usar IEX es correcto: es un valor consolidado ya cerrado, no un
+    # tick intradía (que es donde IEX falla por cobertura ~3%). prevDailyBar = cierre del
+    # día previo; si falta, dailyBar (última sesión cerrada) es buen sustituto.
     prev_close = None
     try:
         headers = _get_headers()
-        bars_resp = requests.get(
-            f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-            params={"timeframe": "1Day", "limit": 2, "feed": ALPACA_FEED_BARS, "sort": "desc"},
+        snap_resp = requests.get(
+            f"{ALPACA_BASE}/v2/stocks/{ticker}/snapshot",
+            params={"feed": ALPACA_FEED_TRADES},   # IEX (el free no permite SIP reciente)
             headers=headers,
             timeout=8,
         )
-        if bars_resp.status_code == 200:
-            daily = bars_resp.json().get("bars") or []
-            if daily:
-                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                latest_day = str(daily[0].get("t", ""))[:10]
-                if latest_day == today and len(daily) >= 2:
-                    prev_close = daily[1].get("c")   # la de hoy es daily[0] → previo = daily[1]
-                else:
-                    prev_close = daily[0].get("c")   # mercado no abrió hoy → daily[0] ya es el previo
+        if snap_resp.status_code == 200:
+            snap = snap_resp.json()
+            prev_close = (snap.get("prevDailyBar") or {}).get("c") \
+                or (snap.get("dailyBar") or {}).get("c")
     except Exception:
         pass
 
