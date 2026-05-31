@@ -128,16 +128,34 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
      "possibly delisted") → PED nunca detecta candidatos. Marea NO se afecta. **A resolver próxima sesión**
      (junto con Benzinga/fuentes de datos): opciones = earnings vía Finnhub (validar cobertura) o subir
      la VM a Python ≥3.10 para yfinance moderno. Ver [[project_ped_earnings_vm]].
-   - **(b) Alerta del pilot — ARREGLADO:** `run_pilot` leía `TWILIO_TO` de env (vacío); el número vive en
-     `config.json`. Fix: lee `config.json` como respaldo. Tras el próximo `deploy.sh` el cron ya avisará por WhatsApp.
-5. **🔴 PRÓXIMA SESIÓN — PRIORIDAD: Benzinga / brazo de NOTICIAS.** La mayoría de trades vendrán de
-   PED+Marea, pero los de la sección de NOTICIAS son los de mayor upside ($) si se dan. Requieren:
-   muchas pruebas, posibles cambios, y quizás una API de pago (Benzinga) — Finnhub free lagea 30-60min
-   (cuello de botella de detección). Medir latencia real Benzinga vs Finnhub una mañana + ROI de costo.
-   Todo el análisis se hace la próxima sesión.
-6. **📈 Historial de rendimiento real eToro:** snapshot diario de equity real → curva P&L histórica
-   (como la de Piloto pero plata real). "Desde ahora" = empieza al conectar eToro. PENDIENTE.
-7. **🧹 Menor:** dead CSS/tablas premarket residuales (cosmético, no molesta).
+   - **(b) Alerta del pilot — ARREGLADO Y DESPLEGADO** (commit `5733f37`, `deploy.sh` corrido 2026-05-30 21:08 Lima):
+     `run_pilot` leía `TWILIO_TO` de env (vacío); el número vive en `config.json`. Ahora lo lee de ahí.
+     Falta solo CONFIRMAR que sale el WhatsApp (item 3 abajo).
+
+---
+
+## 6bis. 🚀 PRÓXIMA SESIÓN — PLAN DE ARRANQUE (los 3 items, en orden)
+
+**1. 🔴 PRIORIDAD — Benzinga / brazo de NOTICIAS.** Ver [[project_benzinga_news_arm]].
+   - Por qué: la mayoría de trades serán Marea+PED, pero los de NOTICIAS son los de **mayor upside $**.
+   - Cuello de botella = detección rápida: Finnhub free lagea 30-60min → inservible para catalizadores frescos.
+   - Arranque: (a) trial de la API Benzinga; (b) medir latencia REAL Benzinga vs Finnhub una mañana de mercado;
+     (c) calcular ROI del costo; (d) muchas pruebas del pipeline de noticias, posibles cambios.
+
+**2. ⚠️ Arreglar PED en la VM.** Ver [[project_ped_earnings_vm]].
+   - Problema: yfinance <0.2.52 (py3.9 de la VM) no lee earnings de Yahoo → PED sin candidatos. Marea OK.
+   - Arranque — elegir camino: (A) reescribir `pilot/ped_signals.fetch_earnings_map` para usar Finnhub
+     (`utils/earnings_calendar.py` ya pega a `/calendar/earnings`) — VALIDAR cobertura free antes (se saltó SHOP);
+     o (B) subir la VM a Python ≥3.10 y volver a yfinance moderno. Encaja con el tema de fuentes de datos del item 1.
+
+**3. 🔧 Confirmar alerta del pilot por WhatsApp.** Fix ya desplegado. Confirmar de dos formas:
+   - Inmediata: en la VM `cd /home/opc/oportunity-alert && venv/bin/python -m pilot.run_pilot` → debe imprimir
+     "alerta WhatsApp: enviada" y llegar el mensaje; o
+   - Esperar al cron del lunes 22:00 UTC.
+
+## 6ter. PENDIENTES MENORES (no bloquean)
+- **📈 Historial de equity real eToro:** snapshot diario de equity real → curva P&L histórica (plata real).
+- **🧹** dead CSS/tablas premarket residuales (cosmético).
 
 ---
 
@@ -164,7 +182,8 @@ Detalle: `pilot/REVALIDACION_MENSUAL.md`. (El universo se refresca solo semanal;
 
 ---
 
-**Para continuar:** decime "leé ESTADO_ACTUAL.md". eToro + salida-por-estrategia + pulidos A–E HECHOS;
-deploy a VM en proceso (ver pendiente #4). **PRÓXIMA SESIÓN = PRIORIDAD Benzinga / brazo de noticias (#5).**
+**Para continuar:** decime "leé ESTADO_ACTUAL.md". eToro + salida-por-estrategia + pulidos A–E + **deploy a VM HECHOS**
+(2026-05-30). Sistema vivo 24/7 en la VM. **Arrancá por la sección "6bis — PLAN DE ARRANQUE": (1) Benzinga,
+(2) arreglar PED, (3) confirmar alerta pilot.**
 ```
 ```
