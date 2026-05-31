@@ -1,14 +1,61 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-05-31 (sesión: noticias Alpaca/Benzinga + eToro precio + robustez)
+# Última actualización: 2026-05-31 (tarde) — sesión: tácticas de entrada (cerradas con datos) + Fase 3 salida event-driven + protagonismo Piloto
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## ⚡ SESIÓN 2026-05-31 (TARDE) — análisis de tácticas + Fase 3 + dashboard — COMMITEADO EN main, SIN PUSH NI DEPLOY
+
+> **Modo de trabajo:** se trabaja SIEMPRE directo en `main`, sin ramas, salvo que Oscar lo pida (preferencia
+> nueva). Commits solo cuando él lo aprueba; no pushear salvo indicación. El sistema queda EN VIGILANCIA:
+> Oscar reportará cualquier error que vea en vivo.
+
+**1. Tácticas de ENTRADA — investigadas y CERRADAS con datos** (3 backtests en `research/`, detalle en
+   memoria `project_entry_tactics_phases`). Veredictos:
+   - **Marea pullback vs open** (`backtest_marea_entry.py`): pullback profundo = trampa (cae bajo QQQ);
+     pullback suave parecía ganar pero NO es robusto (pierde −29pts en 2024, inestable por ventana).
+     → **La señal entra al OPEN.** Stop "rompe-tesis" también rechazado (no baja el drawdown).
+   - **PED qué día entrar** (`backtest_ped_entry_timing.py`): la acción NO sube de noche tras la reacción;
+     entrar antes (martes-cierre) es peor; entrar al gap del martes mata el edge. → **Mantener Day+2 open.**
+   - **PED qué hora del D+2** (`backtest_ped_intraday_d2.py`, velas 1-min): no hay "pop" que haga comprar
+     la cima; el timing intradía es un empate (±0.2%, dentro del ruido). → No meter orden de mercado en el
+     primer minuto (micro-pop + spread ancho); entrar en la apertura o primeros ~30 min, en cualquier micro-dip.
+
+**2. Fase 3 — SALIDA event-driven por noticia adversa (IMPLEMENTADA + testeada, falta deploy).**
+   En `main.process_article`: si la IA marca `direccion=SHORT` sobre un ticker EN CARTERA real
+   (`account_cache` vía `_held_tickers()`, fail-safe si cache >60min) y es alta convicción (`score_ia>=7`
+   o `event_mode`) → alerta URGENTE `_send_adverse_news_alert` "considerá salir", INMEDIATA 24/5 (no se
+   encola al digest), dedup 1/ticker/día, suprime el SMS de oportunidad normal. Decisiones de Oscar:
+   alta-convicción + inmediata 24/5. Tests `python test_adverse_news.py` (12/12). Depende de que el news
+   arm entregue catalizadores (se valida ~2-jun).
+
+**3. Dashboard — protagonismo del Piloto.** La sección "Mañana al abrir" pasó de una línea apretada a
+   CARDS por ticker: ⭐ TOP + badge Marea/PED + **stop 4×ATR (chandelier) destacado** + niveles de
+   pullback opcionales (EMA20/retest/soporte) como chips. Usa el `entry_levels` del JSON que antes NO se
+   mostraba (era el único hueco real de la auditoría). Las cards se poblarán el lunes cuando el cron del
+   pilot genere compras (ahora `buys` vacío = último día viernes).
+
+**4. Auditoría de la app — SANA.** Compila todo el runtime; tests pasan (`test_position_strategy`,
+   `test_adverse_news`); sin trap py3.9 PEP 604 (solo docstrings; `etoro_market`/`alpaca_news` ya tienen
+   el future import); conviction/event gate OK; eToro read-only OK ($5,505, 0 pos); pilot end-to-end OK;
+   endpoints `/` (dashboard) y `/api/pilot` 200. NO se hallaron bugs que corregir.
+
+**Commiteado en main (4 commits, SIN push):** `ceb9255` Fase 1 niveles · `2934d6f` research backtests ·
+`1a27996` Fase 3 · `b584504` dashboard. **PENDIENTE: deploy a la VM** (Fase 3 + dashboard + Fase 1) con
+`deploy.sh` cuando Oscar lo decida (sugerido junto con la validación del news arm el martes 2-jun).
 
 ## ⚡ SESIÓN 2026-05-31 — ✅ PUSHEADA Y DESPLEGADA EN LA VM (10:55 Lima)
 Servicio `opportunity-alert` activo con el código nuevo. Logs de arranque confirman:
 `Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker` +
 `[AlpacaNews] WebSocket conectado y suscrito (fuente: Benzinga)` + WhatsApp de arranque OK.
-🔎 Falta confirmar en logs (corren ~5s tras arrancar, en thread daemon): el pre-warm
-`[Startup] Mapa de instrumentos eToro pre-cargado` y que la próxima noticia real traiga
-precio de eToro (no fallback). Si el token eToro muere → ahora llega SMS de aviso.
+
+✅ **eToro precio CONFIRMADO EN VIVO (2026-05-31 16:20 Lima, commit `be51716`):** el pre-warm
+`[Startup] Mapa de instrumentos eToro pre-cargado` ya sale en logs y `fetch_price('NVDA')` da
+$211.69 con velas 1m reales (instrumentId NVDA=**1137**, no 1005 como decía la memoria vieja).
+🐛 **Bug que estaba tapando todo esto:** `utils/etoro_market.py` usaba `-> int | None` (PEP 604)
+SIN `from __future__ import annotations` → en la VM (py3.9) el módulo NO importaba (TypeError en
+def-time), así que eToro caía SILENCIOSAMENTE a Alpaca y el pre-warm moría en su `except`+debug
+(invisible). Fix = agregar el future import (mismo que ya tenía alpaca_news.py). El `py_compile`
+del deploy NO detecta esto porque no evalúa anotaciones. Lección: todo módulo nuevo que use
+`X | None` necesita el future import en py3.9. Si el token eToro muere → llega SMS de aviso.
 Hecho esta sesión (todo verificado en vivo, imports + tests OK):
 - **Brazo de noticias en tiempo real**: Alpaca News = feed Benzinga GRATIS por WebSocket
   (descartado Benzinga pago). `sources/alpaca_news.py`. Ya desplegado antes (commit d63f757).
@@ -206,6 +253,7 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
 |---|---|---|
 | **Lun 1-jun ~17:30** | Confirmar que llegó la alerta del pilot por WhatsApp | El cron corre lun 22:00 UTC (17:00 Lima). Revisar que llegó el mensaje |
 | **Mar 2-jun 08:45** | Validar stream de noticias + correr latencia | En la VM: `venv/bin/python -m research.latency_alpaca_vs_finnhub --minutes 90` (mañana de mercado activa) |
+| **Mar 2-jun (con lo anterior)** | Desplegar Fase 1 + Fase 3 + dashboard a la VM | `bash deploy.sh`. Commits ya en main (`ceb9255`, `1a27996`, `b584504`). Confirmar en logs `[AdverseNews]` si dispara y ver las cards del Piloto en el dashboard tras el cron |
 | **Mar 30-jun 09:00** | Revalidación mensual del edge | Correr los 3 backtests de `research/` (ver `pilot/REVALIDACION_MENSUAL.md`) |
 
 ---
