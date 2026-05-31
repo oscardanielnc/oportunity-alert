@@ -71,6 +71,16 @@ def run(send_alert=True):
 
     actions = []   # fills de hoy (ordenes que estaban pendientes)
     earnings_map = fetch_earnings_map([t for t in MEGA_CAP_PED if t in data])
+    # Visibilidad de cobertura: si NINGÚN mega-cap trae earnings en la ventana, la fuente
+    # está rota (es justo lo que pasó con yfinance en py3.9). Un día normal sí debe haber
+    # algunos (earnings es trimestral pero el universo es grande). 0 = revisar Finnhub.
+    _ped_with_earnings = sum(1 for t in MEGA_CAP_PED if earnings_map.get(t))
+    _ped_universe = len([t for t in MEGA_CAP_PED if t in data])
+    if _ped_universe and _ped_with_earnings == 0:
+        print(f"[PED][WARN] 0/{_ped_universe} mega-caps con earnings en la ventana — "
+              f"¿fuente Finnhub caída? (con yfinance roto daba exactamente esto)")
+    else:
+        print(f"[PED] earnings detectados en {_ped_with_earnings}/{_ped_universe} mega-caps")
 
     # ── 1) EJECUTAR ordenes pendientes (generadas ayer) al OPEN de hoy ──────────
     pend = pp.pending

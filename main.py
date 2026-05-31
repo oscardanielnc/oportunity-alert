@@ -55,8 +55,39 @@ _stats_lock = threading.Lock()
 _metrics: MetricsStore = None
 
 # ── Cola de acumulación durante mercado cerrado ───────────────────────────────
+# Persistida a disco: si el servicio se reinicia un fin de semana (deploy, crash),
+# las oportunidades acumuladas NO se pierden — se recargan al arrancar.
 _weekend_queue: list[dict] = []
 _weekend_lock = threading.Lock()
+_WEEKEND_QUEUE_PATH = "data/weekend_queue.json"
+
+
+def _save_weekend_queue():
+    """Persiste la cola a disco de forma atómica (tmp+replace). Llamar con el lock tomado."""
+    try:
+        import os as _os
+        _os.makedirs("data", exist_ok=True)
+        tmp = _WEEKEND_QUEUE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_weekend_queue, f, ensure_ascii=False)
+        _os.replace(tmp, _WEEKEND_QUEUE_PATH)
+    except Exception as e:
+        logger.warning(f"[WeekendQueue] no pude persistir: {e}")
+
+
+def _load_weekend_queue():
+    """Recarga la cola desde disco al arrancar. Silencioso si no existe."""
+    global _weekend_queue
+    try:
+        import os as _os
+        if _os.path.exists(_WEEKEND_QUEUE_PATH):
+            with open(_WEEKEND_QUEUE_PATH, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                _weekend_queue = data
+                logger.info(f"[WeekendQueue] {len(data)} oportunidades recargadas de disco")
+    except Exception as e:
+        logger.warning(f"[WeekendQueue] no pude recargar: {e}")
 
 
 # ── Logging: Lima timezone + RotatingFileHandler ─────────────────────────────
@@ -322,9 +353,11 @@ def process_article(
     # ── Conviction Gates v2.0 (código puro, < 1 segundo, sin tokens) ──────────
     conviction = evaluate_conviction(ticker, price_data, direction=initial_dir)
 
-    # En event mode: Gate 2 técnico se reemplaza por análisis de velas 1m
+    # En event mode: Gate 2 técnico se reemplaza por análisis de velas 1m.
+    # Usa initial_dir (no "LONG" hardcodeado): un earnings miss / FDA reject es SHORT,
+    # y la estabilización debe evaluarse en ESA dirección (lower_highs, no higher_lows).
     if event_mode:
-        ev_g2 = event_gate2_score(price_data.get("candles_1m", []), direction="LONG")
+        ev_g2 = event_gate2_score(price_data.get("candles_1m", []), direction=initial_dir)
         # Recalcular score total con el gate2 de eventos
         old_total = conviction["conviction_score"]
         conviction["gate2_score"]      = ev_g2
@@ -464,6 +497,7 @@ def process_article(
             # Mercado cerrado: acumular para el digest del domingo 7pm Lima
             with _weekend_lock:
                 _weekend_queue.append(result)
+                _save_weekend_queue()   # persistir → sobrevive reinicios de fin de semana
             logger.info(
                 f"[ACUMULADO] {ticker} score={score_ia}/10 — mercado cerrado, "
                 f"se incluirá en digest del domingo 7pm Lima "
@@ -649,6 +683,7 @@ def weekend_digest_loop(twilio_from: str, twilio_to: str):
         with _weekend_lock:
             items = list(_weekend_queue)
             _weekend_queue.clear()
+            _save_weekend_queue()   # cola vaciada → persistir el estado vacío
 
         if not items:
             logger.info("[WeekendDigest] Sin oportunidades acumuladas este fin de semana.")
@@ -1122,6 +1157,20 @@ def main():
 
     start_worker()
     logger.info("DelayedAlerts worker iniciado")
+
+    _load_weekend_queue()   # recargar oportunidades acumuladas si hubo reinicio
+
+    # Pre-warm del mapa símbolo→instrumentId de eToro en un thread aparte: la 1ª llamada
+    # baja ~15k instrumentos (~4.5s). Sin esto, esa demora caería sobre la primera noticia
+    # que llegue. En background no retrasa el arranque ni bloquea nada.
+    def _prewarm_etoro_map():
+        try:
+            from utils.etoro_market import get_instrument_id
+            if get_instrument_id("NVDA"):
+                logger.info("[Startup] Mapa de instrumentos eToro pre-cargado")
+        except Exception as e:
+            logger.debug(f"[Startup] pre-warm eToro falló (no crítico): {e}")
+    threading.Thread(target=_prewarm_etoro_map, name="PrewarmEtoro", daemon=True).start()
 
     market_status = "ABIERTO" if is_market_open() else "CERRADO (modo acumulación activo)"
     logger.info(f"Estado mercado al inicio: {market_status}")

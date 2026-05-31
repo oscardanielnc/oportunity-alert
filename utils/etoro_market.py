@@ -26,6 +26,12 @@ from pathlib import Path
 
 import requests
 
+# Circuit breaker + detección de token expirado COMPARTIDOS con etoro_client: ambos
+# pegan a la misma API con el mismo token, así que comparten el estado del circuito.
+# Si el token muere (401/403), lo detecta cualquiera de los dos y se abre para ambos,
+# y _on_failure dispara el SMS de "token expirado" una sola vez.
+from utils.etoro_client import _circuit_ok, _on_failure, _on_success
+
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).parent.parent / "data"
@@ -70,6 +76,8 @@ def _fetch_instruments_map() -> dict:
     Construye {símbolo_upper: instrumentId} desde /market-data/instruments,
     filtrando acciones (typeID 5). Retorna {} si falla (el caller cae a Alpaca).
     """
+    if not _circuit_ok():
+        return {}   # circuito abierto (token expirado / fallos) → no insistir, usar Alpaca
     try:
         cfg = _config()
         r = requests.get(
@@ -77,7 +85,11 @@ def _fetch_instruments_map() -> dict:
             headers=_headers(cfg),
             timeout=30,
         )
+        if r.status_code in (401, 403):
+            _on_failure(r.status_code)   # dispara alerta de token + abre circuito
+            return {}
         r.raise_for_status()
+        _on_success()
         data = r.json().get("instrumentDisplayDatas", [])
         mapping = {}
         for d in data:
@@ -173,13 +185,19 @@ def fetch_candles_1m(symbol: str, count: int = 10) -> list:
     iid = get_instrument_id(symbol)
     if not iid:
         return []
+    if not _circuit_ok():
+        return []   # circuito abierto → caller cae a Alpaca
     try:
         cfg = _config()
         count = max(1, min(int(count), 1000))
         url = (f"{_base(cfg)}/api/v1/market-data/instruments/{iid}"
                f"/history/candles/Desc/OneMinute/{count}")
         r = requests.get(url, headers=_headers(cfg), timeout=_HTTP_TIMEOUT)
+        if r.status_code in (401, 403):
+            _on_failure(r.status_code)   # token expirado → alerta + abre circuito
+            return []
         r.raise_for_status()
+        _on_success()
         payload = r.json()
         # Estructura: {"interval":..,"candles":[{"instrumentId":..,"candles":[{...}]}]}
         groups = payload.get("candles", [])
