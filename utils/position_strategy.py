@@ -63,14 +63,26 @@ def save_tags(tags: dict) -> None:
 # ── Cache de cuenta (lo escribe el PositionTracker, lo lee el dashboard/API) ─────
 # Evita que /api/health y /api/positions llamen a eToro en cada request.
 
-def write_account_cache(available_cash: float, total_value: float, evals: dict) -> None:
-    """Persiste cash + valor total + evaluaciones de salida del último ciclo del tracker."""
-    _atomic_write(ACCOUNT_CACHE, {
+def write_account_cache(available_cash: float, total_value: float, evals: dict,
+                        positions: list = None) -> None:
+    """
+    Persiste cash + valor total + evaluaciones de salida del último ciclo del tracker.
+    `positions`: subset mínimo (ticker + invested_amount) para que el Gate 5 de noticias
+    lo lea sin llamar a eToro en vivo. Si es None, no se escribe la clave (el lector
+    cae a live). Pasar [] explícitamente cuando el portafolio está flat.
+    """
+    payload = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "available_cash": available_cash,
         "total_value": total_value,
         "evals": evals,
-    })
+    }
+    if positions is not None:
+        payload["positions"] = [
+            {"ticker": p.get("ticker"), "invested_amount": p.get("invested_amount", 0)}
+            for p in positions
+        ]
+    _atomic_write(ACCOUNT_CACHE, payload)
 
 
 def read_account_cache() -> dict:

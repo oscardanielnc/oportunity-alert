@@ -29,6 +29,9 @@ _RECONNECT_MIN = 1
 _RECONNECT_MAX = 60
 # Timeout de recv: si no llega nada en este tiempo, se reintenta el recv (keepalive)
 _RECV_TIMEOUT = 60
+# Cada cuanto refrescar la watchlist viva (la suscripcion WS es a "*", asi que el
+# filtro por watchlist es local; no hay que re-suscribir cuando cambia).
+_WATCHLIST_REFRESH_S = 60
 
 
 def _credentials() -> tuple[str, str]:
@@ -112,14 +115,31 @@ def _handshake(ws, key: str, secret: str) -> bool:
     return True
 
 
-def stream_news(watchlist: list[str], on_article, stop_event=None) -> None:
+def stream_news(watchlist, on_article, stop_event=None) -> None:
     """
     Bloqueante: abre el WebSocket, autentica, se suscribe y llama
     `on_article(dict)` por cada noticia relevante. Reconecta solo con backoff.
     Pensado para correr en su propio thread (ver alpaca_news_loop en main.py).
+
+    `watchlist` puede ser una lista fija o un callable que devuelve la lista viva.
+    Con un callable, el filtro se refresca cada _WATCHLIST_REFRESH_S → los tickers
+    que agregas por el dashboard se reflejan sin reiniciar el servicio (la suscripción
+    WS es a "*", el filtro por watchlist es 100% local).
     """
     key, secret = _credentials()
-    watchlist_set = {t.upper() for t in watchlist}
+    get_wl = watchlist if callable(watchlist) else (lambda: watchlist)
+
+    def _build_set():
+        # Si el getter falla o devuelve vacío, mantenemos el set previo (no filtramos
+        # de más ni de menos). Solo aplicamos un set nuevo si trae tickers.
+        try:
+            wl = get_wl() or []
+        except Exception:
+            wl = []
+        return {t.upper() for t in wl}
+
+    watchlist_set = _build_set()
+    last_wl_refresh = time.time()
     backoff = _RECONNECT_MIN
 
     while not (stop_event and stop_event.is_set()):
@@ -137,6 +157,15 @@ def stream_news(watchlist: list[str], on_article, stop_event=None) -> None:
             ws.settimeout(_RECV_TIMEOUT)
 
             while not (stop_event and stop_event.is_set()):
+                # Refrescar la watchlist viva cada _WATCHLIST_REFRESH_S (antes y después
+                # del recv, que puede bloquear hasta _RECV_TIMEOUT). Mismo thread que el
+                # consumo de mensajes → reasignación sin race condition.
+                if time.time() - last_wl_refresh > _WATCHLIST_REFRESH_S:
+                    new_set = _build_set()
+                    if new_set:
+                        watchlist_set = new_set
+                    last_wl_refresh = time.time()
+
                 try:
                     messages = _recv_json(ws)
                 except websocket.WebSocketTimeoutException:

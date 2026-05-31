@@ -278,9 +278,14 @@ def get_portfolio() -> dict:
         return {"positions": [], "available_cash": 0, "total_value": 0, "error": str(e)[:80]}
 
 
-def check_portfolio_gate(ticker: str) -> dict:
+def check_portfolio_gate(ticker: str, portfolio: dict = None) -> dict:
     """
     Verifica si el portfolio permite entrar en un nuevo ticker.
+
+    `portfolio`: si se pasa (p.ej. desde account_cache.json que mantiene el
+    PositionTracker), evita una llamada sincrónica a eToro. Si es None, consulta
+    eToro en vivo (comportamiento original). El dict debe traer al menos
+    `positions` (con ticker + invested_amount), `available_cash` y `total_value`.
 
     Retorna:
     {
@@ -292,7 +297,8 @@ def check_portfolio_gate(ticker: str) -> dict:
         "sector_pct": float,
     }
     """
-    portfolio = get_portfolio()
+    if portfolio is None:
+        portfolio = get_portfolio()
 
     if portfolio.get("error"):
         return {

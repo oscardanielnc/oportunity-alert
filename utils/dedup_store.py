@@ -109,11 +109,15 @@ class DedupStore:
         return hashlib.md5(content.encode()).hexdigest()
 
     def is_cross_source_duplicate(
-        self, ticker: str, fingerprint: str, window_minutes: int = 20
+        self, ticker: str, fingerprint: str, window_minutes: int = 60
     ) -> bool:
         """
         Retorna True si ya se procesó un evento con el mismo fingerprint
         en los últimos window_minutes minutos (de cualquier fuente).
+
+        Default 60 min: Alpaca (Benzinga) es push en segundos pero Finnhub free lagea
+        30-60 min, así que el MISMO evento puede llegar por ambas fuentes con esa
+        separación. Una ventana corta dejaría pasar la 2da copia como alerta nueva.
         """
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=window_minutes)).strftime(
             "%Y-%m-%d %H:%M:%S"

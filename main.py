@@ -223,6 +223,30 @@ def _guess_direction(article: dict) -> str:
     return "LONG"
 
 
+def _portfolio_gate(ticker: str) -> dict:
+    """
+    Gate 5 (portfolio eToro) leído del account_cache que mantiene el PositionTracker
+    cada 10 min, para NO bloquear el pipeline de noticias con una llamada sincrónica
+    a eToro (hasta 5s, peor con el circuit breaker medio-abierto). Cae a consulta en
+    vivo solo si el cache no existe o está viejo (>20 min ≈ tracker caído).
+    """
+    try:
+        from utils.position_strategy import read_account_cache, account_cache_age_minutes
+        cache = read_account_cache()
+        age = account_cache_age_minutes()
+        if cache and age is not None and age < 20 and "positions" in cache:
+            cached_pf = {
+                "positions": cache.get("positions", []),
+                "available_cash": cache.get("available_cash", 0),
+                "total_value": cache.get("total_value", 0),
+                "error": None,
+            }
+            return check_portfolio_gate(ticker, portfolio=cached_pf)
+    except Exception as e:
+        logger.debug(f"[Gate5] cache no usable ({e}); fallback a eToro live")
+    return check_portfolio_gate(ticker)
+
+
 def process_article(
     article: dict,
     watchlist: list[str],
@@ -271,9 +295,12 @@ def process_article(
     score = article.get("keyword_score", 0)
     raw_text = article.get("raw_text", "")
 
-    # Dedup cross-source (mismo evento, distinta fuente — ventana 20 min)
+    # Dedup cross-source (mismo evento, distinta fuente). Ventana ampliada a 60 min
+    # (configurable) porque Alpaca/Benzinga es push en segundos pero Finnhub free lagea
+    # 30-60 min → el mismo evento llega por ambas con esa separación.
+    cross_dedup_min = config.get("cross_source_dedup_minutes", 60)
     fingerprint = dedup.get_event_fingerprint(ticker, raw_text)
-    if dedup.is_cross_source_duplicate(ticker, fingerprint, window_minutes=20):
+    if dedup.is_cross_source_duplicate(ticker, fingerprint, window_minutes=cross_dedup_min):
         logger.info(f"[CROSS-DUP] {ticker} mismo evento <20min — skip | {article.get('title', '')[:60]}")
         dedup.mark_seen(article_id, source)
         return
@@ -362,7 +389,9 @@ def process_article(
         )
 
     # ── Gate 5: Portfolio gate eToro (puede reducir score si no puede entrar) ─
-    portfolio_gate = check_portfolio_gate(ticker)
+    # Lee del account_cache (lo refresca el PositionTracker) → sin llamada sincrónica
+    # a eToro que bloquearía este thread. Fallback a live si el cache está viejo.
+    portfolio_gate = _portfolio_gate(ticker)
     result["portfolio_gate"] = portfolio_gate
 
     if not portfolio_gate["can_enter"] and score_ia >= 9:
@@ -558,9 +587,14 @@ def alpaca_news_loop(config, watchlist, dedup, **kwargs):
         live_wl = get_live_watchlist() or watchlist
         process_article(article, live_wl, dedup, config, **kwargs)
 
+    # Getter de watchlist viva: el stream refresca su filtro periódicamente, así los
+    # tickers añadidos por el dashboard entran sin reiniciar (fallback al snapshot inicial).
+    def _live_watchlist():
+        return get_live_watchlist() or watchlist
+
     while True:
         try:
-            alpaca_stream_news(watchlist, on_article)
+            alpaca_stream_news(_live_watchlist, on_article)
         except Exception as e:
             logger.error(f"Error en Alpaca News stream: {e}")
         time.sleep(5)
@@ -928,7 +962,9 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
             if not positions:
                 logger.debug("[PositionTracker] Sin posiciones abiertas")
-                write_account_cache(cash, total, {})   # mantener cash fresco aunque esté flat
+                # positions=[] explícito → el Gate 5 de noticias sabe que el portafolio
+                # está flat sin tener que llamar a eToro en vivo.
+                write_account_cache(cash, total, {}, positions=[])
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -986,8 +1022,9 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                     f"{alert['message']}"
                 )
 
-            # Cache para el dashboard/API (cash + valor + estado de salida por posición).
-            write_account_cache(cash, total, evals)
+            # Cache para el dashboard/API (cash + valor + estado de salida por posición)
+            # + posiciones para el Gate 5 de noticias (evita llamadas eToro sincrónicas).
+            write_account_cache(cash, total, evals, positions=positions)
 
             logger.debug(
                 f"[PositionTracker] Ciclo OK — "
