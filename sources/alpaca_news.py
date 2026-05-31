@@ -9,6 +9,8 @@ Por que WebSocket y no REST polling: el cuello de botella historico era la laten
 Cada noticia se normaliza al MISMO dict que sources/finnhub_news para encajar sin
 cambios en el pipeline (passes_filter / conviction gates / event gate / dedup).
 """
+from __future__ import annotations  # la VM corre Python 3.9: `dict | None` (PEP 604) es 3.10+
+
 import os
 import json
 import logging
