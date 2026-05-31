@@ -1,3 +1,7 @@
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 #!/usr/bin/env python3
 """
 Backtest Signal Engine v3 — MU desde 3am Lima (8am UTC) hoy.

@@ -169,6 +169,49 @@ class MetricsStore:
                     active      INTEGER DEFAULT 1
                 );
 
+                CREATE TABLE IF NOT EXISTS article_filter_log (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts            TEXT NOT NULL,
+                    date_lima     TEXT NOT NULL,
+                    ticker        TEXT NOT NULL,
+                    source        TEXT,
+                    title         TEXT,
+                    age_minutes   REAL,
+                    stage         TEXT NOT NULL,
+                    reason        TEXT,
+                    keyword_score INTEGER,
+                    g1            INTEGER,
+                    g2            INTEGER,
+                    g3            INTEGER,
+                    conv          INTEGER,
+                    skip_ai       INTEGER DEFAULT 0,
+                    ai_score      INTEGER,
+                    prioridad     TEXT,
+                    sms_sent      INTEGER DEFAULT 0,
+                    event_mode    INTEGER DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS premarket_filter_log (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts          TEXT NOT NULL,
+                    date_lima   TEXT NOT NULL,
+                    ticker      TEXT NOT NULL,
+                    direction   TEXT DEFAULT 'N/A',
+                    stage       TEXT NOT NULL,
+                    reason      TEXT,
+                    change_pct  REAL,
+                    total_vol   INTEGER,
+                    rvol        REAL,
+                    code_score  INTEGER,
+                    consistency REAL,
+                    max_adverse REAL,
+                    ai_score    INTEGER,
+                    prioridad   TEXT,
+                    sms_sent    INTEGER DEFAULT 0,
+                    pass_number INTEGER DEFAULT 1,
+                    data_source TEXT DEFAULT 'alpaca'
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_alerts_ticker  ON alerts(ticker);
                 CREATE INDEX IF NOT EXISTS idx_alerts_date    ON alerts(date_lima);
                 CREATE INDEX IF NOT EXISTS idx_alerts_prio    ON alerts(prioridad);
@@ -178,6 +221,9 @@ class MetricsStore:
                 CREATE INDEX IF NOT EXISTS idx_snap_ticker    ON position_snapshots(ticker);
                 CREATE INDEX IF NOT EXISTS idx_pm_date        ON premarket_scans(scan_date);
                 CREATE INDEX IF NOT EXISTS idx_pm_ticker      ON premarket_scans(ticker);
+                CREATE INDEX IF NOT EXISTS idx_afl_date       ON article_filter_log(date_lima);
+                CREATE INDEX IF NOT EXISTS idx_afl_ticker     ON article_filter_log(ticker);
+                CREATE INDEX IF NOT EXISTS idx_pmfl_date      ON premarket_filter_log(date_lima);
             """)
             c.commit()
 
@@ -316,7 +362,8 @@ class MetricsStore:
         """Retorna {ticker: {open_rate, ts, ...}} del último snapshot."""
         with _conn(self.db_path) as c:
             rows = c.execute("""
-                SELECT ticker, open_rate, direction, units, invested, net_profit_pct, ts
+                SELECT ticker, open_rate, current_rate, direction, units,
+                       invested, net_profit_pct, ts
                 FROM position_snapshots
                 WHERE ts = (SELECT MAX(ts) FROM position_snapshots)
             """).fetchall()
@@ -705,6 +752,105 @@ class MetricsStore:
                 added += 1
         logger.info(f"[Metrics] Watchlist inicializada: {added} tickers")
         return added
+
+    # ── Article filter log ───────────────────────────────────────────────────
+
+    def log_article_filter(self, entry: dict):
+        now = datetime.now(LIMA)
+        try:
+            with _conn(self.db_path) as c:
+                c.execute("""
+                    INSERT INTO article_filter_log
+                    (ts, date_lima, ticker, source, title, age_minutes,
+                     stage, reason, keyword_score, g1, g2, g3, conv,
+                     skip_ai, ai_score, prioridad, sms_sent, event_mode)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    now.strftime("%Y-%m-%dT%H:%M:%S"),
+                    now.strftime("%Y-%m-%d"),
+                    entry.get("ticker", ""),
+                    entry.get("source", ""),
+                    (entry.get("title") or "")[:200],
+                    entry.get("age_minutes"),
+                    entry.get("stage", ""),
+                    (entry.get("reason") or "")[:300],
+                    entry.get("keyword_score"),
+                    entry.get("g1"), entry.get("g2"), entry.get("g3"),
+                    entry.get("conv"),
+                    1 if entry.get("skip_ai") else 0,
+                    entry.get("ai_score"),
+                    entry.get("prioridad"),
+                    1 if entry.get("sms_sent") else 0,
+                    1 if entry.get("event_mode") else 0,
+                ))
+                c.commit()
+        except Exception as e:
+            logger.error(f"[Metrics] Error log_article_filter: {e}")
+
+    def get_article_filter_log(self, date: str = None, limit: int = 2000) -> list:
+        d = date or datetime.now(LIMA).strftime("%Y-%m-%d")
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT ts, ticker, source, title, age_minutes,
+                       stage, reason, keyword_score, g1, g2, g3, conv,
+                       skip_ai, ai_score, prioridad, sms_sent, event_mode
+                FROM article_filter_log
+                WHERE date_lima = ?
+                ORDER BY ts DESC
+                LIMIT ?
+            """, (d, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── Pre-market filter log ─────────────────────────────────────────────────
+
+    def log_premarket_filter(self, entry: dict):
+        now = datetime.now(LIMA)
+        try:
+            with _conn(self.db_path) as c:
+                c.execute("""
+                    INSERT INTO premarket_filter_log
+                    (ts, date_lima, ticker, direction, stage, reason,
+                     change_pct, total_vol, rvol, code_score,
+                     consistency, max_adverse, ai_score, prioridad,
+                     sms_sent, pass_number, data_source)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    now.strftime("%Y-%m-%dT%H:%M:%S"),
+                    now.strftime("%Y-%m-%d"),
+                    entry.get("ticker", ""),
+                    entry.get("direction", "N/A"),
+                    entry.get("stage", ""),
+                    (entry.get("reason") or "")[:300],
+                    entry.get("change_pct"),
+                    entry.get("total_vol"),
+                    entry.get("rvol"),
+                    entry.get("code_score"),
+                    entry.get("consistency"),
+                    entry.get("max_adverse"),
+                    entry.get("ai_score"),
+                    entry.get("prioridad"),
+                    1 if entry.get("sms_sent") else 0,
+                    entry.get("pass_number", 1),
+                    entry.get("data_source", "alpaca"),
+                ))
+                c.commit()
+        except Exception as e:
+            logger.error(f"[Metrics] Error log_premarket_filter: {e}")
+
+    def get_premarket_filter_log(self, date: str = None, limit: int = 500) -> list:
+        d = date or datetime.now(LIMA).strftime("%Y-%m-%d")
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT ts, ticker, direction, stage, reason,
+                       change_pct, total_vol, rvol, code_score,
+                       consistency, max_adverse, ai_score, prioridad,
+                       sms_sent, pass_number, data_source
+                FROM premarket_filter_log
+                WHERE date_lima = ?
+                ORDER BY ts DESC
+                LIMIT ?
+            """, (d, limit)).fetchall()
+        return [dict(r) for r in rows]
 
     def get_summary_stats(self) -> dict:
         """Stats globales de todo el historial."""

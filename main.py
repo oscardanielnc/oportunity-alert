@@ -36,7 +36,8 @@ from utils.playbook_matcher import find_matching_strategies
 from utils.metrics_store import MetricsStore
 from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
 from utils.delayed_alerts import queue_followup, start_worker
-from utils.premarket_scanner import run_premarket_scan
+from utils.earnings_calendar import has_earnings_today_or_yesterday
+# premarket_scanner ARCHIVADO (2026-05-30) → _deprecated/. Sin edge validado (backtest).
 from api.app import run_dashboard
 
 LIMA = timezone(timedelta(hours=-5))
@@ -101,14 +102,13 @@ def load_config(path: str = "config.json") -> dict:
 
 def get_watchlist(config: dict) -> list[str]:
     """
-    Fuentes en orden de prioridad (todas se fusionan):
-    1. metrics.db watchlist table  — gestionada por el frontend (fuente canónica)
-    2. config.json                 — seed inicial y fallback
-    3. watchlist.txt               — CLI legacy
+    Fuente ÚNICA canónica = tabla `watchlist` en metrics.db (la gestiona el frontend).
+    config.json se usa solo como SEED inicial / fallback si la DB está vacía.
+    (watchlist.txt / watchlist.py DEPRECADOS 2026-05-30 → _deprecated/.)
     """
     tickers = []
 
-    # 1. DB watchlist (la que gestiona el frontend)
+    # 1. DB watchlist — fuente canónica (gestionada por el frontend / metrics.db)
     try:
         import sqlite3
         from pathlib import Path
@@ -123,17 +123,10 @@ def get_watchlist(config: dict) -> list[str]:
     except Exception:
         pass
 
-    # 2. config.json (merge — agrega los que no estén ya en DB)
+    # 2. config.json — solo seed/fallback (merge de los que no estén ya en DB)
     wl = config.get("watchlist", {})
     for cat in ["primary", "extended", "crypto"]:
         tickers.extend(wl.get(cat, []))
-
-    # 3. watchlist.txt legacy
-    try:
-        from watchlist import get_tickers
-        tickers.extend(get_tickers())
-    except Exception:
-        pass
 
     return list(dict.fromkeys(tickers))  # dedup preservando orden
 
@@ -258,6 +251,16 @@ def process_article(
         with _stats_lock:
             _stats["filtered"] += 1
         logger.debug(f"Filtro [{reason}]: {article.get('title', '')[:70]}")
+        if _metrics:
+            _metrics.log_article_filter({
+                "ticker": (article.get("tickers_found") or ["UNKNOWN"])[0],
+                "source": article.get("source", ""),
+                "title":  article.get("title", ""),
+                "age_minutes": article.get("age_minutes", 0),
+                "stage":  "keyword_filtered",
+                "reason": reason,
+                "keyword_score": article.get("keyword_score", 0),
+            })
         dedup.mark_seen(article_id, article.get("source", ""))
         return
 
@@ -305,6 +308,7 @@ def process_article(
         )
 
     if conviction["skip_ai"]:
+        stage = "gate1_blocked" if conviction["gate1_score"] == 0 else "gates_blocked"
         logger.info(
             f"[GATES] {ticker} score={conviction['conviction_score']}/7 "
             f"→ DESCARTADO sin IA | {conviction['reasoning']}"
@@ -315,6 +319,15 @@ def process_article(
                 ai_called=False,
                 article_title=article.get("title", ""),
             )
+            _metrics.log_article_filter({
+                "ticker": ticker, "source": source,
+                "title": article.get("title", ""), "age_minutes": age,
+                "stage": stage, "reason": conviction.get("reasoning", ""),
+                "keyword_score": score,
+                "g1": conviction["gate1_score"], "g2": conviction["gate2_score"],
+                "g3": conviction["gate3_score"], "conv": conviction["conviction_score"],
+                "skip_ai": True, "event_mode": event_mode,
+            })
         dedup.mark_seen(article_id, source)
         dedup.mark_ticker_event(ticker, fingerprint, source, sent_to_claude=False)
         return
@@ -336,6 +349,16 @@ def process_article(
     # ── Gate 4: Playbook match (informativo) ──────────────────────────────────
     playbook_matches = find_matching_strategies(result.get("resumen_cataliz", ""))
     result["playbook_matches"] = playbook_matches
+
+    # ── Rescate filtro EARNINGS (validado: el pop intradía en día de earnings es perdedor) ──
+    # No descarta la alerta; la marca para que Oscar no persiga el pop y considere PED multi-día.
+    if has_earnings_today_or_yesterday(ticker):
+        result["earnings_day"] = True
+        result["resumen_cataliz"] = (
+            "[⚠️ EARNINGS hoy/ayer — el gap ya priceó, NO chase intradía. "
+            "Si mega-cap+beat fuerte: jugar PED Day+2→Day+7] "
+            + result.get("resumen_cataliz", "")
+        )
 
     # ── Gate 5: Portfolio gate eToro (puede reducir score si no puede entrar) ─
     portfolio_gate = check_portfolio_gate(ticker)
@@ -416,12 +439,35 @@ def process_article(
                 f"se incluirá en digest del domingo 7pm Lima "
                 f"(cola: {len(_weekend_queue)} items)"
             )
+            if _metrics:
+                _metrics.log_article_filter({
+                    "ticker": ticker, "source": source,
+                    "title": article.get("title", ""), "age_minutes": age,
+                    "stage": "market_closed", "reason": "mercado cerrado — digest domingo",
+                    "keyword_score": score,
+                    "g1": conviction["gate1_score"], "g2": conviction["gate2_score"],
+                    "g3": conviction["gate3_score"], "conv": conviction["conviction_score"],
+                    "ai_score": score_ia, "prioridad": prioridad, "event_mode": event_mode,
+                })
 
     if score_ia >= 1:  # loguear todo lo que la IA puntuó (excepto errores)
         log_alert(result, sms_enviado=sms_enviado, _skip_analysis_log=True)
         if _metrics:
             _metrics.log_alert(result, conviction=conviction, sms_enviado=sms_enviado)
             _metrics.refresh_daily_summary()
+            # Log final del pipeline para todos los que pasaron IA
+            _metrics.log_article_filter({
+                "ticker": ticker, "source": source,
+                "title": article.get("title", ""), "age_minutes": age,
+                "stage": "sent" if sms_enviado else ("ai_alta" if prioridad == "ALTA" else
+                          "ai_media" if prioridad == "MEDIA" else "ai_baja"),
+                "reason": result.get("resumen_cataliz", ""),
+                "keyword_score": score,
+                "g1": conviction["gate1_score"], "g2": conviction["gate2_score"],
+                "g3": conviction["gate3_score"], "conv": conviction["conviction_score"],
+                "ai_score": score_ia, "prioridad": prioridad,
+                "sms_sent": sms_enviado, "event_mode": event_mode,
+            })
 
     dedup.mark_seen(article_id, source)
 
@@ -663,12 +709,12 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
             else:
                 market_line = f"🔒 Mercado: CERRADO — {queued} oportunidad{'es' if queued != 1 else ''} acumulada{'s' if queued != 1 else ''}"
 
-            from utils.etoro_client import health_check as etoro_health
-            etoro = etoro_health()
+            # Una sola llamada a eToro (antes hacía health_check + get_portfolio = 2).
+            pf = get_portfolio()
             etoro_line = (
-                f"eToro: OK (${get_portfolio().get('available_cash', 0):.0f} cash)"
-                if etoro["ok"]
-                else f"eToro: OFFLINE ({etoro['status']}) — gates 1-3 activos"
+                f"eToro: OFFLINE ({str(pf['error'])[:30]}) — gates 1-3 activos"
+                if pf.get("error")
+                else f"eToro: OK (${pf.get('available_cash', 0):.0f} cash)"
             )
 
             msg_body = (
@@ -693,32 +739,6 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
 
 
 # ── Position Tracker ─────────────────────────────────────────────────────────
-
-def _parse_portfolio_stops() -> dict:
-    """
-    Lee portfolio.md y retorna stops por ticker.
-    Retorna: { "NVDA": {"stop_alert_price": 169.07, "horizonte": "Meses/Años"}, ... }
-    """
-    import re
-    from pathlib import Path
-    path = Path(__file__).parent / "data" / "portfolio.md"
-    stops = {}
-    try:
-        text = path.read_text(encoding="utf-8")
-        # Filas: | TICKER | horizonte | -XX% | $XXX.XX |
-        pattern = r"\|\s*([A-Z]{1,5})\s*\|\s*([\w/]+)\s*\|\s*[−\-][\d.]+%\s*\|\s*\$([\d,]+\.?\d*)\s*\|"
-        for m in re.finditer(pattern, text):
-            ticker, horizonte, price_str = m.groups()
-            stops[ticker] = {
-                "stop_alert_price": float(price_str.replace(",", "")),
-                "horizonte": horizonte,
-            }
-        logger.info(f"[PositionTracker] Stops cargados: {list(stops.keys())}")
-    except FileNotFoundError:
-        pass  # portfolio.md es opcional — stops vienen de eToro directamente
-    except Exception as e:
-        logger.debug(f"[PositionTracker] portfolio.md: {e}")
-    return stops
 
 
 def _send_position_alert(alert: dict, twilio_from: str, twilio_to: str):
@@ -809,18 +829,38 @@ def _explain_large_moves(
         )
 
 
+def _sync_position_watchlist(metrics: "MetricsStore", held_tickers: set):
+    """
+    Asegura que las posiciones abiertas de eToro estén en el universo de noticias.
+    Añade los tickers que falten (category='position') y retira los auto-añadidos
+    que ya no se tienen. Las entradas manuales del usuario nunca se tocan.
+    """
+    try:
+        wl = {r["ticker"]: r.get("category") for r in metrics.get_watchlist()}
+        for tk in held_tickers:
+            if tk not in wl:
+                metrics.add_ticker(tk, category="position", notes="auto: posición eToro")
+                logger.info(f"[PositionTracker] {tk} añadido al universo de noticias (posición)")
+        for tk, cat in wl.items():
+            if cat == "position" and tk not in held_tickers:
+                metrics.remove_ticker(tk)
+                logger.info(f"[PositionTracker] {tk} retirado del universo (posición cerrada)")
+    except Exception as e:
+        logger.debug(f"[PositionTracker] sync watchlist: {e}")
+
+
 def position_tracker_loop(twilio_from: str, twilio_to: str):
-    """Thread que corre cada 10 min. Verifica posiciones abiertas vs stops y T1."""
+    """
+    Thread cada 10 min. ADVISOR de salida por estrategia (Marea/PED) sobre las
+    posiciones reales de eToro. NO ejecuta órdenes — solo aconseja por SMS/dashboard.
+    """
     POLL_INTERVAL = 600   # 10 minutos
-    T1_THRESHOLD  = 8.0   # % P&L para notificar T1
-    PEAK_RETRACE  = 4.0   # % retroceso desde pico para alertar
 
     dedup   = DedupStore("data/seen_ids.db")
     metrics = MetricsStore()
 
     while True:
         try:
-            portfolio_stops = _parse_portfolio_stops()
             etoro_data = get_portfolio()
 
             if etoro_data.get("error"):
@@ -830,7 +870,11 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
             positions = etoro_data.get("positions", [])
 
-            # Detectar trades cerrados comparando con snapshot anterior
+            # Auto-incluir posiciones abiertas en el universo de noticias (y retirar cerradas)
+            _sync_position_watchlist(metrics, {p["ticker"] for p in positions})
+
+            # Snapshot ANTERIOR (capturado antes de escribir el actual) — se usa tanto
+            # para detectar cierres como para explicar movimientos bruscos.
             prev_tickers = metrics.get_open_tickers_last_snapshot()
             if prev_tickers and positions is not None:
                 current_keys = {p["ticker"] for p in positions}
@@ -853,74 +897,63 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
             if positions:
                 metrics.log_position_snapshot(positions)
 
+            from utils.position_strategy import evaluate_position, write_account_cache
+
+            cash  = etoro_data.get("available_cash", 0)
+            total = etoro_data.get("total_value", 0)
+
             if not positions:
                 logger.debug("[PositionTracker] Sin posiciones abiertas")
+                write_account_cache(cash, total, {})   # mantener cash fresco aunque esté flat
                 time.sleep(POLL_INTERVAL)
                 continue
 
             alerts_to_send = []
+            evals = {}   # ticker -> evaluación de salida (la consume el dashboard via cache)
 
-            # Detectar movimientos bruscos en posiciones abiertas y explicarlos
-            prev_snap = metrics.get_open_tickers_last_snapshot()
-            _explain_large_moves(positions, prev_snap, metrics, twilio_to)
+            # Detectar movimientos bruscos y explicarlos. Usa prev_tickers (snapshot
+            # ANTERIOR, capturado antes de escribir el actual) — antes leía el snapshot
+            # recién escrito y comparaba current-vs-current (siempre 0 → nunca disparaba).
+            _explain_large_moves(positions, prev_tickers, metrics, twilio_to)
 
+            # Salida POR ESTRATEGIA (Marea=chandelier, PED=tiempo, manual=solo contexto).
+            # Reemplaza las heurísticas viejas (T1+8%/breakeven/retroceso) que cortaban
+            # ganadores de trend-following. La decisión es mecánica y validada por backtest.
             for pos in positions:
-                ticker   = pos["ticker"]
-                pnl_pct  = pos["net_profit_pct"]
-                entry    = pos["open_rate"]
-                current  = pos["current_rate"]
+                ticker  = pos["ticker"]
+                pnl_pct = pos["net_profit_pct"]
+                current = pos["current_rate"]
 
-                dedup.update_peak_pnl(ticker, entry, pnl_pct)
-                peak_pnl = dedup.get_peak_pnl(ticker, entry)
+                try:
+                    ev = evaluate_position(ticker, pos.get("open_datetime", ""), current)
+                except Exception as e:
+                    logger.warning(f"[PositionTracker] evaluate {ticker}: {e}")
+                    continue
 
-                # Alerta 1: stop en riesgo
-                stop_info = portfolio_stops.get(ticker)
-                if stop_info and current <= stop_info["stop_alert_price"] * 1.01:
-                    flag_key = f"stop_alert_{ticker}_{int(entry * 100)}"
-                    if not dedup.has_flag(flag_key):
-                        alerts_to_send.append({
-                            "level": "URGENTE",
-                            "ticker": ticker,
-                            "pnl_pct": pnl_pct,
-                            "message": (
-                                f"Precio ${current:.2f} cerca del stop "
-                                f"(alerta: ${stop_info['stop_alert_price']:.2f})"
-                            ),
-                            "action": "Revisar en eToro AHORA. Considerar salida.",
-                        })
-                        dedup.set_flag(flag_key, ttl_hours=4)
+                evals[ticker] = ev   # para el dashboard (estado de salida en vivo)
 
-                # Alerta 2: T1 alcanzado
-                if pnl_pct >= T1_THRESHOLD:
-                    flag_key = f"t1_{ticker}_{int(entry * 100)}"
-                    if not dedup.has_flag(flag_key):
-                        alerts_to_send.append({
-                            "level": "INFO",
-                            "ticker": ticker,
-                            "pnl_pct": pnl_pct,
-                            "message": f"T1 alcanzado — P&L +{pnl_pct:.1f}%",
-                            "action": (
-                                f"Mover stop a breakeven (${entry:.2f}). "
-                                "Dejar correr segunda mitad."
-                            ),
-                        })
-                        dedup.set_flag(flag_key, ttl_hours=48)
+                if not ev["exit"]:
+                    continue  # manual / mantener / sin datos → no dispara SMS de salida
 
-                # Alerta 3: retroceso desde pico (solo si ya superó T1)
-                if peak_pnl >= T1_THRESHOLD and (peak_pnl - pnl_pct) >= PEAK_RETRACE:
-                    flag_key = f"retrace_{ticker}_{int(entry * 100)}_{int(pnl_pct)}"
-                    if not dedup.has_flag(flag_key):
-                        alerts_to_send.append({
-                            "level": "ATENCION",
-                            "ticker": ticker,
-                            "pnl_pct": pnl_pct,
-                            "message": (
-                                f"Retroceso desde pico — ahora +{pnl_pct:.1f}% "
-                                f"(pico fue +{peak_pnl:.1f}%)"
-                            ),
-                            "action": "Considerar salida parcial o ajustar stop.",
-                        })
-                        dedup.set_flag(flag_key, ttl_hours=6)
+                # Una alerta de salida por ticker+día (re-avisa al día siguiente si no actúa).
+                day = datetime.now(LIMA).strftime("%Y%m%d")
+                flag_key = f"exit_{ev['reason']}_{ticker}_{day}"
+                if dedup.has_flag(flag_key):
+                    continue
+
+                if ev["strategy"] == "marea":
+                    level, action = "URGENTE", "VENDER al próximo open (eToro). Chandelier roto."
+                else:  # ped
+                    level, action = "INFO", "Cerrar al próximo open (eToro). Hold PED cumplido."
+
+                alerts_to_send.append({
+                    "level": level,
+                    "ticker": ticker,
+                    "pnl_pct": pnl_pct,
+                    "message": f"[{ev['strategy'].upper()}] {ev['detail']}",
+                    "action": action,
+                })
+                dedup.set_flag(flag_key, ttl_hours=20)
 
             for alert in alerts_to_send:
                 _send_position_alert(alert, twilio_from, twilio_to)
@@ -928,6 +961,9 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                     f"[PositionTracker] {alert['level']} — {alert['ticker']}: "
                     f"{alert['message']}"
                 )
+
+            # Cache para el dashboard/API (cash + valor + estado de salida por posición).
+            write_account_cache(cash, total, evals)
 
             logger.debug(
                 f"[PositionTracker] Ciclo OK — "
@@ -940,78 +976,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
         time.sleep(POLL_INTERVAL)
 
 
-# ── Pre-market Scanner ───────────────────────────────────────────────────────
-
-def premarket_scanner_loop(watchlist: list, twilio_to: str, dedup):
-    """
-    Corre a las 6:00am Lima (pasada 1, todo el watchlist) y 7:00am Lima
-    (pasada 2, solo tickers MEDIA de pasada 1) en días hábiles Lun-Vie.
-
-    Detecta momentum pre-market sostenido LONG (≥+2.5%) y SHORT (≤-3.5%)
-    en el rango 3am-6am Lima antes de la apertura regular.
-    """
-    while True:
-        now = datetime.now(LIMA)
-
-        # Próximo 6am Lima en día hábil
-        target = now.replace(hour=6, minute=0, second=0, microsecond=0)
-        if now.hour >= 7:
-            # Ya pasó la ventana de hoy — avanzar al día siguiente
-            target += timedelta(days=1)
-        # Saltar sábado (5) y domingo (6)
-        while target.weekday() >= 5:
-            target += timedelta(days=1)
-
-        wait_secs = (target - now).total_seconds()
-        logger.info(
-            f"[PreMarket] Próximo scan en {wait_secs / 3600:.1f}h "
-            f"({target.strftime('%Y-%m-%d %H:%M Lima')})"
-        )
-        time.sleep(max(wait_secs, 1))
-
-        # ── Pasada 1: 6:00am Lima — todo el watchlist ────────────────────────
-        media_tickers = []
-        try:
-            logger.info("[PreMarket] Iniciando pasada 1 — 6:00am Lima")
-            media_tickers = run_premarket_scan(
-                watchlist=watchlist,
-                twilio_to=twilio_to,
-                dedup=dedup,
-                pass_number=1,
-                media_tickers=None,
-                metrics=_metrics,
-            )
-        except Exception as e:
-            logger.error(f"[PreMarket] Error en pasada 1: {e}")
-
-        logger.info(
-            f"[PreMarket] Pasada 1 completada — "
-            f"{len(media_tickers)} tickers MEDIA para re-eval en 60 min"
-        )
-
-        # Esperar hasta 7:00am Lima para la segunda pasada
-        time.sleep(3600)
-
-        # ── Pasada 2: 7:00am Lima — solo tickers MEDIA ───────────────────────
-        if media_tickers:
-            try:
-                logger.info(
-                    f"[PreMarket] Iniciando pasada 2 — 7:00am Lima | "
-                    f"tickers: {media_tickers}"
-                )
-                run_premarket_scan(
-                    watchlist=watchlist,
-                    twilio_to=twilio_to,
-                    dedup=dedup,
-                    pass_number=2,
-                    media_tickers=set(media_tickers),
-                    metrics=_metrics,
-                )
-            except Exception as e:
-                logger.error(f"[PreMarket] Error en pasada 2: {e}")
-        else:
-            logger.info("[PreMarket] Pasada 2 omitida — sin tickers MEDIA")
-
+# (Pre-market Scanner ARCHIVADO 2026-05-30 -> _deprecated/ — sin edge validado)
 
 # ── Comando status ────────────────────────────────────────────────────────────
 
@@ -1046,7 +1011,7 @@ def show_status():
     print(f"\n  Ultimo log:")
     print(f"    {last_log[:80]}")
     print(f"\n  Ver historial completo: python show_history.py")
-    print(f"  Ver watchlist:          python watchlist.py")
+    print(f"  Ver/editar watchlist:   dashboard web (tab Watchlist) — fuente: metrics.db")
     print(f"{sep}\n")
 
 
@@ -1122,10 +1087,9 @@ def main():
         ("Heartbeat",     heartbeat_loop,       (twilio_from, twilio_to),   {}),
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
-        ("PreMarket",        premarket_scanner_loop,   (watchlist, twilio_to, dedup), {}),
         ("Dashboard",        run_dashboard,            (),                            {}),
     ]
-    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker, PreMarket (Reddit desactivado — bloqueado por Oracle Cloud IP)")
+    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker (Reddit desactivado; PreMarket archivado)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(

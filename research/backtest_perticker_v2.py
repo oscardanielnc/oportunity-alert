@@ -1,3 +1,7 @@
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 #!/usr/bin/env python3
 """
 Per-Ticker Parameter Optimizer v2
@@ -35,12 +39,19 @@ load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import requests
-from utils.signal_engine import compute_signal, compute_htf_trend, DIRECTION_LOCK_SCANS
-from utils.segment_config import (
-    TIMESTOP_SCANS, TIMESTOP_ADVERSE_PCT,
-    TICKER_THRESHOLDS, get_session_threshold_for_hour,
-    TICKER_SEGMENT, get_segment_params,
-)
+try:  # Watcher deprecado (_deprecated/) — desde aquí solo se usa etoro_fee_analysis
+    from utils.signal_engine import compute_signal, compute_htf_trend, DIRECTION_LOCK_SCANS
+    from utils.segment_config import (
+        TIMESTOP_SCANS, TIMESTOP_ADVERSE_PCT,
+        TICKER_THRESHOLDS, get_session_threshold_for_hour,
+        TICKER_SEGMENT, get_segment_params,
+    )
+except ImportError:
+    compute_signal = compute_htf_trend = None
+    DIRECTION_LOCK_SCANS = 5
+    TIMESTOP_SCANS = TIMESTOP_ADVERSE_PCT = TICKER_THRESHOLDS = {}
+    TICKER_SEGMENT = {}
+    get_session_threshold_for_hour = get_segment_params = lambda *a, **k: None
 
 ALPACA_BASE     = "https://data.alpaca.markets"
 LIMA_OFFSET     = -5

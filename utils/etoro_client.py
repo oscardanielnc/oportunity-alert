@@ -145,7 +145,7 @@ def health_check() -> dict:
         config  = _load_config()
         base    = config["api_base"]
         headers = _get_headers(config)
-        r = requests.get(f"{base}/ping", headers=headers, timeout=5)
+        r = requests.get(f"{base}/api/v1/trading/info/portfolio", headers=headers, timeout=5)
         if r.status_code == 200:
             return {"ok": True, "status": "online", "failures": _cb_failures}
         return {"ok": False, "status": f"HTTP {r.status_code}", "failures": _cb_failures}
@@ -207,9 +207,10 @@ def get_portfolio() -> dict:
         base = config["api_base"]
         headers = _get_headers(config)
 
-        # Endpoint confirmado: /trading/info/portfolio (sin /{env}/)
+        # Endpoint confirmado (doc oficial): /api/v1/trading/info/portfolio
+        # base = https://public-api.etoro.com  (NO api.etoro.com, NO /{env}/)
         resp = requests.get(
-            f"{base}/trading/info/portfolio",
+            f"{base}/api/v1/trading/info/portfolio",
             headers=headers,
             timeout=10,
         )
@@ -243,6 +244,8 @@ def get_portfolio() -> dict:
                 "net_profit_pct": _calc_pnl_pct(p),
                 "direction": "BUY" if p.get("isBuy", True) else "SELL",
                 "invested_amount": float(p.get("amount") or p.get("investedAmount") or 0),
+                # openDateTime (ISO) -> fecha de entrada real, base para Day+7 (PED) y hh (Marea)
+                "open_datetime": str(p.get("openDateTime") or p.get("OpenDateTime") or ""),
             })
 
         equity = float(portfolio.get("credit") or 0)

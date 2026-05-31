@@ -1,3 +1,7 @@
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 #!/usr/bin/env python3
 """
 Super Backtest — 3 timeframes (1m, 5m, 15m) x 10 tickers x N semanas.
@@ -14,7 +18,11 @@ load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import requests
-from utils.signal_engine import compute_signal, compute_htf_trend, DIRECTION_LOCK_SCANS
+try:  # Watcher deprecado (_deprecated/) — desde aquí solo se usa fetch_all
+    from utils.signal_engine import compute_signal, compute_htf_trend, DIRECTION_LOCK_SCANS
+except ImportError:
+    compute_signal = compute_htf_trend = None
+    DIRECTION_LOCK_SCANS = 5
 
 ALPACA_BASE = "https://data.alpaca.markets"
 LIMA_OFFSET = -5

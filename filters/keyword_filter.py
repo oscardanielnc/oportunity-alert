@@ -46,6 +46,13 @@ TIER_1_KEYWORDS = [
     "ITEM 1.01", "ITEM 2.01", "ITEM 2.02", "ITEM 7.01", "ITEM 8.01",
     "MATERIAL DEFINITIVE AGREEMENT", "RESULTS OF OPERATIONS",
     "ENTRY INTO A MATERIAL",
+    # Upgrades de analista / subida de price target — 1 sola basta (la IA discrimina
+    # magnitud). Validado: en large-caps un upgrade mueve el precio (caso MU 26-may,
+    # UBS +204% PT) y antes se descartaba por pesar solo 2 pts en Tier-2.
+    "PRICE TARGET RAISED", "RAISES PRICE TARGET", "RAISES TARGET", "RAISES PT",
+    "PRICE TARGET INCREASED", "BOOSTS PRICE TARGET", "LIFTS PRICE TARGET",
+    "UPGRADED TO BUY", "UPGRADED TO OVERWEIGHT", "RAISED TO BUY",
+    "UPGRADES TO BUY", "UPGRADES TO OVERWEIGHT",
 ]
 
 # ── Tier 2: necesita 2+ hits para pasar a Claude ──────────────────────────────
@@ -55,9 +62,7 @@ TIER_2_KEYWORDS = [
     "DEPARTMENT OF COMMERCE", "DEFENSE DEPARTMENT",
     "CLINICAL TRIAL RESULTS", "PHASE 3", "PHASE 2",
     "STRATEGIC REVIEW", "MERGER", "JOINT VENTURE",
-    "PRICE TARGET RAISED", "RAISES PRICE TARGET", "RAISES TARGET",
-    "PRICE TARGET INCREASED", "BOOSTS PRICE TARGET",
-    "UPGRADED TO BUY", "UPGRADED TO OVERWEIGHT", "RAISED TO BUY",
+    # (upgrades concretos promovidos a TIER_1 — aquí quedan los más débiles/ruidosos)
     "STRONG BUY", "INITIATED COVERAGE", "OUTPERFORM",
     "INVESTOR DAY", "ANALYST DAY", "SPECIAL DIVIDEND",
     "SHARE BUYBACK", "STOCK BUYBACK",

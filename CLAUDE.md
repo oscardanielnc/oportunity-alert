@@ -4,6 +4,29 @@
 
 ---
 
+## ⚡ ACTUALIZACIÓN 2026-05-30 — LEE ESTO PRIMERO (reescritura en curso)
+
+El sistema está en reconstrucción hacia UN proyecto unificado (Noticias + Pre-market +
+Marea + Posiciones). **La fuente de verdad viva de pendientes/decisiones es `REBUILD_PLAN.md`.**
+Lo de abajo (v2.1) sigue siendo válido como base salvo estos cambios ya aplicados:
+
+- **Sistema 100% MANUAL.** El auto-trading fue DESMANTELADO: `etoro_trader.py` +
+  `position_lock.py` → `_quarantine/`; eliminados de `api/app.py` la función
+  `_execute_auto_trade` y los endpoints `/api/watcher/auto-trade` y `/api/position-lock`.
+  eToro READ-ONLY ahora es realidad consolidada, no solo intención.
+- **Watcher:** murió como motor de trades intradía (1m scalping net-negativo por fees,
+  auditado). Se reutilizará como ADVISOR de salida de posiciones (pendiente).
+- **Pre-market scanner:** reorientado — universo large-cap 24/5 only (`LARGE_CAP_24X5`),
+  exclusión de earnings (`_has_earnings_blackout`), gate `code_score>=6` REMOVIDO
+  (validado que dañaba). Edge validado pero MU-dependiente → falta muestra + clasificación IA.
+- **Keyword filter:** upgrades de analista promovidos a Tier-1.
+- **Watchlist:** fuente única canónica = tabla `watchlist` en `metrics.db` (frontend);
+  `config.json` solo seed; API anota `tradeable_24x5`. `watchlist.py/txt` → `_deprecated/`.
+- **Estructura nueva:** `research/` (backtests/auditorías), `_quarantine/` (auto-trader),
+  `_deprecated/` (CLI watchlist legacy).
+
+---
+
 ## ROL Y MISIÓN
 
 Eres el asistente de desarrollo para **OportunityAlert**: un programa Python 24/7 que monitorea noticias financieras, filtra catalizadores y alerta a Oscar por SMS/WhatsApp. Evalúa convicción técnica antes de llamar a la IA, maneja eventos extraordinarios con flujo de dos alertas, y monitorea posiciones abiertas en eToro para notificarle cuándo actuar.
@@ -227,12 +250,14 @@ Worker daemon thread que procesa la cola de followups (SMS 2).
 
 Wrapper READ-ONLY para la eToro API. NUNCA ejecuta ordenes.
 
-### Endpoint correcto
+### Endpoint correcto (verificado en vivo 2026-05-30)
 ```
-GET /trading/info/portfolio
+GET https://public-api.etoro.com/api/v1/trading/info/portfolio
 Headers: x-api-key, x-user-key, x-request-id, Content-Type
 ```
-**NOTA CRITICA**: El endpoint NO incluye `/{env}/`. La ruta `/trading/info/real/portfolio` devuelve 404.
+**NOTA CRITICA**: host = `public-api.etoro.com` (NO `api.etoro.com`) y prefijo `/api/v1/`.
+La ruta sin `/api/v1/` o contra `api.etoro.com` devuelve 404. `api_base` en
+`etoro_config.json` = `https://public-api.etoro.com`.
 
 ### Estructura de respuesta
 ```
@@ -373,21 +398,27 @@ Stops y targets NO van en el JSON — se calculan por codigo.
 
 Corre cada 10 min en thread separado.
 
+ADVISOR de salida POR ESTRATEGIA (no ejecuta órdenes). Reescrito 2026-05-30:
+las heurísticas viejas (T1 +8% / breakeven / retroceso 4% / portfolio.md) se ELIMINARON
+porque cortaban ganadores de trend-following.
+
 ```python
-1. _parse_portfolio_stops()  <- lee C:/Users/LENOVO/trading/portfolio.md
-2. get_portfolio()           <- llama eToro API
-3. Compara tickers actuales vs snapshot anterior (_metrics)
-   -> posicion desaparecida = trade cerrado -> record_closed_trade()
-4. _explain_large_moves()    <- para cada posicion con movimiento >3%
-   -> get_recent_news_for_ticker() en metrics (ventana 90 min)
-   -> envia SMS "precio subio X% — cataliz: [noticia]" o "volatilidad sin noticias"
-   -> cooldown 60 min por ticker
-5. Para cada posicion abierta:
-   - Stop en riesgo: current <= stop_alert_price × 1.01 -> SMS URGENTE (cooldown 4h)
-   - T1 alcanzado: pnl_pct >= 8.0% -> SMS INFO (cooldown 48h)
-   - Retroceso desde pico: peak_pnl >= 8% y retroceso >= 4% -> SMS ATENCION (cooldown 6h)
+1. get_portfolio()           <- eToro API (read-only)
+2. _sync_position_watchlist() <- auto-añade posiciones abiertas al universo de noticias
+                                 (category='position'); retira las cerradas
+3. Compara tickers vs snapshot anterior -> posicion desaparecida = record_closed_trade()
+4. _explain_large_moves()    <- movimiento >3% -> news lookup (90 min) = CONTEXTO, no decisión
+5. Para cada posicion abierta -> utils/position_strategy.evaluate_position():
+   - estrategia: HÍBRIDA = override dashboard > auto-match pilot_state.json > "manual"
+   - marea  -> chandelier (hh_desde_entrada - 4×ATR22) sobre cierre diario -> SMS URGENTE "VENDER al open"
+   - ped    -> tiempo (days_held >= 6 ~ Day+7)                              -> SMS INFO "cerrar al open"
+   - manual -> sin salida automática (solo contexto de noticias)
+   - dedup: 1 alerta por ticker+regla+día (re-avisa al día siguiente si no actúa)
 6. log_position_snapshot(_metrics, positions)
 ```
+
+Tags de override en `data/position_tags.json`. entry_date sale del `openDateTime` real de eToro.
+Barras diarias cacheadas por día (≤1 fetch Alpaca por ticker/día).
 
 ---
 
@@ -451,7 +482,7 @@ MAX_SECTOR_PCT = 0.40         # maximo 40% en un sector
 
 1. **eToro API es READ-ONLY** — `etoro_config.json` tiene `"environment": "real"`. Este proyecto NUNCA ejecuta ordenes. Solo lee posiciones y precios.
 
-2. **Endpoint eToro correcto**: `/trading/info/portfolio` (SIN `/{env}/`). La URL `/trading/info/real/portfolio` devuelve 404.
+2. **Endpoint eToro correcto**: `https://public-api.etoro.com/api/v1/trading/info/portfolio`. Host `public-api.etoro.com` + prefijo `/api/v1/` son obligatorios; `api.etoro.com` o sin `/api/v1/` devuelve 404.
 
 3. **Token eToro**: `user_key` es base64 de `{"ci":"...","ean":"UnregisteredApplication","ek":"..."}`. No es JWT, no tiene campo `exp`. La expiry se detecta via 401/403.
 

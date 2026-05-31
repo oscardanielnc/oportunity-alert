@@ -308,93 +308,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .wl-feedback { font-size: 11px; margin-top: 8px; }
 .wl-feedback.ok  { color: var(--green); }
 .wl-feedback.err { color: var(--red); }
-
-/* ── Calibration ───────────────────────────────────────────────────── */
-.cal-badge {
-  font-size: 9px; font-weight: 700; letter-spacing: .04em;
-  padding: 1px 6px; border-radius: 10px; white-space: nowrap; flex-shrink: 0;
-}
 .cal-badge.ok  { background: rgba(34,197,94,.15);  color: var(--green); }
 .cal-badge.no  { background: var(--card2);          color: var(--text3); }
-
-/* ── Config upload form ─────────────────────────────────────────────── */
-.config-form {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px 20px; margin-top: 16px;
-}
-.config-form-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 10px; }
-.config-textarea {
-  width: 100%; min-height: 90px; padding: 8px 12px;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-  color: var(--text); font-size: 11px; font-family: monospace;
-  resize: vertical; outline: none;
-}
-.config-textarea:focus { border-color: var(--accent); }
-.config-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-.config-feedback { font-size: 11px; margin-top: 6px; }
 .config-feedback.ok  { color: var(--green); }
 .config-feedback.err { color: var(--red); }
-
-/* ── Watcher calibration messages ───────────────────────────────────── */
-.w-cal-err  {
-  color: var(--red); background: var(--red-d); font-size: 11px; font-weight: 600;
-  padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: none;
-}
-.w-cal-info {
-  display: none; gap: 6px; flex-wrap: wrap;
-  padding: 6px 10px; background: var(--card2); border-radius: 6px;
-  font-size: 11px; color: var(--text2); margin-top: 6px;
-}
-.tf-stat-chip {
-  display: inline-flex; flex-direction: column; align-items: center;
-  background: var(--bg-deep); border: 1px solid var(--border);
-  border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700;
-  gap: 1px;
-}
 .tf-stat-chip.bloq { border-color: var(--red); color: var(--red); }
-.tf-stat-chip .tf-stat-sub { font-size: 9px; font-weight: 400; color: var(--text3); }
-
-/* ── Hourly analysis panel ──────────────────────────────────────────── */
-.hourly-section { border-top: 1px solid var(--border); padding-top: 10px; }
-.hourly-toggle  { background: none; border: none; color: var(--text2); font-size: 11px;
-                  padding: 0; cursor: pointer; }
-.hourly-toggle:hover { color: var(--text); }
-.hourly-now-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 8px 10px; border-radius: 8px; margin-bottom: 8px;
-  background: var(--bg-deep); border: 1px solid var(--border); font-size: 12px;
-}
-.hourly-now-label { color: var(--text2); }
-.hourly-now-val   { font-weight: 700; }
-/* Hourly table */
-.htbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
-.htbl th { padding: 5px 10px; text-align: center; font-size: 11px; color: var(--text3);
-           border-bottom: 1px solid var(--border); font-weight: 600;
-           cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
-.htbl th:first-child { text-align: left; text-decoration: none; cursor: default; }
-.htbl td { padding: 6px 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.04); }
-.htbl td:first-child { text-align: left; font-size: 12px; white-space: nowrap; }
-.htbl tr.h-now  { background: rgba(124,111,247,.09); }
-.htbl tr.h-best { background: rgba(34,197,94,.06); }
-.htbl tr.h-worst { background: rgba(240,64,85,.06); }
-.htbl tr.h-nodata td { color: var(--text3); font-size: 11px; }
-.h-badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 6px;
-           border-radius:10px; vertical-align:middle; margin-left:4px; }
-.h-badge-now   { background:rgba(124,111,247,.25); color:var(--accent); }
-.h-badge-best  { background:rgba(34,197,94,.2);   color:var(--green); }
-.h-badge-worst { background:rgba(240,64,85,.2);   color:var(--red); }
-.h-badge-low   { background:var(--card2); color:var(--text3); }
-.h-bar-tag   { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px; }
 .h-bar-tag.best   { background: rgba(34,197,94,.2);  color: var(--green); }
 .h-bar-tag.avoid  { background: rgba(240,64,85,.2);  color: var(--red); }
 .h-bar-tag.active { background: var(--accent-d);     color: var(--accent); }
-
-/* ── TF button with stats ───────────────────────────────────────────── */
-.iv-btn {
-  display: inline-flex !important; flex-direction: column; align-items: center;
-  min-width: 46px;
-}
-.iv-btn-stat { font-size: 9px; font-weight: 600; opacity: .8; line-height: 1; }
 
 /* ── Empty & loading ───────────────────────────────────────────────── */
 .empty { text-align: center; padding: 56px 20px; color: var(--text3); font-size: 13px; }
@@ -402,85 +323,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .skeleton { background: var(--card2); border-radius: 8px; height: 80px; margin-bottom: 8px;
             animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
-
-/* ── Watcher ───────────────────────────────────────────────────────── */
-.watcher-add-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
-}
-.watcher-add-bar .wlabel { color: var(--text2); font-size: 11px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
-.watcher-add-bar .wcount { color: var(--text3); font-size: 11px; margin-left: auto; white-space: nowrap; }
-/* Watcher tab bar */
-.wtab-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-.wtab {
-  display: flex; align-items: center; gap: 5px;
-  background: var(--card); border: 1px solid var(--border);
-  color: var(--text2); padding: 6px 14px; border-radius: 8px;
-  cursor: pointer; font-size: 12px; font-weight: 700;
-  letter-spacing: .04em; transition: background .15s, border-color .15s, color .15s;
-  position: relative;
-}
-.wtab:hover { background: var(--card2); color: var(--text); }
-.wtab.wtab-on { background: var(--card2); color: var(--text); border-color: var(--accent); }
-.wtab.wtab-long  { background: rgba(38,166,154,.18); border-color: #26a69a; color: #26a69a; }
-.wtab.wtab-short { background: rgba(239,83,80,.18);  border-color: #ef5350; color: #ef5350; }
-.wtab.wtab-close { background: rgba(255,160,0,.18);  border-color: #ffa000; color: #ffa000; }
-.wtab.wtab-caution { background: rgba(240,200,80,.15); border-color: #e8c84a; color: #e8c84a; }
-.wtab.wtab-on.wtab-long  { border-width: 2px; }
-.wtab.wtab-on.wtab-short { border-width: 2px; }
-.wtab-badge { font-size: 13px; line-height: 1; }
-.watcher-empty-state { color: var(--text3); font-size: 13px; padding: 24px 0; text-align: center; }
-
-.wcard {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden;
-}
-.wcard-header {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-  background: var(--bg-deep); border-bottom: 1px solid var(--border);
-}
-.wcard-ticker { font-size: 16px; font-weight: 800; letter-spacing: .01em; }
-.wcard-price  { font-size: 13px; font-weight: 600; }
-.wcard-chg    { font-size: 11px; }
-.wcard-interval { display: inline-flex; gap: 2px; align-items: center; }
-.iv-btn {
-  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
-  border: 1px solid var(--border); background: var(--card2); color: var(--text3);
-  cursor: pointer; transition: all .15s;
-}
-.iv-btn:hover { border-color: var(--border2); color: var(--text2); }
-.iv-btn.iv-active { background: var(--accent-d); border-color: var(--accent); color: var(--accent); }
-.wcard-scan   { font-size: 10px; color: var(--text3); }
-.btn-stop {
-  margin-left: auto; background: none; border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text3); font-size: 11px; padding: 4px 10px;
-  transition: all .15s;
-}
-.btn-stop:hover { border-color: var(--red); color: var(--red); }
-
-.wcard-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-
-/* Signal box */
-.signal-box {
-  border-radius: 8px; padding: 14px 16px; text-align: center;
-  border: 1px solid rgba(255,255,255,.06);
-}
-.signal-box.sig-esperar    { background: #2a3a4a; }
-.signal-box.sig-long       { background: #1a5c2a; }
-.signal-box.sig-short      { background: #5c1a1a; }
-.signal-box.sig-cerrar     { background: #b85c00; }
-.signal-box.sig-precaucion { background: #8a7a00; }
-.signal-box.sig-mantener   { background: #1a3a5c; }
-.signal-name {
-  font-size: 22px; font-weight: 800; letter-spacing: .04em;
-  line-height: 1.2; margin-bottom: 3px;
-}
-.signal-sub { font-size: 11px; opacity: .75; }
-.signal-candidate {
-  font-size: 11px; color: var(--yellow); margin-top: 4px; opacity: .9;
-}
 
 /* Score bar */
 .score-row { display: flex; align-items: center; gap: 10px; }
@@ -490,42 +332,15 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .score-bar-l { background: var(--green); }
 .score-bar-s { background: var(--red); }
 .score-count { font-size: 11px; font-weight: 700; min-width: 28px; text-align: right; }
-
-/* Indicators grid */
-.ind-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-}
-.ind-card {
-  background: var(--bg-deep); border: 1px solid var(--border);
-  border-radius: 8px; padding: 9px 12px;
-  display: flex; flex-direction: column; gap: 3px;
-  position: relative; cursor: default;
-  transition: border-color .15s;
-}
-.ind-card:hover { border-color: var(--accent); }
 .ind-card.bull { border-color: rgba(38,166,154,.6); background: rgba(38,166,154,.07); }
 .ind-card.bear { border-color: rgba(239,83,80,.6);  background: rgba(239,83,80,.07);  }
 .ind-card.neut { border-color: var(--border); }
-.ind-name  { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); }
-.ind-val   { font-size: 14px; font-weight: 700; }
 .ind-card.bull .ind-val { color: var(--green); }
 .ind-card.bear .ind-val { color: var(--red); }
 .ind-card.neut .ind-val { color: var(--text); }
-.ind-sub   { font-size: 10px; color: var(--text3); }
-/* Tooltip */
-.ind-tip {
-  display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
-  background: #2a2a35; border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 11px; font-size: 11px; line-height: 1.5; color: var(--text2);
-  width: 220px; z-index: 100; pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,.5);
-}
-.ind-tip strong { color: var(--text); display: block; margin-bottom: 3px; }
-.ind-card:hover .ind-tip { display: block; }
 
 /* Position section */
 .pos-section { border-top: 1px solid var(--border); padding-top: 12px; }
-.pos-gauge { margin-top: 12px; background: var(--bg-deep); border-radius: 10px; padding: 14px 10px 10px; overflow: hidden; }
 .pos-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .pos-label { color: var(--text2); font-size: 11px; white-space: nowrap; min-width: 80px; }
 .pos-fields { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -551,13 +366,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .sms-badge { font-size: 10px; color: var(--text3); background: var(--card2);
   padding: 2px 8px; border-radius: 10px; }
 
-/* Candlestick chart */
-.chart-section { border-top: 1px solid var(--border); padding-top: 10px; }
-.chart-toggle { background: none; border: none; color: var(--text2); font-size: 11px;
-  padding: 0; cursor: pointer; }
-.chart-toggle:hover { color: var(--text); }
-.chart-frame { margin-top: 8px; border-radius: 8px; overflow: hidden; background: #0f0f11; }
-
 /* Log section */
 .log-section { border-top: 1px solid var(--border); padding-top: 10px; }
 .log-toggle { background: none; border: none; color: var(--text2); font-size: 11px;
@@ -567,12 +375,21 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   max-height: 180px; overflow-y: auto; }
 .log-entry { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; flex-wrap: wrap; }
 .log-entry-confirmed { border-left: 2px solid var(--border); padding-left: 6px; margin-left: -8px; }
-  border-bottom: 1px solid var(--border); }
 .log-time { color: var(--text3); min-width: 36px; }
 .log-sig  { font-weight: 700; min-width: 100px; }
 .log-conf { color: var(--green); }
 .log-cand { color: var(--text3); }
 .log-rsn  { color: var(--text2); }
+.btn-log { background: var(--surface2); border: 1px solid var(--border); color: var(--accent); border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.btn-log:hover { background: var(--accent); color: #000; }
+.filter-summary { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+.filter-summary .fs-item { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 80px; }
+.filter-summary .fs-count { font-size: 20px; font-weight: 700; }
+.filter-summary .fs-label { color: var(--text2); font-size: 10px; text-align: center; }
+.fs-sent { color: var(--green); }
+.fs-alta { color: var(--red); }
+.fs-media { color: var(--yellow); }
+.fs-blocked { color: var(--text2); }
 </style>
 <script src="/static/lw-charts.js"></script>
 </head>
@@ -616,10 +433,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 
   <nav class="tabs-bar">
     <button class="tab on"  onclick="go('noticias')">Noticias</button>
-    <button class="tab"     onclick="go('premarket')">Pre-Market</button>
     <button class="tab"     onclick="go('posiciones')">Posiciones</button>
     <button class="tab"     onclick="go('watchlist')">Watchlist</button>
-    <button class="tab"     onclick="go('watcher')">📡 Watcher</button>
+    <button class="tab"     onclick="go('piloto')">🚀 Piloto</button>
   </nav>
 
   <div class="main">
@@ -650,32 +466,10 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
         <input class="inp inp-ticker" id="f-ticker" type="text"
                placeholder="Buscar ticker…" maxlength="6"
                oninput="loadAlerts()">
+        <button class="btn-log" onclick="downloadNoticiasLog()" title="Descargar log completo del día para análisis">⬇ Log del día</button>
       </div>
+      <div id="n-filter-summary" class="filter-summary" style="display:none"></div>
       <div class="alert-list" id="alerts-list"></div>
-    </div>
-
-    <!-- ===== PRE-MARKET ===== -->
-    <div id="p-premarket" class="panel">
-      <div class="stats-strip">
-        <div class="stat-cell"><div class="stat-label">Candidatos hoy</div><div class="stat-value c-accent" id="pm-total">—</div><div class="stat-sub">pasaron IA</div></div>
-        <div class="stat-cell"><div class="stat-label">Alertas ALTA</div><div class="stat-value c-red" id="pm-alta">—</div><div class="stat-sub">SMS enviados</div></div>
-        <div class="stat-cell"><div class="stat-label">Alertas MEDIA</div><div class="stat-value c-yellow" id="pm-media">—</div><div class="stat-sub">re-eval 7am</div></div>
-        <div class="stat-cell"><div class="stat-label">Próx. scan</div><div class="stat-value c-dim" id="pm-next">—</div><div class="stat-sub">6:00am Lima</div></div>
-      </div>
-      <div class="filter-row">
-        <label>Fecha:</label>
-        <input class="sel" id="f-date" type="date" onchange="loadPremarket()">
-      </div>
-      <div class="pm-wrap">
-        <table>
-          <thead><tr>
-            <th>#</th><th>Ticker</th><th>Dir</th><th>Cambio</th>
-            <th>RVOL</th><th>Score /15</th><th>IA /10</th>
-            <th>Catalizador</th><th>Entrada</th><th>SMS</th>
-          </tr></thead>
-          <tbody id="pm-body"></tbody>
-        </table>
-      </div>
     </div>
 
     <!-- ===== POSICIONES ===== -->
@@ -696,7 +490,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
         <div class="stat-cell"><div class="stat-label">Primary</div><div class="stat-value c-accent" id="wl-cnt-p">—</div><div class="stat-sub">tickers</div></div>
         <div class="stat-cell"><div class="stat-label">Extended</div><div class="stat-value" id="wl-cnt-e">—</div><div class="stat-sub">tickers</div></div>
         <div class="stat-cell"><div class="stat-label">Total</div><div class="stat-value" id="wl-cnt-t">—</div><div class="stat-sub">monitoreados</div></div>
-        <div class="stat-cell"><div class="stat-label">Calibrados</div><div class="stat-value c-green" id="wl-cnt-cal">—</div><div class="stat-sub">para Watcher</div></div>
         <div class="stat-cell"><div class="stat-label">Activo desde</div><div class="stat-value c-dim" style="font-size:13px" id="wl-oldest">—</div><div class="stat-sub"></div></div>
       </div>
       <div class="wl-grid">
@@ -708,6 +501,10 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
           <div class="wl-section-title">○ Extended</div>
           <div class="wl-chips" id="wl-e"></div>
         </div>
+      </div>
+      <div id="wl-pos-wrap" style="margin-top:18px;display:none">
+        <div class="wl-section-title">📊 En posición (auto) <span style="color:var(--text3);font-weight:400;font-size:11px">— monitoreadas mientras tengas la posición abierta en eToro</span></div>
+        <div class="wl-chips" id="wl-pos"></div>
       </div>
       <div class="add-form">
         <div class="add-form-title">Agregar ticker a la watchlist</div>
@@ -722,68 +519,33 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
         </div>
         <div id="wl-msg" class="wl-feedback"></div>
       </div>
-
-      <div class="config-form">
-        <div class="config-form-title">
-          Cargar Config de Calibracion
-          <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">
-            (genera con: <code style="background:var(--bg-deep);padding:1px 5px;border-radius:4px">python backtest_perticker_v2.py TICKER</code>)
-          </span>
-        </div>
-        <textarea class="config-textarea" id="cal-json"
-          placeholder='Pegar contenido de data/TICKER_config.json aqui...&#10;{"ticker":"NVDA","tfs":{"1m":{...},...}}'></textarea>
-        <div class="config-row">
-          <button class="btn-add" onclick="uploadCalConfig()">Cargar Config</button>
-          <button class="btn-ghost" style="font-size:11px" onclick="deleteCalConfigPrompt()">Eliminar calibracion</button>
-        </div>
-        <div id="cal-feedback" class="config-feedback"></div>
-      </div>
     </div>
 
-    <!-- ===== WATCHER ===== -->
-    <div id="p-watcher" class="panel">
-
-      <!-- Add bar -->
-      <div class="watcher-add-bar" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%">
-          <span class="wlabel">📡 Ticker Watcher</span>
-          <input class="inp inp-ticker" id="w-ticker" type="text" placeholder="TICKER"
-                 maxlength="8" style="width:90px"
-                 oninput="onWatcherTickerInput()"
-                 onkeydown="if(event.key==='Enter')watcherAdd()">
-          <select class="sel" id="w-interval">
-            <option value="1m">1m — intraday</option>
-            <option value="5m">5m — swing</option>
-            <option value="15m">15m — posicion</option>
-          </select>
-          <button class="btn-add" id="w-add-btn" onclick="watcherAdd()">+ Agregar</button>
-          <span class="wcount" id="w-count">0 / 5 activos</span>
-        </div>
-        <div id="w-cal-err" class="w-cal-err">Ticker no calibrado</div>
-        <div id="w-cal-info" class="w-cal-info"></div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:8px;border-top:1px solid var(--border)">
-          <span style="color:var(--text2);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Capital por trade:</span>
-          <span style="color:var(--text3);font-size:11px">$</span>
-          <input id="w-capital" type="number" value="5000" min="100" step="100"
-                 style="width:88px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
-                        color:var(--text);font-size:12px;font-weight:700;padding:4px 8px;outline:none;
-                        font-family:var(--font)"
-                 oninput="onCapitalChange()" onchange="onCapitalChange()">
-          <span id="w-capital-summary" style="font-size:11px;color:var(--text3)"></span>
-        </div>
+    <!-- ===== PILOTO ===== -->
+    <div id="p-piloto" class="panel">
+      <div class="stats-strip">
+        <div class="stat-cell"><div class="stat-label">Capital</div><div class="stat-value c-accent" id="pl-equity">—</div><div class="stat-sub" id="pl-init">paper trading</div></div>
+        <div class="stat-cell"><div class="stat-label">Retorno total</div><div class="stat-value" id="pl-ret">—</div><div class="stat-sub" id="pl-asof">—</div></div>
+        <div class="stat-cell"><div class="stat-label">Posiciones</div><div class="stat-value c-dim" id="pl-pos">—</div><div class="stat-sub">máx 5</div></div>
+        <div class="stat-cell"><div class="stat-label">Régimen mercado</div><div class="stat-value" id="pl-macro">—</div><div class="stat-sub">QQQ vs SMA200</div></div>
       </div>
 
-      <!-- Tab bar -->
-      <div class="wtab-bar" id="watcher-tabs"></div>
+      <div id="pl-note" style="margin:10px 0"></div>
+      <div id="pl-orders" style="margin:6px 0 16px"></div>
+      <div id="pl-equitychart" style="margin-bottom:16px"></div>
 
-      <!-- Active panel -->
-      <div id="watcher-panel">
-        <div class="watcher-empty-state" id="watcher-empty">
-          Sin tickers monitoreados — ingresa un ticker y presiona Agregar.
-        </div>
-      </div>
+      <h3 style="font-size:13px;color:var(--text2);margin:0 0 8px">Posiciones abiertas</h3>
+      <div class="pm-wrap"><table>
+        <thead><tr><th>Ticker</th><th>Fuente</th><th>Entrada</th><th>Precio</th><th>P&L %</th></tr></thead>
+        <tbody id="pl-holdings"></tbody>
+      </table></div>
 
-    </div><!-- /p-watcher -->
+      <h3 style="font-size:13px;color:var(--text2);margin:16px 0 8px">Trades cerrados recientes</h3>
+      <div class="pm-wrap"><table>
+        <thead><tr><th>Ticker</th><th>Entrada→Salida</th><th>Precio</th><th>P&L %</th><th>P&L $</th></tr></thead>
+        <tbody id="pl-closed"></tbody>
+      </table></div>
+    </div><!-- /p-piloto -->
 
   </div><!-- /main -->
 </div><!-- /app -->
@@ -792,10 +554,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 // ── State ─────────────────────────────────────────────────────────────────────
 let _creds = null;
 let _timer = null;
-let _calibratedMap  = {};   // ticker -> {ticker, calibrated_at, tfs:{...}}
-let _tfStatsCache   = {};   // ticker -> {interval -> {pf, wr_pct, avg_pnl, n_trades, block_new}}
-let _hourlyCache    = {};   // ticker -> {interval -> {hour -> {n, wr_pct, pf, avg_pnl, ok}}}
-let _feeCache       = {};   // ticker -> {interval -> {long:{...}, short:{...}}}
 let _capitalDisponible = 5000;  // inicializado desde /api/health, luego actualizable por el usuario
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -821,7 +579,7 @@ function doLogout() {
   location.reload();
 }
 document.getElementById('lp').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
-function auth() { return { Authorization: `Basic ${_creds}` }; }
+function auth() { return _creds ? { Authorization: `Basic ${_creds}` } : {}; }
 
 // ── Launch ────────────────────────────────────────────────────────────────────
 function launch() {
@@ -886,18 +644,15 @@ async function updateTopbar() {
     if (info.warn) { warnEl.textContent = info.warn; warnEl.style.display = ''; }
     else            { warnEl.style.display = 'none'; }
 
-    if (document.getElementById('pm-next'))
-      document.getElementById('pm-next').textContent = h.next_premarket;
   } catch {}
 }
 
 function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
-  if (active === 'noticias')     return loadAlerts();
-  if (active === 'pre-market')   return loadPremarket();
+  if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(); }
   if (active === 'posiciones')   return loadPositions();
   if (active === 'watchlist')    return loadWatchlist();
-  if (active.includes('watcher')) return loadWatcherStatus();
+  if (active.includes('piloto'))  return loadPilot();
   return Promise.resolve();
 }
 
@@ -906,33 +661,132 @@ function go(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const tabs = {
-    noticias:'Noticias', premarket:'Pre-Market',
-    posiciones:'Posiciones', watchlist:'Watchlist', watcher:'📡 Watcher',
+    noticias:'Noticias',
+    posiciones:'Posiciones', watchlist:'Watchlist',
+    piloto:'🚀 Piloto',
   };
   const btn = [...document.querySelectorAll('.tab')]
     .find(t => t.textContent.trim() === tabs[name]);
   btn?.classList.add('on');
   document.getElementById(`p-${name}`)?.classList.add('on');
-  if (name === 'noticias')   loadAlerts();
-  if (name === 'premarket')  loadPremarket();
+  if (name === 'noticias')   { loadAlerts(); loadNoticiasFilterSummary(); }
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
-  if (name === 'watcher') {
-    // Ensure calibration map is populated before watcher loads
-    if (!Object.keys(_calibratedMap).length) {
-      api('/api/calibrated-tickers').then(d => {
-        (d.tickers || []).forEach(c => { _calibratedMap[c.ticker] = c; });
-      }).catch(() => {});
-    }
-    loadWatcherStatus();
-  }
+  if (name === 'piloto') loadPilot();
 }
 
 // ── API fetch ──────────────────────────────────────────────────────────────────
-async function api(path) {
-  const r = await fetch(path, { headers: auth() });
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: { ...auth(), 'Content-Type': 'application/json' } };
+  if (body !== null && method !== 'GET') opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+
+// ── Tab: Piloto (momentum swing, paper) ────────────────────────────────────────
+function _plSpark(hist) {
+  if (!hist || hist.length < 2) return '';
+  const vals = hist.map(h => h.equity);
+  const min = Math.min(...vals), max = Math.max(...vals), W = 760, H = 90;
+  const pts = vals.map((v, i) =>
+    `${(i / (vals.length - 1) * W).toFixed(1)},${(H - (v - min) / (max - min || 1) * H).toFixed(1)}`).join(' ');
+  const up = vals[vals.length - 1] >= vals[0];
+  const col = up ? 'var(--green)' : 'var(--red)';
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Curva de capital (${hist.length} días) —
+      $${vals[0].toLocaleString()} → $${vals[vals.length-1].toLocaleString()}</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none">
+      <polyline fill="none" stroke="${col}" stroke-width="2" points="${pts}"/>
+    </svg></div>`;
+}
+
+async function loadPilot() {
+  const setT = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
+  let d;
+  try { d = await api('/api/pilot'); }
+  catch (e) { setT('pl-equity', 'error'); return; }
+  if (!d || !d.available) {
+    document.getElementById('pl-orders').innerHTML =
+      '<div class="acard" style="padding:16px">El piloto aún no ha corrido. Ejecuta <code>python -m pilot.run_pilot</code> en la VM.</div>';
+    return;
+  }
+  setT('pl-equity', '$' + Math.round(d.equity).toLocaleString());
+  setT('pl-init', 'inicial $' + Math.round(d.capital_initial).toLocaleString());
+  const ret = document.getElementById('pl-ret');
+  ret.textContent = (d.total_return_pct >= 0 ? '+' : '') + d.total_return_pct.toFixed(1) + '%';
+  ret.className = 'stat-value ' + (d.total_return_pct >= 0 ? 'c-green' : 'c-red');
+  setT('pl-asof', 'al ' + (d.as_of || '—') + (d.qqq_return_pct != null ? ' · QQQ ' + (d.qqq_return_pct >= 0 ? '+' : '') + d.qqq_return_pct + '%' : ''));
+  setT('pl-pos', (d.positions ? d.positions.length : 0) + '/5');
+  const macro = document.getElementById('pl-macro');
+  macro.textContent = d.macro_bullish ? 'ALCISTA' : 'BAJISTA';
+  macro.className = 'stat-value ' + (d.macro_bullish ? 'c-green' : 'c-red');
+
+  // Banner honesto: la curva incluye backfill seed (in-sample), NO es performance live
+  const note = document.getElementById('pl-note');
+  if (note) {
+    let parts = [];
+    if (d.realized_pnl != null)    parts.push(`Realizado: <b class="${d.realized_pnl>=0?'c-green':'c-red'}">${d.realized_pnl>=0?'+':''}$${Math.round(d.realized_pnl).toLocaleString()}</b>`);
+    if (d.unrealized_pnl != null)  parts.push(`No realizado (abiertas): <b class="${d.unrealized_pnl>=0?'c-green':'c-red'}">${d.unrealized_pnl>=0?'+':''}$${Math.round(d.unrealized_pnl).toLocaleString()}</b>`);
+    if (d.live_return_pct != null) parts.push(`Live forward (desde ${d.live_start_date}): <b>${d.live_return_pct>=0?'+':''}${d.live_return_pct}%</b>`);
+    note.innerHTML = `<div class="acard" style="padding:12px;border-left:3px solid var(--yellow)">⚠️ La curva incluye un <b>backfill seed</b> (replay in-sample) — el retorno total NO es performance live.${parts.length ? '<br>' + parts.join(' · ') : ''}</div>`;
+  }
+
+  // Órdenes para mañana al abrir (⭐ = setup TOP de alta convicción, validado)
+  const pend = d.pending || { buys: [], sells: [] };
+  const pedb = pend.ped_buys || [];
+  const starTop = new Set(d.star_top || []);
+  const mark = arr => (arr || []).map(t => starTop.has(t) ? t + '⭐' : t).join(', ');
+  let oh = '';
+  if ((pend.buys && pend.buys.length) || (pend.sells && pend.sells.length) || pedb.length) {
+    oh = '<div class="acard alta" style="padding:14px"><b>➡️ Mañana al abrir (ejecutar en eToro):</b><br>';
+    if (pend.buys && pend.buys.length)  oh += `<span style="color:var(--green)">🟢 COMPRAR (Marea): ${mark(pend.buys)}</span><br>`;
+    if (pedb.length) oh += `<span style="color:#a99cff">🟣 PED (earnings): ${mark(pedb)}</span><br>`;
+    if (pend.sells && pend.sells.length) oh += `<span style="color:var(--red)">🔴 VENDER: ${pend.sells.join(', ')}</span>`;
+    oh += '<div style="font-size:10px;color:var(--text3);margin-top:6px">⭐ = setup TOP (alta convicción, validado)</div></div>';
+  } else {
+    oh = '<div class="acard" style="padding:14px;color:var(--text2)">Sin órdenes pendientes para mañana.' +
+         (d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.') + '</div>';
+  }
+  // Fuerza por sector (momentum 6m del ETF) — qué sectores trendean ahora
+  const sec = d.sector_strength || [];
+  if (sec.length) {
+    const chips = sec.map((s, i) => {
+      const col = s.mom_pct >= 0 ? 'var(--green)' : 'var(--red)';
+      const brd = i < 2 ? 'border:1px solid var(--accent);' : 'border:1px solid var(--border);';
+      return `<span style="font-size:11px;background:var(--card2);${brd}border-radius:6px;padding:3px 8px;margin:2px;display:inline-block">${s.name}: <b style="color:${col}">${s.mom_pct >= 0 ? '+' : ''}${s.mom_pct}%</b></span>`;
+    }).join('');
+    oh += `<div style="margin-top:10px"><div style="font-size:11px;color:var(--text2);margin-bottom:4px">📊 Fuerza por sector (momentum 6m) — borde violeta = lideran:</div>${chips}</div>`;
+  }
+  document.getElementById('pl-orders').innerHTML = oh;
+  document.getElementById('pl-equitychart').innerHTML = _plSpark(d.equity_history);
+
+  // Posiciones abiertas
+  document.getElementById('pl-holdings').innerHTML =
+    (d.positions && d.positions.length)
+      ? d.positions.map(p => {
+          const c = p.pnl_pct >= 0 ? 'c-green' : 'c-red';
+          const src = p.source === 'ped'
+            ? '<span style="font-size:9px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
+            : '<span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 Marea</span>';
+          const star = p.top ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518">⭐</span>' : '';
+          return `<tr><td><b>${p.ticker}</b>${star}</td><td>${src}</td><td>$${p.entry}</td><td>$${p.price}</td>
+            <td class="${c}">${p.pnl_pct >= 0 ? '+' : ''}${p.pnl_pct}%</td></tr>`;
+        }).join('')
+      : '<tr><td colspan="5" style="color:var(--text3)">Sin posiciones abiertas</td></tr>';
+
+  // Trades cerrados
+  const ct = (d.closed_trades || []).slice().reverse();
+  document.getElementById('pl-closed').innerHTML =
+    ct.length
+      ? ct.map(t => {
+          const c = t.pnl_pct >= 0 ? 'c-green' : 'c-red';
+          return `<tr><td><b>${t.ticker}</b></td><td>${t.entry_date}→${t.exit_date}</td>
+            <td>$${t.entry}→$${t.exit}</td>
+            <td class="${c}">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct}%</td>
+            <td class="${c}">${t.pnl_usd >= 0 ? '+' : ''}$${t.pnl_usd}</td></tr>`;
+        }).join('')
+      : '<tr><td colspan="5" style="color:var(--text3)">Aún sin trades cerrados</td></tr>';
 }
 
 // ── Tab: Noticias ─────────────────────────────────────────────────────────────
@@ -1032,64 +886,6 @@ function renderAlert(a) {
 </div>`;
 }
 
-// ── Tab: Pre-Market ───────────────────────────────────────────────────────────
-async function loadPremarket() {
-  const body = document.getElementById('pm-body');
-  const date = document.getElementById('f-date').value;
-  body.innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--text3)">Cargando…</td></tr>';
-  try {
-    const data = await api(`/api/premarket?date=${date}`);
-    const total = data.length;
-    const alta  = data.filter(r => r.prioridad === 'ALTA').length;
-    const media = data.filter(r => r.prioridad === 'MEDIA').length;
-    setText('pm-total', total);
-    setText('pm-alta',  alta);
-    setText('pm-media', media);
-    if (!total) {
-      body.innerHTML = `<tr><td colspan="10"><div class="empty"><strong>Sin candidatos para ${date}</strong>El primer scan es mañana a las 6:00am Lima.</div></td></tr>`;
-      return;
-    }
-    body.innerHTML = data.map((r, i) => renderPmRow(r, i + 1)).join('');
-  } catch (e) {
-    body.innerHTML = `<tr><td colspan="10"><div class="empty"><strong>Error</strong>${esc(e.message)}</div></td></tr>`;
-  }
-}
-
-function renderPmRow(r, n) {
-  const cs    = r.code_score   ?? 0;
-  const ai    = r.ai_conviccion ?? 0;
-  const rvol  = r.rvol  ? `${r.rvol.toFixed(1)}x`  : '—';
-  const chg   = r.change_pct != null
-                ? `<span style="color:${r.direction==='LONG'?'var(--green)':'var(--red)'};font-weight:700">${r.change_pct>0?'+':''}${r.change_pct.toFixed(1)}%</span>` : '—';
-  const dirCl = (r.direction || '').toLowerCase();
-  const barCl = cs >= 10 ? 'bar-hi' : cs >= 6 ? 'bar-mid' : 'bar-lo';
-  const aiCl  = ai >= 8  ? 'c-green' : ai >= 6 ? 'c-yellow' : 'c-dim';
-  const entry = r.entry_style || 'N/A';
-  const cat   = r.tipo_catalizador
-                ? `${catIcon(r.tipo_catalizador)} ${r.tipo_catalizador.replace(/_/g,' ')}`
-                : '—';
-  const sms   = r.sms_sent
-                ? '<span class="checkmark">✓ SMS</span>'
-                : '<span class="em-dash">—</span>';
-  return `<tr>
-    <td style="color:var(--text3);font-size:12px">${n}</td>
-    <td><strong>${r.ticker}</strong></td>
-    <td><span class="dir-pill ${dirCl}" style="font-size:10px">${r.direction||'—'}</span></td>
-    <td>${chg}</td>
-    <td style="font-weight:600">${rvol}</td>
-    <td>
-      <div class="score-wrap">
-        <span class="score-n" style="color:${cs>=10?'var(--green)':cs>=6?'var(--yellow)':'var(--text3)'}">${cs}</span>
-        <div class="bar-outer"><div class="bar-inner ${barCl}" style="width:${Math.round(cs/15*100)}%"></div></div>
-      </div>
-    </td>
-    <td class="${aiCl}" style="font-weight:700">${ai}</td>
-    <td><span class="cat-text" title="${esc(r.resumen_cataliz||'')}">${esc(cat)}</span></td>
-    <td><span class="ec ${entry}">${entry.replace(/_/g,' ')}</span></td>
-    <td>${sms}</td>
-  </tr>`;
-}
-
 // ── Tab: Posiciones ───────────────────────────────────────────────────────────
 async function loadPositions() {
   const grid = document.getElementById('pos-grid');
@@ -1120,17 +916,44 @@ async function loadPositions() {
   }
 }
 
+const STRAT_META = {
+  marea:  { label: '🌊 Marea', cl: 's-ok',   exit: 'Salida: chandelier 4×ATR (dejar correr mientras aguante)' },
+  ped:    { label: '🟣 PED',   cl: 's-t1',   exit: 'Salida: por tiempo (~Day+7)' },
+  manual: { label: '✋ Manual', cl: 's-warn', exit: 'Sin salida automática — solo contexto de noticias' },
+};
+
+async function setStrategy(ticker, value) {
+  try {
+    await api(`/api/positions/${ticker}/strategy`, 'POST', { strategy: value });
+    loadPositions();
+  } catch (e) { alert('No se pudo cambiar la estrategia: ' + e.message); }
+}
+
 function renderPos(p) {
   const pnl   = p.net_profit_pct ?? 0;
   const sign  = pnl >= 0 ? '+' : '';
   const dir   = p.direction === 'SELL' ? 'SHORT' : 'LONG';
   const dirCl = dir === 'LONG' ? 'long' : 'short';
-  let stCl = 's-ok', stTx = '✓ Dentro de rango';
-  if (pnl >= 8)                      { stCl = 's-t1';   stTx = '★ T1 alcanzado — mover stop'; }
-  else if (pnl < -3)                 { stCl = 's-loss';  stTx = '▼ En pérdida — revisar stop'; }
-  else if (pnl >= 0 && pnl < 2)      { stCl = 's-ok';   stTx = '✓ Dentro de rango'; }
-  else if (pnl < 0 && pnl >= -3)    { stCl = 's-warn';  stTx = '⚠ Cerca del stop — atención'; }
+  const strat = p.strategy || 'manual';
+  const meta  = STRAT_META[strat] || STRAT_META.manual;
+  const origin = p.strategy_origin === 'override' ? 'tú'
+               : p.strategy_origin === 'pilot' ? 'auto (piloto)' : 'default';
   const pnlUsd = p.net_profit != null ? ` (${p.net_profit >= 0 ? '+' : ''}$${p.net_profit.toFixed(0)})` : '';
+  const opt = (v, t) => `<option value="${v}"${strat===v?' selected':''}>${t}</option>`;
+  // Fila específica de la estrategia: stop chandelier (Marea) o días en cartera (PED)
+  let exitRow = '';
+  if (strat === 'marea' && p.stop_price != null) {
+    const cur = p.current_rate || 0;
+    const margin = cur ? (cur - p.stop_price) / cur * 100 : 0;
+    const mCol = margin <= 0 ? 'var(--red)' : (margin < 5 ? 'var(--yellow)' : 'var(--green)');
+    exitRow = `<div class="pcard-row"><span class="k">Stop (chandelier)</span><span class="v">$${p.stop_price.toFixed(2)} <span style="font-size:11px;color:${mCol}">(${margin>=0?'+':''}${margin.toFixed(1)}%)</span></span></div>`;
+  } else if (strat === 'ped' && p.days_held != null) {
+    exitRow = `<div class="pcard-row"><span class="k">En cartera</span><span class="v">${p.days_held} días háb. (sale ~Day+7)</span></div>`;
+  }
+  // Estado: usa la señal de salida en vivo si el tracker la calculó; si no, texto genérico.
+  let stCl = meta.cl, stTx = meta.exit;
+  if (p.exit_signal) { stCl = 's-loss'; stTx = '🔴 VENDER al próximo open — ' + (p.exit_detail || meta.exit); }
+  else if (p.exit_detail) { stCl = strat === 'manual' ? 's-warn' : 's-ok'; stTx = p.exit_detail; }
   return `<div class="pcard">
   <div class="pcard-head">
     <span class="pcard-ticker">${p.ticker}</span>
@@ -1138,87 +961,37 @@ function renderPos(p) {
     <span class="pcard-pnl ${pnl>=0?'up':'dn'}">${sign}${pnl.toFixed(1)}%</span>
   </div>
   <div class="pcard-rows">
+    <div class="pcard-row"><span class="k">Estrategia</span><span class="v">${meta.label} <span style="color:var(--text3);font-size:11px">(${origin})</span></span></div>
     <div class="pcard-row"><span class="k">Entrada</span><span class="v">$${(p.open_rate||0).toFixed(2)}</span></div>
     <div class="pcard-row"><span class="k">Actual</span><span class="v">$${(p.current_rate||0).toFixed(2)}</span></div>
     <div class="pcard-row"><span class="k">P&L</span><span class="v ${pnl>=0?'c-green':'c-red'}">${sign}${pnl.toFixed(1)}%${pnlUsd}</span></div>
     ${p.invested ? `<div class="pcard-row"><span class="k">Invertido</span><span class="v">$${p.invested.toFixed(0)}</span></div>` : ''}
+    ${exitRow}
+    <div class="pcard-row"><span class="k">Cambiar</span><span class="v">
+      <select onchange="setStrategy('${p.ticker}', this.value)" style="background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:12px">
+        ${opt('marea','🌊 Marea')}${opt('ped','🟣 PED')}${opt('manual','✋ Manual')}<option value="auto">↺ Auto</option>
+      </select></span></div>
   </div>
   <div class="pcard-status ${stCl}">${stTx}</div>
 </div>`;
 }
 
 // ── Ticker calibration upload/delete ─────────────────────────────────────────
-async function uploadCalConfig() {
-  const raw  = (document.getElementById('cal-json')?.value || '').trim();
-  const fbEl = document.getElementById('cal-feedback');
-  if (!raw) { if (fbEl) { fbEl.textContent = '✗ Pega el JSON primero.'; fbEl.className = 'config-feedback err'; } return; }
+// (Calibracion del Watcher ELIMINADA 2026-05-30)
 
-  let parsed;
-  try { parsed = JSON.parse(raw); }
-  catch { if (fbEl) { fbEl.textContent = '✗ JSON invalido — verifica el formato.'; fbEl.className = 'config-feedback err'; } return; }
-
-  const ticker = (parsed.ticker || '').toUpperCase();
-  if (!ticker) { if (fbEl) { fbEl.textContent = '✗ JSON no contiene campo "ticker".'; fbEl.className = 'config-feedback err'; } return; }
-
-  try {
-    const r = await fetch(`/api/ticker-params/${ticker}`, {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(parsed),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || r.status);
-    if (fbEl) { fbEl.textContent = `✓ ${j.message}`; fbEl.className = 'config-feedback ok'; }
-    document.getElementById('cal-json').value = '';
-    loadWatchlist();
-  } catch (e) {
-    if (fbEl) { fbEl.textContent = `✗ ${e.message}`; fbEl.className = 'config-feedback err'; }
-  }
-  setTimeout(() => { if (fbEl) fbEl.textContent = ''; }, 6000);
-}
-
-async function deleteCalConfigPrompt() {
-  const raw  = (document.getElementById('cal-json')?.value || '').trim();
-  const fbEl = document.getElementById('cal-feedback');
-  let ticker = '';
-  if (raw) {
-    try { ticker = (JSON.parse(raw).ticker || '').toUpperCase(); } catch {}
-  }
-  if (!ticker) {
-    ticker = prompt('Ticker a eliminar:');
-    if (!ticker) return;
-    ticker = ticker.toUpperCase().trim();
-  }
-  if (!confirm(`Eliminar calibracion de ${ticker}?`)) return;
-  try {
-    const r = await fetch(`/api/ticker-params/${ticker}`, { method: 'DELETE', headers: auth() });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || r.status);
-    if (fbEl) { fbEl.textContent = `✓ Calibracion de ${ticker} eliminada.`; fbEl.className = 'config-feedback ok'; }
-    loadWatchlist();
-  } catch (e) {
-    if (fbEl) { fbEl.textContent = `✗ ${e.message}`; fbEl.className = 'config-feedback err'; }
-  }
-  setTimeout(() => { if (fbEl) fbEl.textContent = ''; }, 5000);
-}
-
-// ── Tab: Watchlist ────────────────────────────────────────────────────────────
 async function loadWatchlist() {
   try {
-    const [data, calData] = await Promise.all([
-      api('/api/watchlist'),
-      api('/api/calibrated-tickers').catch(() => ({ tickers: [] })),
-    ]);
-    // Build calibration map
-    _calibratedMap = {};
-    (calData.tickers || []).forEach(c => { _calibratedMap[c.ticker] = c; });
-    const nCal = Object.keys(_calibratedMap).length;
-    setText('wl-cnt-cal', nCal);
+    const data = await api('/api/watchlist');
 
     const prim = data.filter(t => t.category === 'primary');
-    const ext  = data.filter(t => t.category !== 'primary');
+    const posn = data.filter(t => t.category === 'position');
+    const ext  = data.filter(t => t.category !== 'primary' && t.category !== 'position');
     document.getElementById('wl-p').innerHTML = renderChips(prim, true);
     document.getElementById('wl-e').innerHTML = renderChips(ext,  false);
+    // Tickers auto-añadidos por posición: grupo aparte, sin botón de borrar (los gestiona el tracker)
+    const posWrap = document.getElementById('wl-pos-wrap');
+    posWrap.style.display = posn.length ? 'block' : 'none';
+    document.getElementById('wl-pos').innerHTML = renderChips(posn, false, true);
     setText('wl-cnt-p', prim.length);
     setText('wl-cnt-e', ext.length);
     setText('wl-cnt-t', data.length);
@@ -1231,19 +1004,19 @@ async function loadWatchlist() {
   }
 }
 
-function renderChips(tickers, isPrimary) {
+function renderChips(tickers, isPrimary, isAuto) {
   if (!tickers.length)
-    return `<span style="color:var(--text3);font-size:12px">Sin tickers — agrega abajo</span>`;
+    return `<span style="color:var(--text3);font-size:12px">Sin tickers${isAuto ? '' : ' — agrega abajo'}</span>`;
   return tickers.map(t => {
-    const cal     = _calibratedMap[t.ticker];
-    const calDate = cal?.calibrated_at ? cal.calibrated_at.slice(0,10) : '';
-    const badge   = cal
-      ? `<span class="cal-badge ok" title="Calibrado ${calDate}">✓ Cal</span>`
-      : `<span class="cal-badge no" title="Sin calibrar — corre backtest_perticker_v2.py ${t.ticker}">Sin cal</span>`;
+    const tradeBadge = t.tradeable_24x5
+      ? `<span title="Tradeable en madrugada (eToro 24/5)" style="font-size:9px;font-weight:700;background:rgba(0,180,120,.15);color:#4ade80;border-radius:3px;padding:1px 5px">24/5</span>`
+      : `<span title="Solo monitoreo — no tradeable en premarket" style="font-size:9px;background:var(--surface2);color:var(--text3);border-radius:3px;padding:1px 5px">monitor</span>`;
+    // Las auto-añadidas (posición) no llevan botón de borrar: el tracker las gestiona.
+    const rm = isAuto ? '' : `<button class="rm" onclick="removeTicker('${t.ticker}')" title="Eliminar">×</button>`;
     return `<div class="wl-chip ${isPrimary ? 'primary' : ''}">
       ${t.ticker}
-      ${badge}
-      <button class="rm" onclick="removeTicker('${t.ticker}')" title="Eliminar">×</button>
+      ${tradeBadge}
+      ${rm}
     </div>`;
   }).join('');
 }
@@ -1309,1585 +1082,72 @@ function catIcon(cat) {
 }
 
 // ── Watcher ───────────────────────────────────────────────────────────────────
-let _watcherTimer = null;
-let _watcherCounters = {};   // ticker → {interval_seconds, next_scan_seconds, ts}
-let _watcherState    = {};   // ticker → last full watcher payload
-let _activeWatcher   = null; // ticker currently shown in the panel
+// ===== Subsistema WATCHER (JS) ELIMINADO COMPLETO 2026-05-30 - ver _deprecated/ =====
 
-function _clearWCalFeedback() {
-  const errEl  = document.getElementById('w-cal-err');
-  const infoEl = document.getElementById('w-cal-info');
-  if (errEl)  { errEl.style.display = 'none'; errEl.textContent = ''; }
-  if (infoEl) { infoEl.style.display = 'none'; infoEl.innerHTML = ''; }
+function _logDate() {
+  const d = document.getElementById('f-date');
+  if (d && d.value) return d.value;
+  return new Date().toISOString().slice(0, 10);
 }
 
-async function onWatcherTickerInput() {
-  const ticker = (document.getElementById('w-ticker').value || '').toUpperCase().trim();
-  _clearWCalFeedback();
-  if (!ticker || ticker.length < 1) return;
-  // Debounce — only check on full symbols (2+ chars)
-  if (ticker.length < 2) return;
+async function loadNoticiasFilterSummary() {
+  const date = new Date().toISOString().slice(0, 10);
   try {
-    const r = await fetch(`/api/ticker-params/${ticker}`, { headers: auth() });
-    const infoEl = document.getElementById('w-cal-info');
-    const errEl  = document.getElementById('w-cal-err');
-    if (r.status === 404) {
-      if (errEl) {
-        errEl.textContent = `⚠ ${ticker} no calibrado — corre: python backtest_perticker_v2.py ${ticker}`;
-        errEl.style.display = '';
-      }
-      return;
-    }
-    if (!r.ok) return;
-    const data = await r.json();
-    const tfs  = data.tfs || {};
-    if (infoEl && Object.keys(tfs).length) {
-      const chips = ['1m','5m','15m'].map(iv => {
-        const s = tfs[iv];
-        if (!s) return '';
-        if (s.block_new) {
-          return `<span class="tf-stat-chip bloq">${iv}<span class="tf-stat-sub">BLOQ</span></span>`;
-        }
-        const wr  = s.wr_pct   != null ? `WR ${s.wr_pct.toFixed(0)}%`     : '';
-        const pf  = s.pf       != null ? `PF ${s.pf.toFixed(2)}`           : '';
-        const sub = wr || pf;
-        return `<span class="tf-stat-chip">${iv}<span class="tf-stat-sub">${sub}</span></span>`;
-      }).join('');
-      infoEl.innerHTML = `<span style="font-weight:600;color:var(--green)">✓ ${ticker} calibrado</span>${chips}`;
-      infoEl.style.display = 'flex';
-    }
-  } catch {}
-}
+    const d = await api(`/api/logs/noticias?date=${date}`);
+    const el = document.getElementById('n-filter-summary');
+    if (!el) return;
+    if (!d.total) { el.style.display = 'none'; return; }
 
-async function watcherAdd() {
-  const ticker   = (document.getElementById('w-ticker').value || '').toUpperCase().trim();
-  const interval = document.getElementById('w-interval').value;
-  if (!ticker) return;
-  _clearWCalFeedback();
-  try {
-    const r = await fetch('/api/watcher/start', {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, interval }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      const errEl = document.getElementById('w-cal-err');
-      if (errEl) {
-        errEl.textContent = `⚠ ${j.detail || r.status}`;
-        errEl.style.display = '';
-      }
-      return;
-    }
-    document.getElementById('w-ticker').value = '';
-    _clearWCalFeedback();
-    await loadWatcherStatus();
-  } catch (e) { alert(`Error: ${e.message}`); }
-}
-
-async function watcherStop(ticker) {
-  if (!confirm(`¿Detener watcher de ${ticker}?`)) return;
-  try {
-    const r = await fetch('/api/watcher/stop', {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
-    });
-    if (!r.ok) throw new Error((await r.json()).detail);
-    delete _watcherCounters[ticker];
-    delete _watcherState[ticker];
-    if (_lwCharts[ticker]) { _lwCharts[ticker].chart.remove(); delete _lwCharts[ticker]; }
-    await loadWatcherStatus();
-  } catch (e) { alert(`Error: ${e.message}`); }
-}
-
-async function watcherSetInterval(ticker, interval) {
-  try {
-    const r = await fetch('/api/watcher/update', {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, interval }),
-    });
-    if (!r.ok) throw new Error((await r.json()).detail);
-    // Destroy existing chart so it re-initializes with new timeframe data
-    if (_lwCharts[ticker]) { _lwCharts[ticker].chart.remove(); delete _lwCharts[ticker]; }
-    await loadWatcherStatus();
-  } catch (e) { alert(`Error: ${e.message}`); }
-}
-
-async function watcherUpdatePos(ticker) {
-  const state    = document.getElementById(`w-pos-${ticker}`)?.value;
-  const entryEl  = document.getElementById(`w-entry-${ticker}`);
-  const amountEl = document.getElementById(`w-amount-${ticker}`);
-  const entry    = entryEl  ? parseFloat(entryEl.value)  || null : null;
-  const amount   = amountEl ? parseFloat(amountEl.value) || null : null;
-  try {
-    await fetch('/api/watcher/update', {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, position_state: state, entry_price: entry, amount }),
-    });
-    // Fetch fresh status and force full panel re-render
-    const data = await api('/api/watcher/status');
-    (data.watchers || []).forEach(w => { _watcherState[w.ticker] = w; });
-    _patchTabBar(data.watchers || []);
-    updateWatcherCount((data.watchers || []).length);
-    if (_activeWatcher === ticker) switchWatcherTab(ticker);
-  } catch (e) { console.error(e); }
-}
-
-// ── Tab helpers ───────────────────────────────────────────────────────────────
-
-function _tabClass(signal) {
-  if (signal === 'ENTRAR_LONG')          return 'wtab-long';
-  if (signal === 'ENTRAR_SHORT')         return 'wtab-short';
-  if (signal === 'CERRAR_LONG'  || signal === 'CERRAR_SHORT') return 'wtab-close';
-  if (signal === 'PRECAUCION')           return 'wtab-caution';
-  return '';
-}
-
-function _tabBadge(signal) {
-  if (signal === 'ENTRAR_LONG')  return '<span class="wtab-badge">⚡</span>';
-  if (signal === 'ENTRAR_SHORT') return '<span class="wtab-badge">⚡</span>';
-  if (signal === 'CERRAR_LONG' || signal === 'CERRAR_SHORT') return '<span class="wtab-badge">⚠</span>';
-  if (signal === 'PRECAUCION')   return '<span class="wtab-badge">⚠</span>';
-  return '';
-}
-
-function _renderTabBar(watchers) {
-  const bar = document.getElementById('watcher-tabs');
-  if (!bar) return;
-  bar.innerHTML = watchers.map(w => {
-    const isOn  = w.ticker === _activeWatcher;
-    const alert = _tabClass(w.signal);
-    const cls   = ['wtab', isOn ? 'wtab-on' : '', alert].filter(Boolean).join(' ');
-    return `<button class="${cls}" id="wtab-${w.ticker}" onclick="switchWatcherTab('${w.ticker}')">
-      ${w.ticker}${_tabBadge(w.signal)}
-    </button>`;
-  }).join('');
-}
-
-function _patchTabBar(watchers) {
-  watchers.forEach(w => {
-    const btn = document.getElementById(`wtab-${w.ticker}`);
-    if (!btn) return;
-    const isOn  = w.ticker === _activeWatcher;
-    const alert = _tabClass(w.signal);
-    btn.className = ['wtab', isOn ? 'wtab-on' : '', alert].filter(Boolean).join(' ');
-    const badge = _tabBadge(w.signal);
-    btn.innerHTML = `${w.ticker}${badge}`;
-  });
-}
-
-function switchWatcherTab(ticker) {
-  _activeWatcher = ticker;
-  const w = _watcherState[ticker];
-  if (!w) return;
-
-  // Update tab highlight
-  document.querySelectorAll('.wtab').forEach(b => b.classList.remove('wtab-on'));
-  const btn = document.getElementById(`wtab-${ticker}`);
-  if (btn) btn.classList.add('wtab-on');
-
-  // Render panel
-  const panel = document.getElementById('watcher-panel');
-  const logOpen   = panel.querySelector('.log-entries')?.style.display !== 'none';
-  const chartOpen = panel.querySelector('.chart-frame') ? panel.querySelector('.chart-frame').style.display !== 'none' : true;
-  panel.innerHTML = renderWatcherCard(w, logOpen, chartOpen);
-  _renderPosGauge(w);
-  if (w.candles && w.candles.length) _initChart(ticker);
-}
-
-async function loadWatcherStatus() {
-  try {
-    const data = await api('/api/watcher/status');
-    const watchers = data.watchers || [];
-
-    watchers.forEach(w => { _watcherState[w.ticker] = w; });
-
-    // Fetch TF stats + calibration info for tickers not yet cached
-    const missing = watchers.filter(w => !_tfStatsCache[w.ticker]).map(w => w.ticker);
-    if (missing.length) {
-      await Promise.all(missing.map(async t => {
-        try {
-          const r = await api(`/api/ticker-params/${t}`);
-          _tfStatsCache[t]  = r.tfs || {};
-          _hourlyCache[t]   = r.hourly_analysis || {};
-          _feeCache[t]      = r.fee_analysis    || {};
-          _calibratedMap[t] = { ticker: t, calibrated_at: r.calibrated_at,
-                                 tfs: r.tfs || {}, hourly_analysis: r.hourly_analysis || {},
-                                 fee_analysis: r.fee_analysis || {} };
-        } catch { _tfStatsCache[t] = {}; _hourlyCache[t] = {}; }
-      }));
-    }
-
-    const incomingSet = watchers.map(w => w.ticker).sort().join(',');
-    const existingSet = Object.keys(_watcherCounters).sort().join(',');
-
-    if (incomingSet !== existingSet) {
-      // Ticker set changed — full re-render
-      renderWatchers(watchers);
-    } else {
-      // Surgical patch
-      _patchTabBar(watchers);
-      updateWatcherCount(watchers.length);
-
-      const active = watchers.find(w => w.ticker === _activeWatcher);
-      if (active) {
-        patchWatcherCard(active);
-        if (active.candles && active.candles.length) {
-          if (_lwCharts[active.ticker]) {
-            _updateChart(active.ticker, active.candles, active.price);
-          } else {
-            _initChart(active.ticker);  // initializes + draws on first data arrival
-          }
-        }
-      }
-
-      watchers.forEach(w => {
-        _watcherCounters[w.ticker] = {
-          interval_seconds: w.interval_seconds,
-          remaining:        w.next_scan_seconds ?? w.interval_seconds,
-          scanning:         w.scanning,
-          ts:               Date.now(),
-        };
-      });
-    }
-  } catch (e) { console.error('[Watcher]', e); }
-}
-
-function updateWatcherCount(n) {
-  const el = document.getElementById('w-count');
-  if (el) el.textContent = `${n} / 5 activos`;
-  const btn = document.getElementById('w-add-btn');
-  if (btn) { btn.disabled = n >= 5; btn.title = n >= 5 ? 'Límite: 5 tickers simultáneos' : ''; }
-}
-
-function patchWatcherCard(w) {
-  const card = document.querySelector(`#watcher-panel [data-ticker="${w.ticker}"]`);
-  if (!card) return;
-
-  const ind = w.indicators || {};
-  const sig = w.signal || 'ESPERAR';
-
-  // Price & change
-  const priceEl = card.querySelector('.wcard-price');
-  if (priceEl) {
-    const newPrice = w.price != null ? `$${w.price.toFixed(2)}` : '…';
-    if (priceEl.textContent !== newPrice) {
-      priceEl.textContent = newPrice;
-      priceEl.style.transition = 'color .3s';
-      priceEl.style.color = 'var(--accent)';
-      setTimeout(() => { priceEl.style.color = ''; }, 600);
-    }
-  }
-  const chgEl = card.querySelector('.wcard-chg');
-  if (chgEl && w.change_pct != null) {
-    chgEl.textContent = `${w.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(w.change_pct).toFixed(2)}%`;
-    chgEl.style.color = w.change_pct >= 0 ? 'var(--green)' : 'var(--red)';
-  }
-
-  // Signal box
-  const sigBox = card.querySelector('.signal-box');
-  if (sigBox) {
-    sigBox.className = `signal-box ${signalClass(sig)}`;
-    const sn = sigBox.querySelector('.signal-name');
-    if (sn) sn.textContent = `${signalIcon(sig)} ${signalLabel(sig)}`;
-    const ss = sigBox.querySelector('.signal-sub');
-    if (ss) ss.textContent = w.signal_confirmed ? 'Confirmado (2/2 scans)' : 'Sin señal confirmada';
-    let cEl = sigBox.querySelector('.signal-candidate');
-    const candText = (!w.signal_confirmed && w.candidate_signal && w.candidate_signal !== sig)
-      ? `⚡ posible cambio a ${signalLabel(w.candidate_signal)}` : '';
-    if (candText) {
-      if (!cEl) { cEl = document.createElement('div'); cEl.className = 'signal-candidate'; sigBox.appendChild(cEl); }
-      cEl.textContent = candText;
-    } else if (cEl) { cEl.remove(); }
-  }
-
-  // Scores
-  const scoreRows = card.querySelectorAll('.score-row');
-  if (scoreRows.length >= 2) {
-    const slW = Math.round((w.score_long || 0) / 9 * 100);
-    const ssW = Math.round((w.score_short || 0) / 9 * 100);
-    const lBar = scoreRows[0].querySelector('.score-bar-inner');
-    const lCnt = scoreRows[0].querySelector('.score-count');
-    if (lBar) lBar.style.width = `${slW}%`;
-    if (lCnt) lCnt.textContent = `${w.score_long || 0}/9`;
-    const sBar = scoreRows[1].querySelector('.score-bar-inner');
-    const sCnt = scoreRows[1].querySelector('.score-count');
-    if (sBar) sBar.style.width = `${ssW}%`;
-    if (sCnt) sCnt.textContent = `${w.score_short || 0}/9`;
-  }
-
-  // Indicators — patch ind-cards by data-key
-  const cr = w.criteria || {};
-  card.querySelectorAll('.ind-card[data-key]').forEach(el => {
-    const k    = el.dataset.key;
-    const vEl  = el.querySelector('.ind-val');
-    const sEl  = el.querySelector('.ind-sub');
-    let val, sub, bull = false, bear = false;
-
-    if (k === 'rsi') {
-      const r = ind.rsi;
-      val  = r != null ? String(r) : '—';
-      bull = r != null && r < 35;
-      bear = r != null && r > 65;
-      sub  = r != null ? (r < 35 ? 'sobreventa' : r > 65 ? 'sobrecompra' : 'zona neutra') : '—';
-    } else if (k === 'macd') {
-      const m = ind.macd_hist;
-      val  = m != null ? (m > 0 ? `+${m.toFixed(4)}` : m.toFixed(4)) : '—';
-      bull = cr.L3 === true; bear = cr.S3 === true;
-      sub  = m != null ? (m > 0 ? 'histograma positivo' : 'histograma negativo') : '—';
-    } else if (k === 'bb') {
-      val  = { upper:'banda superior', lower:'banda inferior', inside:'dentro de bandas', unknown:'—' }[ind.bb_position] || '—';
-      bull = ind.bb_position === 'lower'; bear = ind.bb_position === 'upper';
-      sub  = ind.bb_position === 'upper' ? 'posible sobrecompra' : ind.bb_position === 'lower' ? 'posible sobreventa' : 'rango normal';
-    } else if (k === 'vol') {
-      const v = ind.vol_ratio;
-      val  = v != null ? `${v.toFixed(2)}×` : '—';
-      bull = v != null && v > 1.2; bear = false;
-      sub  = v != null ? (v > 1.5 ? 'volumen alto' : v > 1.2 ? 'volumen elevado' : v < 0.8 ? 'volumen bajo' : 'volumen normal') : '—';
-    } else if (k === 'ema') {
-      val  = ind.ema8 != null ? `${ind.ema8} / ${ind.ema20}` : '—';
-      const px = w.price, e20 = ind.ema20, e8 = ind.ema8;
-      bull = px != null && e20 != null && px > e20 * 0.97;
-      bear = px != null && e8  != null && px < e8 && px < e20;
-      sub  = px != null && e20 != null ? (px > e20 ? 'precio sobre EMA20' : 'precio bajo EMA20') : '—';
-    } else if (k === 'support') {
-      val  = ind.support != null ? `$${ind.support}` : '—';
-      bull = cr.L4 === true; bear = false;
-      const diff = w.price != null && ind.support != null ? w.price - ind.support : null;
-      sub  = diff != null ? (diff <= ind.support * 0.005 ? 'precio en soporte' : `$${diff.toFixed(2)} sobre soporte`) : '—';
-    } else if (k === 'resistance') {
-      val  = ind.resistance != null ? `$${ind.resistance}` : '—';
-      bull = false; bear = cr.S4 === true;
-      const diff = w.price != null && ind.resistance != null ? ind.resistance - w.price : null;
-      sub  = diff != null ? (diff <= ind.resistance * 0.005 ? 'precio en resistencia' : `$${diff.toFixed(2)} hasta resistencia`) : '—';
-    } else if (k === 'atr') {
-      val = ind.atr != null ? `$${ind.atr}` : '—';
-      sub = 'volatilidad media/vela';
-    } else { return; }
-
-    const cls = bull ? 'bull' : bear ? 'bear' : 'neut';
-    el.className = `ind-card ${cls}`;
-    const badgeCol = bull ? 'var(--green)' : bear ? 'var(--red)' : 'var(--text3)';
-    const badge    = bull ? '▲ alcista' : bear ? '▼ bajista' : '● neutral';
-    if (vEl) vEl.textContent = val;
-    if (sEl) { sEl.textContent = `${sub} · ${badge}`; sEl.style.color = badgeCol; }
-  });
-
-  // Error
-  let errEl = card.querySelector('.signal-err');
-  if (w.error) {
-    if (!errEl) { errEl = document.createElement('div'); errEl.className = 'signal-err'; errEl.style.cssText='font-size:10px;color:var(--yellow);margin-top:4px'; sigBox?.appendChild(errEl); }
-    errEl.textContent = w.error;
-  } else if (errEl) { errEl.remove(); }
-
-  // TF interval buttons — update active state
-  card.querySelectorAll('.iv-btn[data-iv]').forEach(btn => {
-    btn.classList.toggle('iv-active', btn.dataset.iv === w.interval);
-  });
-
-  // Re-render interval-dependent sections (rentabilidad + horario)
-  const rentabWrap = card.querySelector('.rentab-wrap');
-  if (rentabWrap) rentabWrap.innerHTML = _renderRentabilidadPanel(w.ticker, w.interval);
-  const hourlyWrap = card.querySelector('.hourly-wrap');
-  if (hourlyWrap) hourlyWrap.innerHTML = _renderHourlySection(w.ticker, w.interval);
-
-  // Update position gauge
-  _renderPosGauge(w);
-}
-
-function renderWatchers(watchers) {
-  updateWatcherCount(watchers.length);
-
-  const empty = document.getElementById('watcher-empty');
-  const panel = document.getElementById('watcher-panel');
-
-  if (!watchers.length) {
-    document.getElementById('watcher-tabs').innerHTML = '';
-    panel.innerHTML = '';
-    if (empty) { empty.style.display = ''; panel.appendChild(empty); }
-    _activeWatcher = null;
-    _watcherCounters = {};
-    if (_watcherTimer) { clearInterval(_watcherTimer); _watcherTimer = null; }
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  // Keep active ticker if still present, else pick first
-  if (!_activeWatcher || !watchers.find(w => w.ticker === _activeWatcher)) {
-    _activeWatcher = watchers[0].ticker;
-  }
-
-  // Preserve open states from current panel
-  const logOpen   = panel.querySelector('.log-entries')?.style.display !== 'none';
-  const chartOpen = panel.querySelector('.chart-frame') ? panel.querySelector('.chart-frame').style.display !== 'none' : true;
-
-  // Render tab bar
-  _renderTabBar(watchers);
-
-  // Render active panel
-  const aw = watchers.find(w => w.ticker === _activeWatcher);
-  panel.innerHTML = renderWatcherCard(aw, logOpen, chartOpen);
-  _renderPosGauge(aw);
-  if (aw.candles && aw.candles.length) _initChart(_activeWatcher);
-
-  // Counters for all tickers
-  _watcherCounters = {};
-  watchers.forEach(w => {
-    _watcherCounters[w.ticker] = {
-      interval_seconds: w.interval_seconds,
-      remaining:        w.next_scan_seconds ?? w.interval_seconds,
-      scanning:         w.scanning,
-      ts:               Date.now(),
+    const ORDER = ['sent','ai_alta','ai_media','ai_baja','market_closed','gates_blocked','gate1_blocked','keyword_filtered'];
+    const LABELS = {
+      'sent':             { label: 'SMS enviados', cls: 'fs-sent' },
+      'ai_alta':          { label: 'IA ALTA', cls: 'fs-alta' },
+      'ai_media':         { label: 'IA MEDIA', cls: 'fs-media' },
+      'ai_baja':          { label: 'IA BAJA', cls: 'fs-blocked' },
+      'market_closed':    { label: 'Mercado cerrado', cls: 'fs-blocked' },
+      'gates_blocked':    { label: 'Gates bloqueados', cls: 'fs-blocked' },
+      'gate1_blocked':    { label: 'Priceado (G1)', cls: 'fs-blocked' },
+      'keyword_filtered': { label: 'Sin keywords/edad', cls: 'fs-blocked' },
     };
-  });
-
-  if (_watcherTimer) clearInterval(_watcherTimer);
-  _watcherTimer = setInterval(tickWatcherCounters, 1000);
-}
-
-function tickWatcherCounters() {
-  const now = Date.now();
-  for (const [ticker, state] of Object.entries(_watcherCounters)) {
-    const el = document.getElementById(`w-scan-${ticker}`);
-    if (!el) continue;
-    if (state.scanning) {
-      el.textContent = '⟳ Escaneando...';
-      el.style.color = 'var(--accent)';
-      continue;
+    let html = '';
+    for (const stage of ORDER) {
+      const cnt = d.summary[stage] || 0;
+      if (!cnt) continue;
+      const { label, cls } = LABELS[stage] || { label: stage, cls: '' };
+      html += `<div class="fs-item"><div class="fs-count ${cls}">${cnt}</div><div class="fs-label">${label}</div></div>`;
     }
-    el.style.color = '';
-    const elapsed   = Math.floor((now - state.ts) / 1000);
-    const remaining = Math.max(0, state.remaining - elapsed);
-    el.textContent = remaining > 0 ? `Próx scan: ${fmtSecs(remaining)}` : '⟳ Escaneando...';
-  }
+    html = `<div class="fs-item"><div class="fs-count">${d.total}</div><div class="fs-label">Total procesados</div></div>` + html;
+    el.innerHTML = html;
+    el.style.display = 'flex';
+  } catch(e) {}
 }
 
-function fmtSecs(s) {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return m > 0 ? `${m}m ${String(sec).padStart(2,'0')}s` : `${sec}s`;
+async function _downloadCsv(apiPath, filename) {
+  try {
+    const r = await fetch(apiPath, { headers: auth() });
+    if (!r.ok) { alert(`Error ${r.status} al descargar log`); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch(e) { alert('Error descargando log: ' + e.message); }
 }
 
-function signalClass(sig) {
-  if (!sig) return 'sig-esperar';
-  if (sig === 'ENTRAR_LONG')  return 'sig-long';
-  if (sig === 'ENTRAR_SHORT') return 'sig-short';
-  if (sig === 'CERRAR_LONG' || sig === 'CERRAR_SHORT') return 'sig-cerrar';
-  if (sig === 'PRECAUCION')   return 'sig-precaucion';
-  if (sig === 'MANTENER')     return 'sig-mantener';
-  return 'sig-esperar';
-}
-
-function signalIcon(sig) {
-  const m = {
-    ENTRAR_LONG:'🟢', ENTRAR_SHORT:'🔴', CERRAR_LONG:'🟠',
-    CERRAR_SHORT:'🟠', PRECAUCION:'🟡', ESPERAR:'⏳', MANTENER:'🔵',
-  };
-  return m[sig] || '⏳';
-}
-
-function signalLabel(sig) {
-  const m = {
-    ENTRAR_LONG:'ENTRAR LONG', ENTRAR_SHORT:'ENTRAR SHORT',
-    CERRAR_LONG:'CERRAR LONG', CERRAR_SHORT:'CERRAR SHORT',
-    PRECAUCION:'PRECAUCIÓN', ESPERAR:'ESPERAR', MANTENER:'MANTENER',
-  };
-  return m[sig] || (sig || 'ESPERAR');
-}
-
-const PATTERN_META = {
-  "Bullish Engulfing":   { w:3, desc:"La vela verde envuelve completamente el cuerpo de la roja anterior. Señal de reversión alcista muy fuerte." },
-  "Morning Star":        { w:3, desc:"3 velas: roja grande → pequeño cuerpo (indecisión) → verde que supera el punto medio de la primera. Reversión alcista fuerte." },
-  "Three White Soldiers":{ w:2, desc:"3 velas verdes consecutivas con cierres progresivamente más altos. Continuación alcista sólida." },
-  "Hammer":              { w:2, desc:"Mecha inferior ≥2× el cuerpo tras bajada previa. El mercado rechazó precios bajos. Reversión alcista." },
-  "Piercing Line":       { w:2, desc:"Verde abre por debajo del cierre rojo previo y cierra por encima de su punto medio. Reversión alcista moderada." },
-  "Dragonfly Doji":      { w:2, desc:"Cuerpo mínimo en la parte alta, mecha inferior muy larga. Fuerte rechazo de precios bajos. Señal alcista." },
-  "Bullish Harami":      { w:1, desc:"Pequeña vela verde contenida dentro del cuerpo de la roja previa. Señal débil, esperar confirmación." },
-  "Inverted Hammer":     { w:1, desc:"Mecha superior larga tras bajada. El mercado intentó subir. Necesita vela verde confirmatoria." },
-  "Bearish Engulfing":   { w:3, desc:"La vela roja envuelve completamente el cuerpo de la verde anterior. Señal de reversión bajista muy fuerte." },
-  "Evening Star":        { w:3, desc:"3 velas: verde grande → pequeño cuerpo → roja que cae bajo el punto medio de la primera. Reversión bajista fuerte." },
-  "Three Black Crows":   { w:2, desc:"3 velas rojas consecutivas con cierres progresivamente más bajos. Continuación bajista sólida." },
-  "Shooting Star":       { w:2, desc:"Mecha superior ≥2× el cuerpo tras subida previa. El mercado rechazó precios altos. Reversión bajista." },
-  "Dark Cloud Cover":    { w:2, desc:"Roja abre por encima del máximo verde y cierra por debajo de su punto medio. Reversión bajista moderada." },
-  "Gravestone Doji":     { w:2, desc:"Cuerpo mínimo en la parte baja, mecha superior muy larga. Fuerte rechazo de precios altos. Señal bajista." },
-  "Bearish Harami":      { w:1, desc:"Pequeña vela roja contenida dentro del cuerpo de la verde previa. Señal débil, esperar confirmación." },
-  "Hanging Man":         { w:1, desc:"Igual que el Hammer pero tras una subida. Posible agotamiento de la tendencia alcista. Señal débil." },
-};
-
-function patternChip(name, side) {
-  const meta  = PATTERN_META[name] || { w:1, desc:'' };
-  const dots  = '●'.repeat(meta.w) + '○'.repeat(3 - meta.w);
-  const color = side === 'bull' ? 'var(--green)' : 'var(--red)';
-  const bg    = side === 'bull' ? 'var(--green-d)' : 'var(--red-d)';
-  const arrow = side === 'bull' ? '▲' : '▼';
-  const tip   = `${dots}  Peso ${meta.w}/3\n\n${meta.desc}`;
-  return `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:${bg};color:${color};cursor:help;display:inline-flex;gap:5px;align-items:center" title="${tip}">
-    <span>${arrow} ${name}</span>
-    <span style="opacity:.55;letter-spacing:1px">${dots}</span>
-  </span>`;
-}
-
-function renderWatcherCard(w, logOpen, tvOpen) {
-  const ind  = w.indicators || {};
-  const sig  = w.signal || 'ESPERAR';
-  const hasPx = w.price != null;
-
-  // Price line
-  const priceStr = hasPx ? `$${w.price.toFixed(2)}` : '…';
-  const chgStr   = w.change_pct != null
-    ? `<span class="wcard-chg" style="color:${w.change_pct >= 0 ? 'var(--green)' : 'var(--red)'}">${w.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(w.change_pct).toFixed(2)}%</span>`
-    : '';
-
-  // Signal box
-  const confirmed   = w.signal_confirmed;
-  const candidate   = w.candidate_signal;
-  const confirmSub  = confirmed ? 'Confirmado (2/2 scans)' : 'Sin señal confirmada';
-  const candidateHtml = (!confirmed && candidate && candidate !== sig)
-    ? `<div class="signal-candidate">⚡ posible cambio a ${signalLabel(candidate)}</div>`
-    : '';
-
-  // Score bars
-  const sl = w.score_long || 0;
-  const ss = w.score_short || 0;
-  const slW = Math.round(sl / 9 * 100);
-  const ssW = Math.round(ss / 9 * 100);
-
-  // Indicators — bias and display values
-  const criteria = w.criteria || {};
-
-  function indCard(key, name, val, sub, bull, bear, tipTitle, tipBody) {
-    const cls = bull ? 'bull' : bear ? 'bear' : 'neut';
-    const badge = bull ? '▲ alcista' : bear ? '▼ bajista' : '● neutral';
-    const badgeCol = bull ? 'var(--green)' : bear ? 'var(--red)' : 'var(--text3)';
-    return `<div class="ind-card ${cls}" data-key="${key}">
-      <div class="ind-tip"><strong>${tipTitle}</strong>${tipBody}</div>
-      <div class="ind-name">${name}</div>
-      <div class="ind-val">${val}</div>
-      <div class="ind-sub" style="color:${badgeCol}">${sub} · ${badge}</div>
-    </div>`;
-  }
-
-  const rsi = ind.rsi;
-  const rsiBull = rsi != null && rsi < 35;
-  const rsiBear = rsi != null && rsi > 65;
-  const rsiSub  = rsi != null ? (rsi < 35 ? 'sobreventa' : rsi > 65 ? 'sobrecompra' : 'zona neutra') : '—';
-
-  const macdH = ind.macd_hist;
-  const macdBull = criteria.L3 === true;
-  const macdBear = criteria.S3 === true;
-  const macdVal  = macdH != null ? (macdH > 0 ? `+${macdH.toFixed(4)}` : macdH.toFixed(4)) : '—';
-  const macdSub  = macdH != null ? (macdH > 0 ? 'histograma positivo' : 'histograma negativo') : '—';
-
-  const bbPos   = ind.bb_position;
-  const bbBull  = bbPos === 'lower';
-  const bbBear  = bbPos === 'upper';
-  const bbNames = { upper:'banda superior', lower:'banda inferior', inside:'dentro de bandas', unknown:'—' };
-  const bbVal   = bbNames[bbPos] || '—';
-  const bbSub   = bbPos === 'upper' ? 'posible sobrecompra' : bbPos === 'lower' ? 'posible sobreventa' : 'rango normal';
-
-  const volR    = ind.vol_ratio;
-  const volBull = volR != null && volR > 1.2;
-  const volBear = false;
-  const volVal  = volR != null ? `${volR.toFixed(2)}×` : '—';
-  const volSub  = volR != null ? (volR > 1.5 ? 'volumen alto' : volR > 1.2 ? 'volumen elevado' : volR < 0.8 ? 'volumen bajo' : 'volumen normal') : '—';
-
-  const price  = w.price;
-  const ema8   = ind.ema8;
-  const ema20  = ind.ema20;
-  const emaBull = ema8 != null && ema20 != null && price != null && price > ema20 * 0.97;
-  const emaBear = ema8 != null && ema20 != null && price != null && price < ema20 * 1.03 && price < ema8;
-  const emaVal  = ema8 != null ? `${ema8} / ${ema20}` : '—';
-  const emaSub  = price != null && ema20 != null ? (price > ema20 ? 'precio sobre EMA20' : 'precio bajo EMA20') : '—';
-
-  const sup   = ind.support;
-  const res   = ind.resistance;
-  const supBull = criteria.L4 === true;
-  const resBear = criteria.S4 === true;
-
-  const atr   = ind.atr;
-  const atrVal = atr != null ? `$${atr}` : '—';
-
-  // Position section
-  const posState   = w.position_state || 'SIN_POSICION';
-  const inPosition = posState !== 'SIN_POSICION';
-  const entryVal   = w.entry_price != null ? w.entry_price : '';
-  const amountVal  = w.amount != null ? w.amount : '';
-
-  const pnlHtml = inPosition && w.pnl_pct != null ? `
-    <div class="pnl-row">
-      <div class="pnl-cell">
-        <div class="pnl-k">P&L %</div>
-        <div class="pnl-v" style="color:${w.pnl_pct >= 0 ? 'var(--green)' : 'var(--red)'}">
-          ${w.pnl_pct >= 0 ? '+' : ''}${w.pnl_pct.toFixed(2)}%
-        </div>
-      </div>
-      ${w.pnl_usd != null ? `<div class="pnl-cell">
-        <div class="pnl-k">P&L $</div>
-        <div class="pnl-v" style="color:${w.pnl_usd >= 0 ? 'var(--green)' : 'var(--red)'}">
-          ${w.pnl_usd >= 0 ? '+' : ''}$${Math.abs(w.pnl_usd).toFixed(2)}
-        </div>
-      </div>` : ''}
-    </div>` : '';
-
-  const stHtml = inPosition ? `
-    <div class="st-grid">
-      ${w.stop_suggested != null ? `<div class="st-cell">
-        <div class="st-k">Stop</div>
-        <div class="st-v c-red">$${w.stop_suggested}</div>
-        ${w.stop_label ? `<div class="st-src">${w.stop_label}</div>` : ''}
-      </div>` : ''}
-      ${w.target1_suggested != null ? `<div class="st-cell">
-        <div class="st-k">Target 1</div>
-        <div class="st-v c-green">$${w.target1_suggested}</div>
-        ${w.target1_label ? `<div class="st-src">${w.target1_label}</div>` : ''}
-      </div>` : ''}
-      ${w.target2_suggested != null ? `<div class="st-cell">
-        <div class="st-k">Target 2</div>
-        <div class="st-v c-green">$${w.target2_suggested}</div>
-        ${w.target2_label ? `<div class="st-src">${w.target2_label}</div>` : ''}
-      </div>` : ''}
-    </div>` : '';
-
-  // Chart
-  const chartIsOpen  = tvOpen !== false;   // open by default
-  const chartDisplay = chartIsOpen ? '' : 'none';
-  const chartArrow   = chartIsOpen ? '▲' : '▼';
-
-  // Log
-  const logDisplay = logOpen ? '' : 'none';
-  const logArrow   = logOpen ? '▲' : '▼';
-  const logHtml = (w.log || []).slice(0, 20).map(e => {
-    const isTimeStop = !!e.time_stop;
-    const sigCol = isTimeStop ? 'var(--red)'
-      : e.confirmed
-        ? (e.signal.includes('LONG')   ? 'var(--green)'
-         : e.signal.includes('SHORT')  ? 'var(--red)'
-         : e.signal.includes('CERRAR') ? 'var(--yellow)'
-         : 'var(--text)')
-        : 'var(--text3)';
-    const badge = isTimeStop
-      ? `<span style="font-size:9px;font-weight:700;background:rgba(240,64,85,.2);color:var(--red);padding:1px 5px;border-radius:3px">⏱ TIME-STOP</span>`
-      : e.confirmed
-        ? `<span class="log-conf">✓ confirmado</span>`
-        : `<span class="log-cand">pendiente</span>`;
-    return `<div class="log-entry ${e.confirmed ? 'log-entry-confirmed' : ''}" ${isTimeStop ? 'style="border-left:2px solid var(--red);padding-left:6px"' : ''}>
-      <span class="log-time">${esc(e.time)}</span>
-      <span class="log-sig" style="color:${sigCol}">${signalLabel(e.signal)}</span>
-      ${badge}
-      <span class="log-rsn">${esc(e.reason || '')}</span>
-    </div>`;
-  }).join('') || '<div style="color:var(--text3);padding:4px">Sin cambios de señal aún…</div>';
-
-  return `<div class="wcard" data-ticker="${w.ticker}">
-  <!-- Header -->
-  <div class="wcard-header">
-    <span class="wcard-ticker">${w.ticker}</span>
-    <span class="wcard-price">${priceStr}</span>
-    ${chgStr}
-    <span class="wcard-interval">
-      ${['1m','5m','15m'].map(iv => {
-        const tfS  = (_tfStatsCache[w.ticker] || {})[iv];
-        const nlng = _netLong(w.ticker, iv);
-        const nsht = _netShort(w.ticker, iv);
-        let statHtml = '';
-        if (tfS && tfS.block_new) {
-          statHtml = `<span class="iv-btn-stat" style="color:var(--red)">BLOQ</span>`;
-        }
-        return `<button class="iv-btn${w.interval===iv?' iv-active':''}" data-iv="${iv}" onclick="watcherSetInterval('${w.ticker}','${iv}')">${iv}${statHtml}</button>`;
-      }).join('')}
-    </span>
-    <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;${w.feed_mode==='IEX' ? 'color:var(--green);background:var(--green-d)' : 'color:var(--yellow);background:var(--yellow-d)'}">${w.feed_mode||'…'}</span>
-    ${w.htf_trend==='BULLISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--green);background:var(--green-d)" title="Tendencia HTF alcista — umbral de entrada LONG reducido">HTF ▲</span>`
-      : w.htf_trend==='BEARISH' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--red);background:var(--red-d)" title="Tendencia HTF bajista — umbral de entrada SHORT reducido">HTF ▼</span>`
-      : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--text3);background:var(--card2)" title="HTF neutro — umbrales normales 5/9">HTF —</span>`}
-    ${(() => {
-      const cal = _tfStatsCache[w.ticker] ? Object.values(_tfStatsCache[w.ticker])[0] : null;
-      if (!cal) return '';
-      // calibrated_at not in tf stats, but we can check _calibratedMap
-      const calEntry = _calibratedMap[w.ticker];
-      if (!calEntry?.calibrated_at) return '';
-      const daysAgo = Math.round((Date.now() - new Date(calEntry.calibrated_at).getTime()) / 86400000);
-      const color   = daysAgo > 45 ? 'var(--yellow)' : 'var(--text3)';
-      return `<span style="font-size:9px;color:${color}" title="Calibrado el ${calEntry.calibrated_at.slice(0,10)}">cal ${daysAgo}d</span>`;
-    })()}
-    <span class="wcard-scan" id="w-scan-${w.ticker}">Proxim scan: —</span>
-    <button class="btn-stop" onclick="watcherStop('${w.ticker}')">&#9632; Detener</button>
-  </div>
-
-  ${w.market_session === 'CLOSED' ? `
-  <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(150,150,170,.08);border-bottom:1px solid rgba(150,150,170,.2)">
-    <span style="font-size:15px">🌙</span>
-    <div>
-      <span style="color:var(--text2);font-weight:600;font-size:12px">Mercado completamente cerrado</span>
-      <span style="color:var(--text3);font-size:11px;margin-left:8px">Sin actividad hasta pre-market (4am ET). Las velas y el precio no se actualizarán.</span>
-    </div>
-  </div>` : w.sip_delay_warning ? `
-  <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(245,158,11,.1);border-bottom:1px solid rgba(245,158,11,.25)">
-    <span style="font-size:15px">⚠️</span>
-    <div>
-      <span style="color:var(--yellow);font-weight:600;font-size:12px">Fuera de sesión regular — feed SIP (15 min de delay)</span>
-      <span style="color:var(--text2);font-size:11px;margin-left:8px">Pre-market o after-hours. El precio y las velas tienen ~15 min de retraso.</span>
-    </div>
-  </div>` : ''}
-
-  <div class="wcard-body">
-
-    <!-- Signal + rentabilidad neta al capital configurado -->
-    ${_renderSignalWithNet(w, sig, confirmed, confirmSub, candidateHtml)}
-
-    <!-- Patterns + Lock -->
-    ${(() => {
-      const bp   = w.patterns_bull || [];
-      const brp  = w.patterns_bear || [];
-      const lock = w.direction_lock_remaining || 0;
-      const lockDir = w.direction_lock_dir;
-      let html = '';
-      if (bp.length || brp.length) {
-        html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
-        bp.forEach(p  => { html += patternChip(p, 'bull'); });
-        brp.forEach(p => { html += patternChip(p, 'bear'); });
-        html += `</div>`;
-      }
-      if (lock > 0 && lockDir) {
-        html += `<div style="font-size:10px;color:var(--yellow);background:var(--yellow-d);padding:4px 8px;border-radius:6px;margin-bottom:8px">🔒 Bloqueado ${lockDir} · ${lock} scan${lock>1?'s':''} restantes</div>`;
-      }
-      // Time-stop progress indicator
-      const tsScans = w.position_scans_held || 0;
-      const tsMax   = w.timestop_max_scans  || 30;
-      const tsAdv   = w.position_adverse_pct;
-      const tsThresh = w.timestop_adverse_pct || 0.5;
-      if (tsScans > 0 && tsMax > 0) {
-        const pct     = Math.min(100, Math.round(tsScans / tsMax * 100));
-        const adverse = tsAdv != null ? tsAdv.toFixed(2) : '0.00';
-        const isAdverse = tsAdv != null && tsAdv > 0;
-        const isCritical = pct >= 70 && isAdverse;
-        const color   = isCritical ? 'var(--red)' : (pct >= 40 && isAdverse ? 'var(--yellow)' : 'var(--text3)');
-        const barColor = isCritical ? '#f04055' : (pct >= 40 && isAdverse ? '#f59e0b' : '#55556a');
-        html += `<div style="margin-bottom:8px;padding:6px 8px;border-radius:6px;background:${isCritical ? 'rgba(240,64,85,.08)' : 'rgba(80,80,100,.1)'}">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:10px;color:${color};font-weight:600">
-              ⏱ Time-stop: ${tsScans}/${tsMax} scans${isAdverse ? ' · adverso '+adverse+'%' : ''}
-            </span>
-            <span style="font-size:10px;color:${color}">activa si adverso >=${tsThresh}%</span>
-          </div>
-          <div style="height:4px;background:rgba(150,150,170,.2);border-radius:2px">
-            <div style="height:4px;width:${pct}%;background:${barColor};border-radius:2px;transition:width .4s"></div>
-          </div>
-        </div>`;
-      }
-      return html;
-    })()}
-
-    <!-- Score bars -->
-    <div>
-      <div class="score-row" style="margin-bottom:5px">
-        <span class="score-label" style="color:var(--green)">Alcistas</span>
-        <div class="score-bar-outer"><div class="score-bar-inner score-bar-l" style="width:${slW}%"></div></div>
-        <span class="score-count c-green">${sl}/9</span>
-      </div>
-      <div class="score-row">
-        <span class="score-label" style="color:var(--red)">Bajistas</span>
-        <div class="score-bar-outer"><div class="score-bar-inner score-bar-s" style="width:${ssW}%"></div></div>
-        <span class="score-count c-red">${ss}/9</span>
-      </div>
-    </div>
-
-    <!-- Candlestick chart -->
-    <div class="chart-section">
-      <button class="chart-toggle" onclick="toggleChart('${w.ticker}')">
-        📊 Gráfico de velas <span id="chart-arrow-${w.ticker}">${chartArrow}</span>
-      </button>
-      <div id="chart-frame-${w.ticker}" class="chart-frame" style="display:${chartDisplay}">
-        <div id="chart-${w.ticker}" style="height:300px"></div>
-      </div>
-    </div>
-
-    <!-- Indicators -->
-    <div>
-      <div class="wl-section-title" style="margin-bottom:8px">Indicadores técnicos</div>
-      <div class="ind-grid">
-        ${indCard('rsi','RSI 14', rsi != null ? rsi : '—', rsiSub, rsiBull, rsiBear,
-          'RSI — Índice de Fuerza Relativa',
-          'Oscila entre 0 y 100. Por debajo de 35 indica sobreventa (precio caído en exceso, rebote probable → alcista). Por encima de 65 indica sobrecompra (precio subido en exceso, corrección probable → bajista).')}
-        ${indCard('macd','MACD histograma', macdVal, macdSub, macdBull, macdBear,
-          'MACD — Convergencia/Divergencia',
-          'El histograma es la diferencia entre la línea MACD (EMA12−EMA26) y su señal (EMA9). Histograma subiendo desde negativo → momentum alcista. Histograma bajando desde positivo → momentum bajista.')}
-        ${indCard('bb','Bollinger Bands', bbVal, bbSub, bbBull, bbBear,
-          'Bandas de Bollinger (20, 2σ)',
-          'Envuelven el precio ±2 desviaciones estándar. Precio tocando la banda inferior → posible sobreventa, rebote probable (alcista). Precio en la banda superior → posible sobrecompra (bajista).')}
-        ${indCard('vol','Volumen relativo', volVal, volSub, volBull, volBear,
-          'Ratio de volumen (barra actual / media 20)',
-          'Compara el volumen de la última vela con el promedio de las 20 anteriores. Volumen >1.2× confirma el movimiento actual (alcista si el precio sube con volumen alto). Sin volumen, los movimientos son poco fiables.')}
-        ${indCard('ema','EMA 8 / 20', emaVal, emaSub, emaBull, emaBear,
-          'Medias Móviles Exponenciales',
-          'EMA8 reacciona rápido, EMA20 da la tendencia. Precio por encima de EMA20 → tendencia alcista. Precio por debajo de EMA8 y EMA20 → tendencia bajista. El cruce de ambas señala cambios de tendencia.')}
-        ${indCard('support','Soporte', sup != null ? `$${sup}` : '—', sup != null && price != null ? (price <= sup * 1.005 ? 'precio en soporte' : `$${(price-sup).toFixed(2)} sobre soporte`) : '—', supBull, false,
-          'Nivel de soporte (swing low)',
-          'Mínimo reciente donde el precio rebotó anteriormente. Si el precio actual está cerca del soporte, los compradores tienden a aparecer → señal alcista.')}
-        ${indCard('resistance','Resistencia', res != null ? `$${res}` : '—', res != null && price != null ? (price >= res * 0.995 ? 'precio en resistencia' : `$${(res-price).toFixed(2)} hasta resistencia`) : '—', false, resBear,
-          'Nivel de resistencia (swing high)',
-          'Máximo reciente donde el precio fue rechazado. Si el precio se acerca a la resistencia, los vendedores suelen aparecer → señal bajista.')}
-        ${indCard('atr','ATR 14', atrVal, atr != null ? 'volatilidad media/vela' : '—', false, false,
-          'ATR — Average True Range',
-          'Mide la volatilidad promedio de las últimas 14 velas. No es direccional. Se usa para calibrar stops y targets: stop = entrada ± 1.5×ATR, target = entrada ± 2.5×ATR.')}
-      </div>
-    </div>
-
-    <!-- Position -->
-    <div class="pos-section">
-      <div class="wl-section-title" style="margin-bottom:8px">Posición</div>
-      <div class="pos-row">
-        <span class="pos-label">Estado</span>
-        <select class="sel" id="w-pos-${w.ticker}" onchange="togglePosFields('${w.ticker}')">
-          <option value="SIN_POSICION" ${posState==='SIN_POSICION'?'selected':''}>Sin posición</option>
-          <option value="LONG"         ${posState==='LONG'?'selected':''}>LONG</option>
-          <option value="SHORT"        ${posState==='SHORT'?'selected':''}>SHORT</option>
-        </select>
-        <button class="btn-ghost" style="font-size:11px" onclick="watcherUpdatePos('${w.ticker}')">Actualizar</button>
-      </div>
-      <div id="w-pos-fields-${w.ticker}" style="display:${inPosition?'':'none'}">
-        <div class="pos-row" style="margin-top:6px">
-          <span class="pos-label">Entrada</span>
-          <div class="pos-fields">
-            <input class="inp-pos" id="w-entry-${w.ticker}" type="number" step="0.01"
-                   placeholder="$0.00" value="${entryVal}">
-            <input class="inp-pos" id="w-amount-${w.ticker}" type="number" step="1"
-                   placeholder="Monto (opc.)" value="${amountVal}">
-          </div>
-        </div>
-        ${pnlHtml}
-        <div class="pos-gauge" id="pos-gauge-${w.ticker}"></div>
-      </div>
-    </div>
-
-    <!-- Fee context (detalle técnico de comisiones, colapsable) -->
-    ${_renderFeeContext(w.ticker, w.interval, sig, _capitalDisponible)}
-
-    <!-- SMS -->
-    <div class="sms-row">
-      <span class="sms-label">Alertas SMS</span>
-      <span class="sms-badge" title="SMS disponible en Fase 2">Proxim.</span>
-    </div>
-
-    <!-- Rentabilidad neta por TF/dirección -->
-    <div class="rentab-wrap">${_renderRentabilidadPanel(w.ticker, w.interval)}</div>
-
-    <!-- Hourly analysis -->
-    <div class="hourly-wrap">${_renderHourlySection(w.ticker, w.interval)}</div>
-
-    <!-- Log -->
-    <div class="log-section">
-      <button class="log-toggle" onclick="toggleSection('w-log-${w.ticker}','log-arrow-${w.ticker}')">
-        📋 Log de sesión <span id="log-arrow-${w.ticker}">${logArrow}</span>
-      </button>
-      <div id="w-log-${w.ticker}" class="log-entries" style="display:${logDisplay}">
-        ${logHtml}
-      </div>
-    </div>
-
-  </div><!-- /wcard-body -->
-</div>`;
-}
-
-// ── Capital & fee helpers ─────────────────────────────────────────────────────
-
-function onCapitalChange() {
-  const v = parseFloat(document.getElementById('w-capital')?.value) || 0;
-  if (v >= 100) {
-    _capitalDisponible = v;
-    // Update summary
-    const el = document.getElementById('w-capital-summary');
-    if (el) el.textContent = `— se usa para calcular rentabilidad neta`;
-    // Re-render active watcher if visible
-    if (_activeWatcher && _watcherState[_activeWatcher]) {
-      switchWatcherTab(_activeWatcher);
-    }
-  }
-}
-
-function _netLong(ticker, interval) {
-  const fee = (_feeCache[ticker] || {})[interval];
-  if (!fee || !fee.long) return null;
-  const cap     = _capitalDisponible;
-  const gross   = fee.long.gross_avg_pnl;          // %
-  const net_pct = gross - (200.0 / cap);            // $2 fee as %
-  const net_usd = Math.round(net_pct / 100 * cap * 100) / 100;
-  return {
-    net_pct:  Math.round(net_pct * 1000) / 1000,
-    net_usd,
-    gross_pct: gross,
-    viable:   net_usd > 0,
-    breakeven: fee.long.breakeven_position_usd,
-  };
-}
-
-function _netShort(ticker, interval) {
-  const fee = (_feeCache[ticker] || {})[interval];
-  if (!fee || !fee.short) return null;
-  const cap     = _capitalDisponible;
-  const gross   = fee.short.gross_avg_pnl;          // %
-  const net_pct = gross - 0.30;                      // 0.30% fee fixed
-  const net_usd = Math.round(net_pct / 100 * cap * 100) / 100;
-  return {
-    net_pct:  Math.round(net_pct * 1000) / 1000,
-    net_usd,
-    gross_pct: gross,
-    viable:   net_usd > 0,
-  };
-}
-
-function _fmtNet(net) {
-  if (!net) return { text:'—', icon:'', color:'var(--text3)' };
-  if (!net.viable) return { text: `–$${Math.abs(net.net_usd).toFixed(2)}`, icon:'❌', color:'var(--red)' };
-  if (net.net_usd < 1)  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'🟡', color:'var(--yellow)' };
-  if (net.net_usd < 5)  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'✅', color:'var(--green)' };
-  return { text: `+$${net.net_usd.toFixed(2)}`, icon:'✅✅', color:'var(--green)' };
-}
-
-// ── Signal + net render ───────────────────────────────────────────────────────
-
-function _renderSignalWithNet(w, sig, confirmed, confirmSub, candidateHtml) {
-  const isEntry = sig === 'ENTRAR_LONG' || sig === 'ENTRAR_SHORT';
-  const isLong  = sig === 'ENTRAR_LONG';
-  const net     = isEntry ? (isLong ? _netLong(w.ticker, w.interval)
-                                    : _netShort(w.ticker, w.interval)) : null;
-  // Dual check: frontend calc + backend confirmation (capital real desde _get_available_capital)
-  const backendOk = w.signal_profitable !== false;
-  const viable    = (net ? net.viable : true) && backendOk;
-
-  const cap     = _capitalDisponible;
-  const capStr  = cap >= 1000 ? '$' + (cap/1000).toFixed(cap%1000===0?0:1) + 'k' : '$' + cap;
-
-  let netHtml = '';
-  if (isEntry && net) {
-    if (viable) {
-      const sign = net.net_usd >= 0 ? '+' : '';
-      const col  = net.net_usd >= 5 ? '#22c55e' : net.net_usd >= 1 ? '#86efac' : '#f59e0b';
-      netHtml = '<div style="font-size:12px;font-weight:700;margin-top:6px;padding:5px 10px;' +
-        'border-radius:6px;background:rgba(34,197,94,.12);color:' + col + '">' +
-        'Net: ' + sign + '$' + net.net_usd.toFixed(2) + ' / trade &nbsp;·&nbsp; capital ' + capStr +
-        '</div>';
-    } else {
-      netHtml = '<div style="font-size:11px;margin-top:6px;padding:5px 10px;border-radius:6px;' +
-        'background:rgba(240,64,85,.15);color:#f04055;font-weight:700">' +
-        '⚠ No rentable a ' + capStr + ' — sube capital o cambia TF' +
-        '</div>';
-    }
-  }
-
-  const boxStyle = (isEntry && !viable)
-    ? 'opacity:.65;border:1px solid rgba(240,64,85,.35)'
-    : '';
-
-  return '<div class="signal-box ' + signalClass(sig) + '" style="' + boxStyle + '">' +
-    '<div class="signal-name">' + signalIcon(sig) + ' ' + signalLabel(sig) + '</div>' +
-    '<div class="signal-sub">' + confirmSub + '</div>' +
-    (candidateHtml || '') + netHtml +
-    (w.error ? '<div style="font-size:10px;color:var(--yellow);margin-top:4px">' + esc(w.error) + '</div>' : '') +
-    '</div>';
-}
-
-
-// ── Rentabilidad panel ────────────────────────────────────────────────────────
-
-function _renderRentabilidadPanel(ticker, interval) {
-  const hasFee = !!(_feeCache[ticker] && Object.keys(_feeCache[ticker]).length);
-  if (!hasFee) return '';
-
-  const cap    = _capitalDisponible;
-  const capStr = cap >= 1000 ? '$' + (cap/1000).toFixed(cap%1000===0?0:1) + 'k' : '$' + cap;
-  const ivs    = ['1m','5m','15m'];
-
-  // Build matrix rows
-  const rows = ['LONG','SHORT'].map(dir => {
-    const isLong = dir === 'LONG';
-    const cells  = ivs.map(iv => {
-      const net    = isLong ? _netLong(ticker, iv) : _netShort(ticker, iv);
-      const tfS    = (_tfStatsCache[ticker] || {})[iv];
-      const active = iv === interval;
-      if (!net) return '<td style="color:var(--text3);text-align:center;padding:8px 12px">—</td>';
-      if (tfS && tfS.block_new) return '<td style="color:var(--red);text-align:center;padding:8px 12px;font-size:10px">BLOQ</td>';
-      const f  = _fmtNet(net);
-      const bg = net.viable
-        ? (net.net_usd >= 5
-            ? (active ? 'rgba(34,197,94,.22)' : 'rgba(34,197,94,.08)')
-            : (active ? 'rgba(245,158,11,.22)' : 'rgba(245,158,11,.08)'))
-        : (active ? 'rgba(240,64,85,.18)' : 'rgba(240,64,85,.07)');
-      return '<td style="text-align:center;padding:8px 12px;background:' + bg + '">' +
-        '<span style="font-weight:700;color:' + f.color + '">' + f.text + '</span>' +
-        ' <span style="font-size:12px">' + f.icon + '</span>' +
-        '</td>';
-    });
-    return '<tr>' +
-      '<td style="padding:8px 12px;color:var(--text2);font-weight:700;font-size:11px">' + dir + '</td>' +
-      cells.join('') + '</tr>';
-  });
-
-  // Recommendation row
-  const recCells = ivs.map(iv => {
-    const nl     = _netLong(ticker, iv);
-    const ns     = _netShort(ticker, iv);
-    const lv     = nl && nl.viable;
-    const sv     = ns && ns.viable;
-    const tfS    = (_tfStatsCache[ticker] || {})[iv];
-    const active  = iv === interval;
-    const activeBg = active ? ';background:rgba(255,255,255,.04)' : '';
-    if (tfS && tfS.block_new) return '<td style="text-align:center;padding:4px 12px;font-size:9px;color:var(--red)' + activeBg + '">NO OPERAR</td>';
-    const txt = lv && sv ? 'L + S' : lv ? 'Solo L' : sv ? 'Solo S' : 'NO';
-    const col = (lv || sv) ? 'var(--green)' : 'var(--red)';
-    return '<td style="text-align:center;padding:4px 12px;font-size:10px;font-weight:700;color:' + col + activeBg + '">' + txt + '</td>';
-  });
-
-  return '<div style="border-top:1px solid var(--border);padding-top:10px">' +
-    '<button class="hourly-toggle" onclick="toggleSection(\'rentab-body-' + ticker + '\',\'rentab-arrow-' + ticker + '\')">' +
-    '💰 Rentabilidad a ' + capStr + ' <span id="rentab-arrow-' + ticker + '">▼</span>' +
-    '</button>' +
-    '<div id="rentab-body-' + ticker + '" style="display:none;margin-top:8px;overflow-x:auto">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
-    '<thead><tr style="border-bottom:1px solid var(--border)">' +
-    '<th style="padding:6px 12px;text-align:left;color:var(--text3);font-size:10px"></th>' +
-    ivs.map(iv => {
-      const tfS    = (_tfStatsCache[ticker] || {})[iv];
-      const wr     = tfS && tfS.wr_pct != null ? ' WR' + tfS.wr_pct.toFixed(0) + '%' : '';
-      const active = iv === interval;
-      const thStyle = active
-        ? 'padding:6px 12px;text-align:center;font-size:11px;font-weight:800;color:var(--accent);border-bottom:2px solid var(--accent)'
-        : 'padding:6px 12px;text-align:center;color:var(--text2);font-size:10px;font-weight:700';
-      return '<th style="' + thStyle + '">' + iv + wr + '</th>';
-    }).join('') +
-    '</tr></thead>' +
-    '<tbody>' + rows.join('') + '</tbody>' +
-    '<tfoot><tr style="border-top:1px solid var(--border)">' +
-    '<td style="padding:4px 12px;font-size:9px;color:var(--text3)">Operar</td>' +
-    recCells.join('') +
-    '</tr></tfoot>' +
-    '</table>' +
-    '<div style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right">' +
-    'eToro x1: Long $2 fijos · Short 0.30%</div>' +
-    '</div></div>';
-}
-
-// ── Fee context helpers ───────────────────────────────────────────────────────
-
-function _renderFeeContext(ticker, interval, signal, amount) {
-  const feeData = (_feeCache[ticker] || {})[interval];
-  if (!feeData) return '';
-
-  const isLong  = signal === 'ENTRAR_LONG';
-  const isShort = signal === 'ENTRAR_SHORT';
-  if (!isLong && !isShort) return '';
-
-  let html = '';
-  const amt = parseFloat(amount) || 0;
-
-  if (isLong && feeData.long) {
-    const ld  = feeData.long;
-    const be  = ld.breakeven_position_usd;
-    const net = ld.net_by_position_size;
-
-    // Find net stats for user's amount (or closest size)
-    let netInfo = null;
-    if (amt > 0 && net) {
-      const sizes = Object.keys(net).map(Number).sort((a,b)=>a-b);
-      const closest = sizes.reduce((prev, curr) =>
-        Math.abs(curr - amt) < Math.abs(prev - amt) ? curr : prev
-      );
-      netInfo = net[String(closest)];
-    }
-
-    const beColor = !be ? 'var(--text3)'
-      : amt > 0 && amt >= be ? 'var(--green)'
-      : 'var(--red)';
-
-    const beMsg = be
-      ? `Posición mín LONG: <strong style="color:${beColor}">$${be.toLocaleString()}</strong>`
-      : 'Sin datos de break-even';
-
-    let amtMsg = '';
-    if (amt > 0 && netInfo) {
-      const netColor = netInfo.viable ? 'var(--green)' : 'var(--red)';
-      const netSign  = netInfo.net_avg_pnl >= 0 ? '+' : '';
-      amtMsg = `
-        <span style="margin-left:10px">
-          Con $${amt.toLocaleString()}:
-          <strong style="color:${netColor}">
-            ${netSign}${netInfo.net_avg_pnl}% neto  ·  ~$${netInfo.net_usd > 0 ? '+' : ''}${netInfo.net_usd}
-          </strong>
-          ${!netInfo.viable ? '<span style="color:var(--red);font-size:9px;margin-left:4px">NO RENTABLE</span>' : ''}
-        </span>`;
-    } else if (amt > 0 && be && amt < be) {
-      amtMsg = `<span style="color:var(--red);margin-left:8px">$${amt.toLocaleString()} < mínimo — trade no rentable</span>`;
-    }
-
-    html = `<div style="font-size:11px;padding:7px 10px;border-radius:7px;
-              background:rgba(124,111,247,.08);border:1px solid rgba(124,111,247,.2);
-              display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-      <span style="color:var(--text3)">eToro $2:</span>
-      <span>${beMsg}</span>${amtMsg}
-    </div>`;
-  }
-
-  if (isShort && feeData.short) {
-    const sd    = feeData.short;
-    const color = sd.viable ? 'var(--yellow)' : 'var(--red)';
-    const msg   = sd.viable
-      ? `SHORT viable — net avg: <strong style="color:var(--yellow)">${sd.net_avg_pnl > 0 ? '+' : ''}${sd.net_avg_pnl}%</strong> tras 0.30% comision`
-      : `SHORT <strong style="color:var(--red)">NO RENTABLE</strong> — gross avg ${sd.gross_avg_pnl > 0 ? '+' : ''}${sd.gross_avg_pnl}% < comision 0.30%`;
-
-    html = `<div style="font-size:11px;padding:7px 10px;border-radius:7px;
-              background:${sd.viable ? 'rgba(245,158,11,.08)' : 'rgba(240,64,85,.08)'};
-              border:1px solid ${color}40">
-      <span style="color:var(--text3)">eToro 0.30%:</span> ${msg}
-    </div>`;
-  }
-
-  return html ? `<div style="margin-top:-4px">${html}</div>` : '';
-}
-
-// ── Hourly analysis helpers ───────────────────────────────────────────────────
-
-function _limaHour() {
-  // Lima = UTC-5, usando UTC para evitar dependencia de zona del navegador
-  const now = new Date();
-  const limaMs = now.getTime() - 5 * 3600 * 1000;
-  return new Date(limaMs).getUTCHours();
-}
-
-function _renderHourlySection(ticker, interval) {
-  const hourly = (_hourlyCache[ticker] || {})[interval];
-  if (!hourly || !Object.keys(hourly).length) return '';
-
-  const curH = _limaHour();
-
-  // Rango fijo a mostrar: 07h-17h Lima (sesion relevante para Oscar)
-  // 07h Lima = 08h ET (pre-market activo)
-  // 08:30h Lima = 09:30h ET (apertura NYSE)
-  // 16h Lima = 17h ET (after-hours)
-  const DISPLAY_HOURS = [7,8,9,10,11,12,13,14,15,16];
-  // Anotaciones de sesion ET (Lima = ET + 1h en verano)
-  const SESSION_LABELS = {
-    7:  'pre-mkt',
-    8:  'pre-mkt',
-    9:  'abre 8:30ET',   // 8:30am Lima = 9:30am ET
-    10: '',
-    11: '',
-    12: '',
-    13: '',
-    14: '',
-    15: '',
-    16: 'cierra 3pmET',
-  };
-
-  // Horas con datos del backtest
-  const dataHours = Object.keys(hourly).map(Number);
-  const okHours   = dataHours.filter(h => hourly[String(h)].ok);
-  const bestH = okHours.length
-    ? okHours.reduce((a,b) => hourly[String(a)].wr_pct >= hourly[String(b)].wr_pct ? a : b)
-    : null;
-  const worstH = okHours.length
-    ? okHours.reduce((a,b) => hourly[String(a)].wr_pct <= hourly[String(b)].wr_pct ? a : b)
-    : null;
-
-  // Info hora actual
-  const curData  = hourly[String(curH)];
-  const inRange  = !!curData;
-  const nowColor = !inRange ? 'var(--text3)'
-    : curData.wr_pct >= 65 ? 'var(--green)'
-    : curData.wr_pct >= 50 ? 'var(--yellow)' : 'var(--red)';
-  const nowLabel = !inRange
-    ? `${curH < 7 || curH > 16 ? 'Fuera del rango de trading' : curH + 'h — sin trades en el backtest'}`
-    : curData.ok
-      ? `${curH}h Lima — WR ${curData.wr_pct}%  ·  PF ${curData.pf}  ·  n=${curData.n}`
-      : `${curH}h Lima — WR ${curData.wr_pct}% (n=${curData.n}, muestra baja)`;
-
-  // Formato de PF: 99 significa "sin pérdidas en el periodo" → mostrar como "sin perd."
-  const fmtPF = pf => pf >= 98 ? '<span style="color:var(--text3);font-size:11px">sin perd.</span>' : String(pf);
-  const fmtAvg = v => (v >= 0 ? '+' : '') + v + '%';
-
-  // Construir filas de la tabla
-  const rowsHtml = DISPLAY_HOURS.map(h => {
-    const d      = hourly[String(h)];
-    const isNow  = h === curH;
-    const isBest = h === bestH;
-    const isWrst = h === worstH;
-    const hLabel = String(h).padStart(2,'0') + ':00';
-    const sessLbl = SESSION_LABELS[h]
-      ? ` <span style="font-size:9px;color:var(--text3)">${SESSION_LABELS[h]}</span>` : '';
-
-    const rowClass = isNow ? 'h-now' : isBest && d?.ok ? 'h-best' : isWrst && d?.ok ? 'h-worst' : (!d ? 'h-nodata' : '');
-
-    let badges = '';
-    if (isNow)  badges += '<span class="h-badge h-badge-now">AHORA</span>';
-    if (isBest && d?.ok)  badges += '<span class="h-badge h-badge-best">MEJOR</span>';
-    if (isWrst && d?.ok)  badges += '<span class="h-badge h-badge-worst">EVITAR</span>';
-    if (d && !d.ok) badges += '<span class="h-badge h-badge-low">muestra baja</span>';
-
-    if (!d) {
-      return `<tr class="${rowClass}">
-        <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
-        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-      </tr>`;
-    }
-
-    const wrLColor = d.wr_long == null ? 'var(--text3)'
-      : d.wr_long >= 65 ? 'var(--green)' : d.wr_long >= 50 ? 'var(--yellow)' : 'var(--red)';
-    const wrSColor = d.wr_short == null ? 'var(--text3)'
-      : d.wr_short >= 65 ? 'var(--green)' : d.wr_short >= 50 ? 'var(--yellow)' : 'var(--red)';
-    const avgColor = d.avg_pnl >= 0 ? 'var(--green)' : 'var(--red)';
-
-    const wrLCell = d.wr_long  != null
-      ? `<span style="font-weight:700;color:${wrLColor}">${d.wr_long}%</span><span style="font-size:10px;color:var(--text3)"> (${d.n_long})</span>`
-      : `<span style="color:var(--text3)">—</span>`;
-    const wrSCell = d.wr_short != null
-      ? `<span style="font-weight:700;color:${wrSColor}">${d.wr_short}%</span><span style="font-size:10px;color:var(--text3)"> (${d.n_short})</span>`
-      : `<span style="color:var(--text3)">—</span>`;
-
-    return `<tr class="${rowClass}">
-      <td><strong>${hLabel}</strong>${sessLbl}${badges}</td>
-      <td style="font-weight:700">${d.n}</td>
-      <td>${wrLCell}</td>
-      <td>${wrSCell}</td>
-      <td>${fmtPF(d.pf)}</td>
-      <td style="font-weight:600;color:${avgColor}">${fmtAvg(d.avg_pnl)}</td>
-    </tr>`;
-  }).join('');
-
-  const noDataNote = dataHours.filter(h => !DISPLAY_HOURS.includes(h)).length
-    ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">Hay trades fuera del rango 07-16h Lima (madrugada / after-hours tardio) — no se muestran aqui.</div>`
-    : '';
-
-  return `<div class="hourly-section">
-    <button class="hourly-toggle" onclick="toggleSection('hourly-body-${ticker}','hourly-arrow-${ticker}')">
-      Horario de operacion (${interval}) — hora Lima
-      <span id="hourly-arrow-${ticker}" style="color:var(--accent);font-weight:700;margin-left:4px">${inRange && curData?.ok ? ` WR ${curData.wr_pct}%` : ''}</span>
-      <span style="margin-left:4px">▼</span>
-    </button>
-    <div id="hourly-body-${ticker}" style="display:none;margin-top:8px">
-      <div class="hourly-now-row">
-        <span class="hourly-now-label">Ahora (${String(curH).padStart(2,'0')}:00h Lima):</span>
-        <span class="hourly-now-val" style="color:${nowColor}">${nowLabel}</span>
-      </div>
-      <table class="htbl">
-        <thead><tr>
-          <th>Hora Lima</th>
-          <th title="Numero total de trades (LONG + SHORT) en esta hora durante el backtest. Menos de 5 = muestra baja.">N</th>
-          <th title="Win Rate LONG: % de trades LONG ganadores en esta hora. Solo aparece si hubo trades LONG.">WR L</th>
-          <th title="Win Rate SHORT: % de trades SHORT ganadores en esta hora. Solo aparece si hubo trades SHORT.">WR S</th>
-          <th title="Profit Factor: suma de ganancias / suma de perdidas (LONG+SHORT combinados). >1 = rentable. 'sin perd.' = no hubo perdidas en el periodo (puede ser suerte si N es bajo).">PF</th>
-          <th title="Ganancia o perdida promedio por trade en porcentaje, antes de comisiones eToro. LONG+SHORT combinados.">Avg %</th>
-        </tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      ${noDataNote}
-    </div>
-  </div>`;
-}
-
-function toggleSection(contentId, arrowId) {
-  const el = document.getElementById(contentId);
-  const ar = document.getElementById(arrowId);
-  if (!el) return;
-  const open = el.style.display === 'none';
-  el.style.display = open ? '' : 'none';
-  if (ar) ar.textContent = open ? '▲' : '▼';
-}
-
-function togglePosFields(ticker) {
-  const sel = document.getElementById(`w-pos-${ticker}`);
-  const fields = document.getElementById(`w-pos-fields-${ticker}`);
-  if (!sel || !fields) return;
-  fields.style.display = sel.value !== 'SIN_POSICION' ? '' : 'none';
-}
-
-// Poll watcher status every 10s when tab is active
-setInterval(() => {
-  const active = document.querySelector('.tab.on')?.textContent.trim() || '';
-  if (active.includes('Watcher') && _creds) loadWatcherStatus();
-}, 10000);
-
-// ── Position gauge (SVG, responsive) ─────────────────────────────────────────
-function _renderPosGauge(w) {
-  const el = document.getElementById(`pos-gauge-${w.ticker}`);
-  if (!el) return;
-  el.dataset.gaugeTicker = w.ticker;
-
-  const live   = w.price;
-  const entry  = w.entry_price;
-  const stop   = w.stop_suggested;
-  const t1     = w.target1_suggested;
-  const t2     = w.target2_suggested;
-  const isLong = w.position_state === 'LONG';
-  const isShort= w.position_state === 'SHORT';
-
-  if (!entry || !live || (!isLong && !isShort)) { el.innerHTML = ''; return; }
-
-  const cfg = { live, entry, stop, t1, t2, isLong, isShort };
-  _drawGauge(el, cfg);
-
-  if (!el._gaugeObs) {
-    el._gaugeObs = new ResizeObserver(() => {
-      const t  = el.dataset.gaugeTicker;
-      const ws = _watcherState[t];
-      if (ws) _renderPosGauge(ws);
-    });
-    el._gaugeObs.observe(el);
-  }
-}
-
-function _gaugeLevels(cfg) {
-  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
-  const all  = [live, entry, stop, t1, t2].filter(v => v != null);
-  const rMin = Math.min(...all), rMax = Math.max(...all);
-  const span = rMax - rMin || entry * 0.04;
-  const pad  = span * 0.22;
-  return { vMin: rMin - pad, vMax: rMax + pad };
-}
-
-function _gaugePct(price, entry, isShort) {
-  const d = (price - entry) / entry * 100 * (isShort ? -1 : 1);
-  return (d >= 0 ? '+' : '') + d.toFixed(2) + '%';
-}
-
-function _drawGauge(el, cfg) {
-  const wide = el.clientWidth >= 400;
-  el.innerHTML = wide ? _gaugeHtml_H(el.clientWidth, cfg) : _gaugeHtml_V(cfg);
-}
-
-/* ── HORIZONTAL (desktop ≥400px) ── */
-function _gaugeHtml_H(W, cfg) {
-  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
-  const { vMin, vMax } = _gaugeLevels(cfg);
-
-  // Layout constants
-  const PAD   = 28;
-  const BAR_Y = 66, BAR_H = 20;
-  const LIVE_SECTION = 48;          // height reserved below bar for LIVE label
-  const H = BAR_Y + BAR_H + LIVE_SECTION;
-  const usableW = W - PAD * 2;
-  const xOf = p => Math.max(PAD + 2, Math.min(W - PAD - 2,
-                    PAD + usableW * (p - vMin) / (vMax - vMin)));
-
-  const xEntry = xOf(entry);
-  const xLive  = xOf(live);
-  const xStop  = stop != null ? xOf(stop) : null;
-  const xT1    = t1   != null ? xOf(t1)   : null;
-  const xT2    = t2   != null ? xOf(t2)   : null;
-
-  let s = `<rect x="${PAD}" y="${BAR_Y}" width="${usableW}" height="${BAR_H}" fill="#1e1e24" rx="6"/>`;
-
-  // Colored zones
-  if (isLong) {
-    if (xStop != null) s += `<rect x="${xStop}"  y="${BAR_Y}" width="${xEntry - xStop}"  height="${BAR_H}" fill="#ef535058" rx="5"/>`;
-    if (xT1   != null) s += `<rect x="${xEntry}" y="${BAR_Y}" width="${xT1 - xEntry}"    height="${BAR_H}" fill="#26a69a68" rx="5"/>`;
-    if (xT1 != null && xT2 != null)
-                       s += `<rect x="${xT1}"    y="${BAR_Y}" width="${xT2 - xT1}"       height="${BAR_H}" fill="#26a69a32" rx="5"/>`;
-  } else {
-    if (xStop != null) s += `<rect x="${xEntry}" y="${BAR_Y}" width="${xStop - xEntry}"  height="${BAR_H}" fill="#ef535058" rx="5"/>`;
-    if (xT1   != null) s += `<rect x="${xT1}"    y="${BAR_Y}" width="${xEntry - xT1}"    height="${BAR_H}" fill="#26a69a68" rx="5"/>`;
-    if (xT1 != null && xT2 != null)
-                       s += `<rect x="${xT2}"    y="${BAR_Y}" width="${xT1 - xT2}"       height="${BAR_H}" fill="#26a69a32" rx="5"/>`;
-  }
-
-  // Build sorted label list (LIVE excluded — goes below bar separately)
-  const staticLvls = [
-    xStop  != null ? { x: xStop,  col: '#ef5350', tag: 'STOP',     price: stop,  pct: _gaugePct(stop,  entry, isShort) } : null,
-    { x: xEntry, col: '#9ca0aa', tag: 'ENTRADA',  price: entry, pct: '' },
-    xT1    != null ? { x: xT1,   col: '#26a69a', tag: 'TARGET 1', price: t1,    pct: _gaugePct(t1,   entry, isShort) } : null,
-    xT2    != null ? { x: xT2,   col: '#1a9e95', tag: 'TARGET 2', price: t2,    pct: _gaugePct(t2,   entry, isShort) } : null,
-  ].filter(Boolean).sort((a, b) => a.x - b.x);
-
-  // Assign rows above bar: row 1 (closer to bar) and row 2 (higher up)
-  // Minimum horizontal gap before we bump to row 2
-  const MIN_GAP = 95;
-  const rows = [];
-  for (let i = 0; i < staticLvls.length; i++) {
-    if (i === 0) { rows.push(1); continue; }
-    const gap = staticLvls[i].x - staticLvls[i - 1].x;
-    rows.push(gap < MIN_GAP ? (rows[i - 1] === 1 ? 2 : 1) : 1);
-  }
-
-  // Row y-positions (above bar)
-  const ROW1_TAG = BAR_Y - 26,  ROW1_PRC = BAR_Y - 13,  ROW1_LINE = BAR_Y - 4;
-  const ROW2_TAG = BAR_Y - 52,  ROW2_PRC = BAR_Y - 39,  ROW2_LINE = BAR_Y - 30;
-
-  staticLvls.forEach((lv, i) => {
-    const row  = rows[i];
-    const tagY = row === 1 ? ROW1_TAG  : ROW2_TAG;
-    const prY  = row === 1 ? ROW1_PRC  : ROW2_PRC;
-    const lnY  = row === 1 ? ROW1_LINE : ROW2_LINE;
-    const anc  = lv.x < PAD + 60 ? 'start' : lv.x > W - PAD - 60 ? 'end' : 'middle';
-    s += `
-      <line x1="${lv.x}" y1="${lnY}" x2="${lv.x}" y2="${BAR_Y}" stroke="${lv.col}" stroke-width="1.2" stroke-dasharray="3,2"/>
-      <circle cx="${lv.x}" cy="${BAR_Y + BAR_H / 2}" r="4" fill="${lv.col}"/>
-      <text x="${lv.x}" y="${tagY}" font-size="11" fill="${lv.col}" font-weight="700" text-anchor="${anc}" font-family="monospace">${lv.tag}</text>
-      <text x="${lv.x}" y="${prY}"  font-size="10" fill="${lv.col}cc" text-anchor="${anc}" font-family="monospace">$${Number(lv.price).toFixed(2)}${lv.pct ? '  ' + lv.pct : ''}</text>`;
-  });
-
-  // Live indicator — large dot on bar + label BELOW bar
-  const livePnl = (live - entry) / entry * 100 * (isShort ? -1 : 1);
-  const liveCol = livePnl >= 0 ? '#26a69a' : '#ef5350';
-  const livePct = `${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%`;
-  const liveAnc = xLive < PAD + 75 ? 'start' : xLive > W - PAD - 75 ? 'end' : 'middle';
-  s += `
-    <circle cx="${xLive}" cy="${BAR_Y + BAR_H / 2}" r="9" fill="${liveCol}" stroke="#1b1b1f" stroke-width="2.5"/>
-    <line x1="${xLive}" y1="${BAR_Y + BAR_H}" x2="${xLive}" y2="${BAR_Y + BAR_H + 8}" stroke="${liveCol}" stroke-width="1.8"/>
-    <text x="${xLive}" y="${BAR_Y + BAR_H + 22}" font-size="12" fill="${liveCol}" font-weight="800" text-anchor="${liveAnc}" font-family="monospace">▶ LIVE  $${Number(live).toFixed(2)}</text>
-    <text x="${xLive}" y="${BAR_Y + BAR_H + 38}" font-size="11" fill="${liveCol}cc" text-anchor="${liveAnc}" font-family="monospace">${livePct} respecto a entrada</text>`;
-
-  // Need extra top room if any label is in row 2
-  const topPad = rows.includes(2) ? 10 : 0;
-  const finalH = H + topPad;
-  const vbY    = -topPad;
-
-  return `<svg viewBox="0 ${vbY} ${W} ${finalH}" width="100%" height="${finalH}" style="display:block">${s}</svg>`;
-}
-
-/* ── VERTICAL (mobile <400px) ── */
-function _gaugeHtml_V(cfg) {
-  const { live, entry, stop, t1, t2, isLong, isShort } = cfg;
-  const { vMin, vMax } = _gaugeLevels(cfg);
-  const VW = 200, H = 230, PAD = 16;
-  const BAR_X = 14, BAR_W = 14;
-  const TXT_X = BAR_X + BAR_W + 10;
-  const usableH = H - PAD * 2;
-  const yOf = p => Math.max(PAD, Math.min(H - PAD, PAD + usableH * (vMax - p) / (vMax - vMin)));
-
-  const yEntry = yOf(entry);
-  const yLive  = yOf(live);
-  const yStop  = stop != null ? yOf(stop) : null;
-  const yT1    = t1   != null ? yOf(t1)   : null;
-  const yT2    = t2   != null ? yOf(t2)   : null;
-
-  let s = `<rect x="${BAR_X}" y="${PAD}" width="${BAR_W}" height="${usableH}" fill="#1e1e24" rx="5"/>`;
-
-  // Colored zones
-  if (isLong) {
-    if (yStop != null) s += `<rect x="${BAR_X}" y="${yEntry}" width="${BAR_W}" height="${yStop - yEntry}" fill="#ef535055" rx="4"/>`;
-    if (yT1   != null) s += `<rect x="${BAR_X}" y="${yT1}"   width="${BAR_W}" height="${yEntry - yT1}"  fill="#26a69a65" rx="4"/>`;
-    if (yT1 != null && yT2 != null) s += `<rect x="${BAR_X}" y="${yT2}" width="${BAR_W}" height="${yT1 - yT2}" fill="#26a69a30" rx="4"/>`;
-  } else {
-    if (yStop != null) s += `<rect x="${BAR_X}" y="${yStop}"  width="${BAR_W}" height="${yEntry - yStop}" fill="#ef535055" rx="4"/>`;
-    if (yT1   != null) s += `<rect x="${BAR_X}" y="${yEntry}" width="${BAR_W}" height="${yT1 - yEntry}"   fill="#26a69a65" rx="4"/>`;
-    if (yT1 != null && yT2 != null) s += `<rect x="${BAR_X}" y="${yT1}" width="${BAR_W}" height="${yT2 - yT1}" fill="#26a69a30" rx="4"/>`;
-  }
-
-  const lvl = (y, col, tag, price, pct) => {
-    if (y == null) return '';
-    return `
-      <line x1="${BAR_X + BAR_W}" y1="${y}" x2="${VW - 4}" y2="${y}" stroke="${col}" stroke-width="0.8" stroke-dasharray="3,2"/>
-      <circle cx="${BAR_X + BAR_W/2}" cy="${y}" r="4" fill="${col}"/>
-      <text x="${TXT_X}" y="${y - 4}"  font-size="10" fill="${col}" font-weight="700" font-family="monospace">${tag}</text>
-      <text x="${TXT_X}" y="${y + 8}"  font-size="9"  fill="${col}cc" font-family="monospace">$${Number(price).toFixed(2)}${pct ? '  ' + pct : ''}</text>`;
-  };
-
-  if (t2   != null) s += lvl(yT2,  '#1a9e95', 'TARGET 2', t2,   _gaugePct(t2, entry, isShort));
-  if (t1   != null) s += lvl(yT1,  '#26a69a', 'TARGET 1', t1,   _gaugePct(t1, entry, isShort));
-                    s += lvl(yEntry,'#9ca0aa', 'ENTRADA',  entry, '');
-  if (stop != null) s += lvl(yStop,'#ef5350', 'STOP',      stop, _gaugePct(stop, entry, isShort));
-
-  const livePnl = (live - entry) / entry * 100 * (isShort ? -1 : 1);
-  const liveCol = livePnl >= 0 ? '#26a69a' : '#ef5350';
-  s += `
-    <line x1="${BAR_X + BAR_W}" y1="${yLive}" x2="${VW - 4}" y2="${yLive}" stroke="${liveCol}" stroke-width="1.5"/>
-    <circle cx="${BAR_X + BAR_W/2}" cy="${yLive}" r="7" fill="${liveCol}" stroke="#1b1b1f" stroke-width="2"/>
-    <text x="${TXT_X}" y="${yLive - 4}"  font-size="11" fill="${liveCol}" font-weight="800" font-family="monospace">▶ LIVE</text>
-    <text x="${TXT_X}" y="${yLive + 9}"  font-size="10" fill="${liveCol}" font-family="monospace">$${Number(live).toFixed(2)}  ${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%</text>`;
-
-  return `<svg viewBox="0 0 ${VW} ${H}" width="100%" style="display:block">${s}</svg>`;
-}
-
-// ── Candlestick chart (lightweight-charts) ────────────────────────────────────
-const _lwCharts = {};   // ticker -> { chart, candleSeries }
-
-function toggleChart(ticker) {
-  const frame = document.getElementById(`chart-frame-${ticker}`);
-  const arrow = document.getElementById(`chart-arrow-${ticker}`);
-  if (!frame) return;
-  const opening = frame.style.display === 'none';
-  frame.style.display = opening ? '' : 'none';
-  if (arrow) arrow.textContent = opening ? '▲' : '▼';
-  if (opening && !_lwCharts[ticker]) _initChart(ticker);
-}
-
-function _initChart(ticker) {
-  const el = document.getElementById(`chart-${ticker}`);
-  if (!el || typeof LightweightCharts === 'undefined') return;
-  if (_lwCharts[ticker]) { _updateChart(ticker, (_watcherState[ticker]||{}).candles, (_watcherState[ticker]||{}).price); return; }
-  const elWidth = el.offsetWidth || el.parentElement?.offsetWidth || 600;
-  const chart = LightweightCharts.createChart(el, {
-    width:  elWidth,
-    height: 300,
-    layout: { background: { color: '#0f0f11' }, textColor: '#9ca0aa' },
-    grid:   { vertLines: { color: '#2a2a30' }, horzLines: { color: '#2a2a30' } },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#2a2a30' },
-    timeScale: { borderColor: '#2a2a30', timeVisible: true, secondsVisible: false },
-  });
-  const series = chart.addCandlestickSeries({
-    upColor:   '#26a69a', downColor:  '#ef5350',
-    borderUpColor: '#26a69a', borderDownColor: '#ef5350',
-    wickUpColor:   '#26a69a', wickDownColor:   '#ef5350',
-  });
-  _lwCharts[ticker] = { chart, series };
-
-  // Resize when container width changes
-  new ResizeObserver(() => chart.resize(el.clientWidth, 300)).observe(el);
-
-  // Draw with current candles if already available
-  const st = _watcherState[ticker];
-  if (st && st.candles && st.candles.length) _updateChart(ticker, st.candles, st.price);
-}
-
-function _updateChart(ticker, candles, livePrice) {
-  const entry = _lwCharts[ticker];
-  if (!entry || !candles || !candles.length) return;
-
-  const LIMA_OFFSET = -5 * 3600; // UTC-5 → shift timestamps so axis shows Lima time
-  const data = candles.map(c => ({
-    time:  Math.floor(new Date(c.t).getTime() / 1000) + LIMA_OFFSET,
-    open:  c.o, high: c.h, low: c.l, close: c.c,
-  })).sort((a, b) => a.time - b.time);
-
-  // Patch last bar's close with live price so chart matches the card
-  if (livePrice != null && data.length) {
-    const last = data[data.length - 1];
-    last.close = livePrice;
-    if (livePrice > last.high)  last.high  = livePrice;
-    if (livePrice < last.low)   last.low   = livePrice;
-  }
-
-  entry.series.setData(data);
-
-  // Live price line (dashed, labeled)
-  if (livePrice != null) {
-    if (entry.priceLine) {
-      entry.priceLine.applyOptions({ price: livePrice });
-    } else {
-      entry.priceLine = entry.series.createPriceLine({
-        price:     livePrice,
-        color:     '#e0c56e',
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: 'Live',
-      });
-    }
-  }
-
-  entry.chart.timeScale().fitContent();
+function downloadNoticiasLog() {
+  const date = new Date().toISOString().slice(0, 10);
+  _downloadCsv(`/api/logs/noticias/download?date=${date}`, `noticias_log_${date}.csv`);
 }
 
 // ── Auto-login ────────────────────────────────────────────────────────────────
 (function () {
   const s = sessionStorage.getItem('oa');
-  if (!s) return;
-  _creds = s;
-  fetch('/api/health').then(r => {
+  if (s) _creds = s;
+  // Probar el backend: si responde 200 (con o sin creds) → entrar directo.
+  // En local (sin DASHBOARD_PASS) esto entra sin login. En la VM (con pass) cae al login.
+  fetch('/api/health', { headers: auth() }).then(r => {
     if (r.ok) { launch(); }
-    else       { sessionStorage.removeItem('oa'); _creds = null; }
+    else { sessionStorage.removeItem('oa'); _creds = null; }   // 401 → backend pide auth → mostrar login
   }).catch(() => { sessionStorage.removeItem('oa'); _creds = null; });
 })();
 </script>

@@ -1,0 +1,8 @@
+{
+  "_comment": "PLANTILLA eToro READ-ONLY. Copia este archivo a data/etoro_config.json y rellena las llaves reales. NUNCA se commitea (data/ esta en .gitignore). El sistema NUNCA ejecuta ordenes: solo lee posiciones y cash.",
+  "_donde_consigo_las_llaves": "https://www.etoro.com/api  ->  My API Keys. Necesitas: API Key (x-api-key = public_key) y User Key (x-user-key = user_key, blob base64 de tu sesion). Pide acceso de solo-lectura.",
+  "api_base": "https://public-api.etoro.com",
+  "public_key": "PEGA_AQUI_TU_API_KEY",
+  "user_key": "PEGA_AQUI_TU_USER_KEY",
+  "environment": "real"
+}

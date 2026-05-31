@@ -58,7 +58,55 @@ EARLY_SPIKE_HOUR    = 5        # antes de las 5am Lima = ventana thin (4-5am EDT
 EARLY_FADE_PCT      = 1.0      # % de retroceso desde extremo early → señal de agotamiento
 
 # ── Pre-market code conviction score ─────────────────────────────────────────
-CODE_SCORE_MIN_FOR_AI = 6      # score mínimo (de 15) para llamar a la IA
+# NOTA (validado 2026-05-30, backtest_premarket): el gate code_score>=6 EMPEORA el
+# edge — selecciona earnings/overextensión (alto volumen) y descarta ganadores
+# tranquilos. Se mantiene el cálculo para info/SMS pero YA NO descarta. El filtro
+# real = exclusión de earnings + universo large-cap + clasificación IA del catalizador.
+CODE_SCORE_MIN_FOR_AI = 6      # solo informativo — ya no gatea (ver REBUILD_PLAN §2)
+
+# ── Universo tradeable en madrugada (24/5) ───────────────────────────────────
+# Validado net-negativo en pump/small (QBTS, IONQ, RGTI, QUBT, BBAI, RDDT…) — el
+# trading premarket se restringe a large-caps fundamentales 24/5. Los demás siguen
+# monitoreándose por noticias, pero NO disparan trade premarket.
+LARGE_CAP_24X5 = {
+    "NVDA", "TSM", "PLTR", "AVGO", "AMD", "ASML", "ARM", "CRM", "MSFT", "GOOG",
+    "UBER", "SHOP", "MU", "COHR", "IBM", "XOM", "CVX", "CCJ", "NOC", "RTX",
+    "LMT", "APP", "AAPL", "META", "AMZN",
+}
+RESTRICT_TO_LARGE_CAP = True   # si False, escanea todo el watchlist (modo viejo)
+EXCLUDE_EARNINGS      = True   # saltar tickers con earnings hoy/ayer (gap ya priceado)
+
+_earnings_cache: dict = {}     # {ticker_fecha: bool} — evita repetir llamadas por corrida
+
+
+def _has_earnings_blackout(ticker: str) -> bool:
+    """
+    True si el ticker reportó/reporta earnings hoy o ayer.
+    Los gaps de earnings ya contienen el movimiento; el open-to-close es un fade/
+    moneda al aire (validado: días de earnings promedian -9.9% en el backtest).
+    """
+    if not EXCLUDE_EARNINGS:
+        return False
+    today = datetime.now(LIMA).strftime("%Y-%m-%d")
+    ck = f"{ticker}_{today}"
+    if ck in _earnings_cache:
+        return _earnings_cache[ck]
+    res = False
+    try:
+        key = os.environ.get("FINNHUB_API_KEY", "")
+        if key:
+            yest = (datetime.now(LIMA) - timedelta(days=1)).strftime("%Y-%m-%d")
+            r = requests.get(
+                "https://finnhub.io/api/v1/calendar/earnings",
+                params={"from": yest, "to": today, "symbol": ticker, "token": key},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                res = bool(r.json().get("earningsCalendar"))
+    except Exception as e:
+        logger.debug(f"[PreMarket] earnings check {ticker}: {e}")
+    _earnings_cache[ck] = res
+    return res
 
 # ── Convicción IA ─────────────────────────────────────────────────────────────
 SCORE_ALTA  = 7
@@ -89,38 +137,69 @@ def _get_bars_range(
     timeframe: str = "5Min",
 ) -> list:
     """
-    Barras Alpaca para un rango UTC explícito.
-    Intenta feed IEX primero (cubre pre-market); cae a SIP si retorna vacío.
+    Barras para un rango UTC explícito.
+    1) Alpaca SIP (requiere plan pagado — 403 en free tier)
+    2) Alpaca IEX (solo horario regular 9:30am-4pm EDT — vacío en pre-market)
+    3) yfinance fallback (tiene pre-market; volumen puede ser 0 en Yahoo free tier)
     """
     try:
         headers = _alpaca_headers()
+        params = {
+            "timeframe": timeframe,
+            "start":     start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end":       end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "sort":      "asc",
+            "limit":     500,
+        }
+        for feed in ("sip", "iex"):
+            params["feed"] = feed
+            try:
+                resp = requests.get(
+                    f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
+                    params=params, headers=headers, timeout=10,
+                )
+                if resp.status_code == 404:
+                    return []
+                if resp.status_code == 403:
+                    continue   # plan no permite este feed
+                resp.raise_for_status()
+                bars = resp.json().get("bars") or []
+                if bars:
+                    return bars
+            except Exception as e:
+                logger.debug(f"[PreMarket] {ticker} bars error ({feed}): {e}")
     except EnvironmentError as e:
         logger.warning(f"[PreMarket] {e}")
-        return []
 
-    params = {
-        "timeframe": timeframe,
-        "start":     start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "end":       end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "sort":      "asc",
-        "limit":     500,
-    }
-
-    for feed in ("sip", "iex"):   # SIP first: consolidated tape, full AH/pre-market volume
-        params["feed"] = feed
-        try:
-            resp = requests.get(
-                f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-                params=params, headers=headers, timeout=10,
-            )
-            if resp.status_code == 404:
-                return []
-            resp.raise_for_status()
-            bars = resp.json().get("bars") or []
+    # Fallback: yfinance (cubre pre-market; volumen puede ser 0 en Yahoo free)
+    try:
+        import yfinance as yf
+        df = yf.Ticker(ticker).history(
+            start=start_utc.replace(tzinfo=timezone.utc),
+            end=end_utc.replace(tzinfo=timezone.utc),
+            interval="5m",
+            prepost=True,
+            auto_adjust=False,
+        )
+        if df is not None and not df.empty:
+            bars = []
+            for dt_idx, row in df.iterrows():
+                t_utc = dt_idx.astimezone(timezone.utc)
+                bars.append({
+                    "o":  float(row["Open"]),
+                    "h":  float(row["High"]),
+                    "l":  float(row["Low"]),
+                    "c":  float(row["Close"]),
+                    "v":  float(row.get("Volume", 0)),
+                    "vw": float((row["Open"] + row["High"] + row["Low"] + row["Close"]) / 4),
+                    "n":  0,
+                    "t":  t_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                })
             if bars:
+                logger.debug(f"[PreMarket] {ticker} usando yfinance fallback ({len(bars)} bars)")
                 return bars
-        except Exception as e:
-            logger.debug(f"[PreMarket] {ticker} bars error ({feed}): {e}")
+    except Exception as e:
+        logger.debug(f"[PreMarket] {ticker} yfinance fallback error: {e}")
 
     return []
 
@@ -168,19 +247,25 @@ def _get_avg_premarket_vol(ticker: str, n_days: int = RVOL_HISTORY_DAYS) -> floa
             hour=11, minute=0, second=0, microsecond=0
         )
 
-        resp = requests.get(
-            f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
-            params={
-                "timeframe": "5Min",
-                "start":     start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "end":       end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "feed":      "sip",   # SIP: volumen consolidado real (IEX da 55x menos)
-                "sort":      "asc",
-                "limit":     2000,
-            },
-            headers=headers, timeout=12,
-        )
-        if resp.status_code != 200:
+        all_bars = []
+        for feed in ("sip", "iex"):
+            resp = requests.get(
+                f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
+                params={
+                    "timeframe": "5Min",
+                    "start":     start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "end":       end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "feed":      feed,
+                    "sort":      "asc",
+                    "limit":     2000,
+                },
+                headers=headers, timeout=12,
+            )
+            if resp.status_code == 200:
+                all_bars = resp.json().get("bars") or []
+                if all_bars:
+                    break
+        if not all_bars:
             return 0.0
 
         all_bars = resp.json().get("bars") or []
@@ -773,27 +858,64 @@ def run_premarket_scan(
         f"{n_scanned} tickers"
     )
 
+    def _log_pm(stage: str, tkr: str, direction: str = "N/A", reason: str = "",
+                change_pct: float = None, total_vol: int = None, rvol: float = None,
+                code_score: int = None, consistency: float = None, max_adverse: float = None,
+                ai_score: int = None, prioridad: str = None, sms_sent: bool = False,
+                data_source: str = "alpaca"):
+        if metrics:
+            metrics.log_premarket_filter({
+                "ticker": tkr, "direction": direction, "stage": stage, "reason": reason,
+                "change_pct": change_pct, "total_vol": total_vol, "rvol": rvol,
+                "code_score": code_score, "consistency": consistency,
+                "max_adverse": max_adverse, "ai_score": ai_score, "prioridad": prioridad,
+                "sms_sent": sms_sent, "pass_number": pass_number, "data_source": data_source,
+            })
+
     for ticker in tickers_to_scan:
         try:
             if dedup.has_flag(f"premarket_alta_{ticker}_{today_str}"):
                 continue
 
+            # ── Universo: solo large-cap 24/5 tradea madrugada (pump/small net-negativo) ──
+            if RESTRICT_TO_LARGE_CAP and ticker not in LARGE_CAP_24X5:
+                _log_pm("skip_universe", ticker,
+                        reason="no large-cap 24/5 — pump/small net-negativo (solo monitoreo)")
+                continue
+
+            # ── Exclusión de earnings: gap ya priceado, reversals (avg -9.9% en backtest) ──
+            if _has_earnings_blackout(ticker):
+                _log_pm("skip_earnings", ticker,
+                        reason="earnings hoy/ayer — gap priceado, open-to-close = fade")
+                continue
+
             bars = _get_bars_range(ticker, start_utc, end_utc, timeframe="5Min")
             if not bars:
+                _log_pm("no_bars", ticker, reason="sin datos de barras (Alpaca IEX + yfinance sin datos)")
                 continue
+
+            # Detectar fuente de datos: yfinance cuando todo el volumen es 0
+            all_zero_vol = all(float(b.get("v", 0)) == 0 for b in bars)
+            data_source = "yfinance" if all_zero_vol else "alpaca"
 
             # ── Filtro de volumen mínimo (pre-análisis, sin IA) ────────────────
             total_vol = sum(float(b.get("v", 0)) for b in bars)
-            if total_vol < MIN_PREMARKET_VOL:
+            # total_vol==0 → yfinance sin datos de volumen (Yahoo no reporta
+            # volumen pre-market en su API gratuita) → no filtrar por volumen.
+            if 0 < total_vol < MIN_PREMARKET_VOL:
                 logger.debug(
                     f"[PreMarket] {ticker} skip — vol thin "
                     f"({total_vol:,.0f} < {MIN_PREMARKET_VOL:,})"
                 )
                 n_vol_filter += 1
+                _log_pm("vol_thin", ticker, reason=f"vol {total_vol:,.0f} < {MIN_PREMARKET_VOL:,}",
+                        total_vol=int(total_vol), data_source=data_source)
                 continue
 
             prev_close = _get_prev_close(ticker)
             if prev_close <= 0:
+                _log_pm("no_prev_close", ticker, reason="prev_close no disponible",
+                        data_source=data_source)
                 continue
 
             current_price = float(bars[-1]["c"])
@@ -803,6 +925,9 @@ def run_premarket_scan(
                 logger.debug(
                     f"[PreMarket] {ticker} skip — precio ${current_price:.2f} < ${MIN_PRICE}"
                 )
+                _log_pm("price_low", ticker,
+                        reason=f"precio ${current_price:.2f} < ${MIN_PRICE} (penny stock)",
+                        data_source=data_source)
                 continue
 
             raw_change = (current_price - prev_close) / prev_close * 100
@@ -813,6 +938,10 @@ def run_premarket_scan(
             if raw_change <= -SHORT_MIN_PCT:
                 candidate_dirs.append("SHORT")
             if not candidate_dirs:
+                _log_pm("no_movement", ticker,
+                        reason=f"movimiento {raw_change:+.1f}% insuf (LONG>={LONG_MIN_PCT}% SHORT<={-SHORT_MIN_PCT}%)",
+                        change_pct=round(raw_change, 2), total_vol=int(total_vol),
+                        data_source=data_source)
                 continue
 
             # RVOL — una sola llamada por ticker candidato (solo los que pasan vol+precio)
@@ -826,6 +955,13 @@ def run_premarket_scan(
                         f"[PreMarket] {ticker} {direction} rechazado: "
                         f"{momentum['rejection_reason']}"
                     )
+                    _log_pm("momentum_fail", ticker, direction,
+                            reason=momentum["rejection_reason"],
+                            change_pct=momentum["total_change_pct"],
+                            total_vol=int(total_vol),
+                            consistency=momentum["consistency"],
+                            max_adverse=momentum["max_adverse_pct"],
+                            data_source=data_source)
                     continue
 
                 # Inyectar RVOL en momentum
@@ -849,13 +985,13 @@ def run_premarket_scan(
                     f"pen{score_breakdown['penalties']})"
                 )
 
+                # GATE REMOVIDO (validado): code_score>=6 empeoraba el edge. Se loguea
+                # el score pero NO se descarta — la IA + earnings + universo son el filtro.
                 if code_score < CODE_SCORE_MIN_FOR_AI:
                     logger.info(
-                        f"[PreMarket] {ticker} {direction} skip IA — "
-                        f"code_score={code_score}/15 < {CODE_SCORE_MIN_FOR_AI}"
+                        f"[PreMarket] {ticker} {direction} code bajo "
+                        f"({code_score}/15) — NO se descarta (gate técnico removido)"
                     )
-                    n_code_skip += 1
-                    continue
 
                 # Elevar umbral ALTA si movimiento ya está priceado
                 score_alta_effective = SCORE_ALTA + 1 if momentum["is_priced_in"] else SCORE_ALTA
@@ -940,6 +1076,20 @@ def run_premarket_scan(
                         "prioridad":       final_prioridad,
                         "sms_sent":        sms_sent,
                     })
+                    # Log detallado del resultado IA en filter_log
+                    ai_stage = "sent" if sms_sent else (
+                        "ai_alta" if final_prioridad == "ALTA" else
+                        "ai_media" if final_prioridad == "MEDIA" else "ai_baja"
+                    )
+                    _log_pm(ai_stage, ticker, direction,
+                            reason=f"IA={conviccion}/10 cat={ai_result['tipo_catalizador']} | {ai_result['resumen_cataliz'][:150]}",
+                            change_pct=momentum["total_change_pct"],
+                            total_vol=int(momentum.get("total_premarket_vol", 0)),
+                            rvol=momentum.get("rvol", 0), code_score=code_score,
+                            consistency=momentum["consistency"],
+                            max_adverse=momentum["max_adverse_pct"],
+                            ai_score=conviccion, prioridad=final_prioridad,
+                            sms_sent=sms_sent, data_source=data_source)
 
         except Exception as e:
             logger.error(f"[PreMarket] Error en {ticker}: {e}")

@@ -56,11 +56,8 @@ def test_qbts_case():
     # Test 1: Filtro Python
     logger.info("\n--- TEST 1: Filtro Python (Capa 2) ---")
     from filters.keyword_filter import passes_filter
-    from watchlist import get_tickers
     config = json.load(open("config.json", encoding="utf-8"))
-    watchlist = get_tickers() or (
-        config["watchlist"]["primary"] + config["watchlist"].get("extended", [])
-    )
+    watchlist = config["watchlist"]["primary"] + config["watchlist"].get("extended", [])
 
     passes, reason = passes_filter(
         article=article,
