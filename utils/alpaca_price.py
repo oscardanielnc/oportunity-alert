@@ -38,16 +38,28 @@ def _try_etoro_price(ticker: str) -> dict:
     """
     Intenta armar el dict de get_realtime_price con datos de eToro (precio fiel del
     broker real). Necesita precio Y prev_close para calcular change_pct (clave para
-    Gate 1). El prev_close lo saca de la barra diaria de Alpaca SIP (gratis, fiable,
-    no time-sensitive). Retorna {} si falta cualquier pieza → el caller cae a Alpaca.
+    Gate 1). El prev_close sale del snapshot IEX de Alpaca (cierre diario consolidado).
+    Retorna {} si falta cualquier pieza → el caller cae a Alpaca.
+
+    Logging: distingue "eToro no cubre este símbolo" (esperado, debug) de "eToro tiene
+    el símbolo pero NO devolvió precio" (anormal → warning, eToro posiblemente caído).
     """
     try:
-        from utils.etoro_market import fetch_price as _etoro_fetch
-    except Exception:
+        from utils.etoro_market import fetch_price as _etoro_fetch, get_instrument_id
+    except Exception as e:
+        logger.warning(f"[precio] no pude importar etoro_market ({e}) — usando Alpaca")
         return {}
+
+    has_id = get_instrument_id(ticker) is not None
 
     px = _etoro_fetch(ticker)
     if not px or not px.get("current_price"):
+        if has_id:
+            # eToro SÍ lista el ticker pero no devolvió precio → algo falló (API caída,
+            # token, mercado). Visible para diagnosticar; el caller cae a Alpaca igual.
+            logger.warning(f"[precio] eToro cubre {ticker} pero no devolvió precio — fallback Alpaca")
+        else:
+            logger.debug(f"[precio] {ticker} no está en eToro — usando Alpaca")
         return {}
     current_price = px["current_price"]
 
@@ -75,9 +87,13 @@ def _try_etoro_price(ticker: str) -> dict:
         pass
 
     if not prev_close:
+        # eToro dio precio pero no conseguimos cierre previo → sin change_pct el Gate 1
+        # no opera. Anormal (Alpaca snapshot IEX suele responder) → visible.
+        logger.warning(f"[precio] eToro {ticker} OK pero sin prev_close (Alpaca snapshot) — fallback Alpaca")
         return {}   # sin change_pct el Gate 1 no puede operar → mejor usar Alpaca
 
     change_pct = round((current_price - float(prev_close)) / float(prev_close) * 100, 2)
+    logger.debug(f"[precio] {ticker} via eToro ${current_price} ({change_pct:+.2f}%)")
     return {
         "ticker": ticker,
         "current_price": current_price,
