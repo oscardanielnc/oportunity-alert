@@ -136,17 +136,24 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
 
 ## 6bis. 🚀 PRÓXIMA SESIÓN — PLAN DE ARRANQUE (los 3 items, en orden)
 
-**1. 🔴 PRIORIDAD — Benzinga / brazo de NOTICIAS.** Ver [[project_benzinga_news_arm]].
-   - Por qué: la mayoría de trades serán Marea+PED, pero los de NOTICIAS son los de **mayor upside $**.
-   - Cuello de botella = detección rápida: Finnhub free lagea 30-60min → inservible para catalizadores frescos.
-   - Arranque: (a) trial de la API Benzinga; (b) medir latencia REAL Benzinga vs Finnhub una mañana de mercado;
-     (c) calcular ROI del costo; (d) muchas pruebas del pipeline de noticias, posibles cambios.
+**1. ✅ RESUELTO (2026-05-31) — brazo de NOTICIAS en tiempo real.** Ver [[project_benzinga_news_arm]].
+   - Benzinga directo se **descartó** (precio no público / caro para el capital). Solución: la **Alpaca News
+     API entrega el MISMO feed de Benzinga, GRATIS** con la cuenta Alpaca que ya usamos para precios.
+     WebSocket push en tiempo real → mata el lag de 30-60min de Finnhub (el cuello de botella).
+   - Validado: cobertura 32/32 watchlist, `source=benzinga`, handshake auth+subscribe OK en vivo.
+   - Implementado: `sources/alpaca_news.py` (WS streamer), `alpaca_news_loop()`+thread "AlpacaNews" en
+     `main.py`, `"ALPACA":120` en keyword_filter, `websocket-client` en requirements.
+   - **Falta:** (a) deploy a la VM (`bash deploy.sh` + asegurar `websocket-client` instalado);
+     (b) validar una mañana de mercado que lleguen catalizadores frescos por el stream.
 
-**2. ⚠️ Arreglar PED en la VM.** Ver [[project_ped_earnings_vm]].
+**2. ✅ RESUELTO (2026-05-31) — PED arreglado (opción A).** Ver [[project_ped_earnings_vm]].
    - Problema: yfinance <0.2.52 (py3.9 de la VM) no lee earnings de Yahoo → PED sin candidatos. Marea OK.
-   - Arranque — elegir camino: (A) reescribir `pilot/ped_signals.fetch_earnings_map` para usar Finnhub
-     (`utils/earnings_calendar.py` ya pega a `/calendar/earnings`) — VALIDAR cobertura free antes (se saltó SHOP);
-     o (B) subir la VM a Python ≥3.10 y volver a yfinance moderno. Encaja con el tema de fuentes de datos del item 1.
+   - Solución: `pilot/ped_signals.fetch_earnings_map` reescrito para usar Finnhub `/calendar/earnings`
+     (free tier, validado HTTP 200). Misma firma + mismo formato `{tk:[(date,'amc'/'bmo')]}` → lógica PED
+     intacta. Filtra a earnings ya reportados (epsActual no nulo) para descartar fechas futuras agendadas.
+   - Validado end-to-end (`research/ped_finnhub_e2e.py`): cobertura mega-cap correcta + AMD disparó
+     ENTRADA PED (+18.6% reacción). yfinance ya NO es dependencia de PED.
+   - **Falta:** desplegar a la VM (`bash deploy.sh`) y confirmar candidatos en la próxima reacción ≥+5%.
 
 **3. 🔧 Confirmar alerta del pilot por WhatsApp.** Fix ya desplegado. Confirmar de dos formas:
    - Inmediata: en la VM `cd /home/opc/oportunity-alert && venv/bin/python -m pilot.run_pilot` → debe imprimir

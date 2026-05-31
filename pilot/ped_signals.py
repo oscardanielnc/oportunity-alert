@@ -18,6 +18,8 @@ import os, sys, time
 from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import requests
+
 # ── Parámetros validados ───────────────────────────────────────────────────────
 PED_THRESHOLD   = 5.0     # Day+1 reacción mínima (%) — refinado del playbook (+3→+5)
 PED_GAP_FLOOR   = -5.0    # F5: open Day+1 no peor que -5% vs pre-close (sin resaca)
@@ -33,27 +35,49 @@ MEGA_CAP_PED = {
 
 _earn_cache: dict = {}
 
+FINNHUB_BASE = "https://finnhub.io/api/v1"
+
 
 def fetch_earnings_map(tickers, lookback_days=20):
-    """{ticker: [(date 'YYYY-MM-DD', hour 'amc'|'bmo')]} de earnings recientes (yfinance)."""
-    try:
-        import yfinance as yf
-    except Exception:
+    """
+    {ticker: [(date 'YYYY-MM-DD', hour 'amc'|'bmo')]} de earnings recientes.
+
+    Fuente: Finnhub /calendar/earnings (free tier). Reemplaza a yfinance, que ya no
+    autentica contra Yahoo bajo el Python 3.9 de la VM (yfinance<0.2.52 da "possibly
+    delisted" para todos los mega-cap → PED se quedaba sin candidatos). Validado:
+    el endpoint responde 200 en free tier y el campo `hour` ya viene como 'amc'/'bmo',
+    el mismo formato que reaction_today() espera. Cobertura mega-cap verificada
+    (NVDA/CRM/COST/WMT/HD aparecen con su fecha real de reporte).
+    """
+    key = os.environ.get("FINNHUB_API_KEY", "")
+    if not key:
         return {}
     out = {}
-    cutoff = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
     today = datetime.now().strftime("%Y-%m-%d")
     for tk in tickers:
         if tk in _earn_cache:
             out[tk] = _earn_cache[tk]; continue
         evs = []
         try:
-            df = yf.Ticker(tk).get_earnings_dates(limit=8)
-            if df is not None and not df.empty:
-                for idx in df.index:
-                    d = idx.strftime("%Y-%m-%d")
-                    if cutoff <= d <= today:
-                        evs.append((d, "bmo" if idx.hour < 12 else "amc"))
+            r = requests.get(
+                f"{FINNHUB_BASE}/calendar/earnings",
+                params={"from": date_from, "to": today, "symbol": tk, "token": key},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                for e in r.json().get("earningsCalendar", []):
+                    d = e.get("date") or ""
+                    if not (date_from <= d <= today):
+                        continue
+                    # Solo earnings YA reportados (epsActual poblado) → descarta
+                    # fechas futuras agendadas que tambien devuelve el calendario.
+                    if e.get("epsActual") is None and e.get("revenueActual") is None:
+                        continue
+                    hour = (e.get("hour") or "").lower()
+                    if hour not in ("amc", "bmo"):
+                        hour = "amc"   # default: reporte post-cierre (lo mas comun en mega-cap tech)
+                    evs.append((d, hour))
         except Exception:
             pass
         _earn_cache[tk] = evs

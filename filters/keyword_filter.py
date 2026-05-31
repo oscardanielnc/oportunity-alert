@@ -182,6 +182,8 @@ def passes_filter(
         effective_max_age = 60    # noticias generales de mercado
     elif source.startswith("FINNHUB"):
         effective_max_age = 90    # cubre FINNHUB_YAHOO, FINNHUB_REUTERS, etc.
+    elif source.startswith("ALPACA"):
+        effective_max_age = 120   # push real-time (Benzinga); margen por si el server bufferea
     else:
         effective_max_age = _DEFAULT_MAX_AGE
 

@@ -24,6 +24,7 @@ except ImportError:
 from sources.edgar import fetch_8k_filings
 from sources.finnhub_news import fetch_company_news, fetch_market_news
 from sources.reddit_monitor import fetch_reddit_mentions
+from sources.alpaca_news import stream_news as alpaca_stream_news
 from filters.keyword_filter import passes_filter
 from filters.claude_scorer import score_with_claude
 from alerts.twilio_sms import send_sms, format_sms, send_raw_message as _send_twilio_raw
@@ -545,6 +546,24 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
         except Exception as e:
             logger.error(f"Error en Finnhub poll: {e}")
         time.sleep(interval)
+
+
+def alpaca_news_loop(config, watchlist, dedup, **kwargs):
+    """
+    Stream de noticias en tiempo real de Alpaca (fuente Benzinga) via WebSocket.
+    alpaca_stream_news() ya reconecta solo con backoff; este wrapper es la red de
+    seguridad por si el stream lanza una excepcion no controlada.
+    """
+    def on_article(article):
+        live_wl = get_live_watchlist() or watchlist
+        process_article(article, live_wl, dedup, config, **kwargs)
+
+    while True:
+        try:
+            alpaca_stream_news(watchlist, on_article)
+        except Exception as e:
+            logger.error(f"Error en Alpaca News stream: {e}")
+        time.sleep(5)
 
 
 def reddit_loop(config, watchlist, dedup, **kwargs):
@@ -1081,6 +1100,7 @@ def main():
     # Para reactivar: descomentar la línea de Reddit en threads_cfg.
     threads_cfg = [
         ("EDGAR",         edgar_loop,           (config, watchlist, dedup), shared),
+        ("AlpacaNews",    alpaca_news_loop,     (config, watchlist, dedup), shared),
         ("Finnhub",       finnhub_loop,         (config, watchlist, dedup), shared),
         # ("Reddit",      reddit_loop,          (config, watchlist, dedup), shared),
         ("Price24h",      price_update_loop,    (),                         {}),
@@ -1089,7 +1109,7 @@ def main():
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("Dashboard",        run_dashboard,            (),                            {}),
     ]
-    logger.info("Fuentes activas: EDGAR, Finnhub, PositionTracker (Reddit desactivado; PreMarket archivado)")
+    logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker (Reddit desactivado; PreMarket archivado)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(

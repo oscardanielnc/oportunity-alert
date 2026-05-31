@@ -14,6 +14,9 @@ finnhub-python==2.4.20
 # Alpaca Markets (precio real-time AH)
 alpaca-py==0.29.0
 
+# Alpaca News (stream WebSocket, fuente Benzinga) — brazo de noticias en tiempo real
+websocket-client==1.9.0
+
 # Twilio SMS
 twilio==9.3.3
 
