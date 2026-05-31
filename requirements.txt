@@ -38,5 +38,6 @@ uvicorn==0.30.0
 # Pilot — Marea + PED (earnings de PED vía yfinance; CRÍTICO para el brazo PED)
 yfinance==1.3.0
 
-# Gráficos de pilot/viz_*.py (charts manuales — opcional en runtime)
-matplotlib==3.10.9
+# NOTA: matplotlib NO va aquí a propósito — solo lo usan los charts manuales
+# (pilot/viz_funnel.py, research/viz_pilot.py), no el runtime. Si querés regenerar
+# los PNG en local: pip install matplotlib==3.10.9
