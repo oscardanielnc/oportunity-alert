@@ -36,7 +36,9 @@ fastapi==0.115.0
 uvicorn==0.30.0
 
 # Pilot — Marea + PED (earnings de PED vía yfinance; CRÍTICO para el brazo PED)
-yfinance==1.3.0
+# Rango compatible con Python 3.9 de la VM: <0.2.52 usa requests (sin curl_cffi>=0.15,
+# que exige py>=3.10). get_earnings_dates() existe en este rango.
+yfinance>=0.2.32,<0.2.52
 
 # NOTA: matplotlib NO va aquí a propósito — solo lo usan los charts manuales
 # (pilot/viz_funnel.py, research/viz_pilot.py), no el runtime. Si querés regenerar
