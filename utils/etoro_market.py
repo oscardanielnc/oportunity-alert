@@ -17,6 +17,8 @@ Diseño:
   - Todas las funciones tienen fallback seguro (None / lista vacía) — nunca lanzan,
     para que el caller pueda caer a Alpaca sin romper el pipeline.
 """
+from __future__ import annotations   # py3.9 VM: difiere anotaciones (int | None es PEP 604)
+
 import json
 import logging
 import time
