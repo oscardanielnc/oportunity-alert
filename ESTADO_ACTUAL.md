@@ -143,8 +143,11 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
    - Validado: cobertura 32/32 watchlist, `source=benzinga`, handshake auth+subscribe OK en vivo.
    - Implementado: `sources/alpaca_news.py` (WS streamer), `alpaca_news_loop()`+thread "AlpacaNews" en
      `main.py`, `"ALPACA":120` en keyword_filter, `websocket-client` en requirements.
-   - **Falta:** (a) deploy a la VM (`bash deploy.sh` + asegurar `websocket-client` instalado);
-     (b) validar una mañana de mercado que lleguen catalizadores frescos por el stream.
+   - ✅ **DESPLEGADO en la VM (2026-05-31, commit `d63f757`):** servicio activo, log confirma
+     `[AlpacaNews] WebSocket conectado y suscrito (fuente: Benzinga)`. Fix py3.9: `from __future__
+     import annotations` (la VM no soporta `dict | None` de PEP 604; el py_compile del deploy no lo
+     detecta porque no evalúa anotaciones).
+   - **Falta solo:** validar una mañana de mercado que lleguen catalizadores frescos por el stream.
 
 **2. ✅ RESUELTO (2026-05-31) — PED arreglado (opción A).** Ver [[project_ped_earnings_vm]].
    - Problema: yfinance <0.2.52 (py3.9 de la VM) no lee earnings de Yahoo → PED sin candidatos. Marea OK.
@@ -153,7 +156,8 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
      intacta. Filtra a earnings ya reportados (epsActual no nulo) para descartar fechas futuras agendadas.
    - Validado end-to-end (`research/ped_finnhub_e2e.py`): cobertura mega-cap correcta + AMD disparó
      ENTRADA PED (+18.6% reacción). yfinance ya NO es dependencia de PED.
-   - **Falta:** desplegar a la VM (`bash deploy.sh`) y confirmar candidatos en la próxima reacción ≥+5%.
+   - ✅ **CONFIRMADO en la VM (2026-05-31):** `ped_finnhub_e2e` corrió en la VM py3.9 con earnings reales
+     (NVDA/CRM/COST/WMT/HD/AMD con fechas), CERO `possibly delisted`, AMD disparó ENTRADA PED. Cerrado.
 
 **3. 🔧 Confirmar alerta del pilot por WhatsApp.** Fix ya desplegado. Confirmar de dos formas:
    - Inmediata: en la VM `cd /home/opc/oportunity-alert && venv/bin/python -m pilot.run_pilot` → debe imprimir
