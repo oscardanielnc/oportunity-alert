@@ -62,6 +62,17 @@ def _sma(closes, n):
     return sum(closes[-n:]) / n if len(closes) >= n else None
 
 
+def _ema(closes, n):
+    """EMA simple sembrada con la SMA de las primeras n barras."""
+    if len(closes) < n:
+        return None
+    k = 2 / (n + 1)
+    ema = sum(closes[:n]) / n
+    for c in closes[n:]:
+        ema = c * k + ema * (1 - k)
+    return ema
+
+
 def _atr(bars, n=ATR_N):
     if len(bars) < n + 1: return None
     trs = [max(bars[i]["h"]-bars[i]["l"], abs(bars[i]["h"]-bars[i-1]["c"]),
@@ -79,9 +90,11 @@ def indicators(bars):
     atr    = _atr(bars)
     prior_high = max(closes[-BREAKOUT-1:-1])             # max cierre de los 50 dias previos (sin hoy)
     mom    = (closes[-1]/closes[-MOM_LOOKBACK-1]-1) if len(closes) > MOM_LOOKBACK else None
+    support = min(b["l"] for b in bars[-10:])           # swing low reciente (soporte 10d)
     return {
         "price": price, "sma200": sma200, "atr": atr,
         "prior_high": prior_high, "momentum": mom,
+        "ema20": _ema(closes, 20), "support": support,
         "above_sma": price > sma200 if sma200 else False,
         "is_breakout": price >= prior_high,
         "high": bars[-1]["h"], "date": bars[-1]["t"],
@@ -109,3 +122,31 @@ def entry_candidates(indicators_by_ticker):
             cands.append((ind["momentum"], tk))
     cands.sort(reverse=True)
     return [tk for _, tk in cands]
+
+
+def entry_levels(ind):
+    """
+    Niveles de entrada SUGERIDOS (informativos) para una recomendación de COMPRA.
+
+    NO altera ninguna señal validada: el sistema sigue decidiendo qué comprar con las
+    reglas diarias. Esto solo le da a Oscar referencias para poner órdenes límite y
+    entrar en pullback en vez de pagar el open. Se calcula una vez, al cierre, desde
+    las barras diarias — sin motor nocturno.
+
+    Pullback = niveles POR DEBAJO del último cierre (no perseguir el precio). El stop
+    es una ESTIMACIÓN (chandelier sobre el cierre de hoy como proxy del high de entrada).
+    Devuelve None si faltan datos, o {ref, levels:[(label, price)...], stop}.
+    """
+    if not ind:
+        return None
+    ref = ind["price"]
+    cands = [
+        ("EMA20", ind.get("ema20")),
+        ("Retest breakout", ind.get("prior_high")),
+        ("Soporte 10d", ind.get("support")),
+    ]
+    levels = [(lbl, round(v, 2)) for lbl, v in cands if v and v < ref]
+    levels.sort(key=lambda x: -x[1])                     # más cercano al precio primero
+    stop = chandelier_stop(ref, ind["atr"]) if ind.get("atr") else None
+    return {"ref": round(ref, 2), "levels": levels,
+            "stop": round(stop, 2) if stop else None}

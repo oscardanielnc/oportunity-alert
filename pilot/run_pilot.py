@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pilot.universe import load_universe, build_universe
 from pilot.momentum_signals import (
     fetch_daily_batch, indicators, entry_candidates, chandelier_stop, macro_ok, MULT,
+    entry_levels,
 )
 from pilot.paper_portfolio import PaperPortfolio, K, DATA_DIR
 from pilot.ped_signals import (
@@ -140,10 +141,15 @@ def run(send_alert=True):
     pp.s["last_run_date"] = ref_date
     pp.save()
 
-    _print_console(pp, actions, new_buys, new_sells, new_ped_buys, cl, eq, macro, ref_date)
+    # Niveles de entrada sugeridos (informativos) para las COMPRAS de mañana — Fase 1.
+    buy_levels = {tk: entry_levels(inds.get(tk)) for tk in (new_buys + new_ped_buys)}
+    buy_levels = {k: v for k, v in buy_levels.items() if v}
+
+    _print_console(pp, actions, new_buys, new_sells, new_ped_buys, cl, eq, macro, ref_date, buy_levels)
     return _emit_dashboard(pp, inds, cl, qqq, ref_date, actions,
                            new_buys=new_buys, new_sells=new_sells, new_ped_buys=new_ped_buys,
-                           top_set=top_set, sector_mom=sector_mom, macro=macro, send_alert=send_alert)
+                           top_set=top_set, sector_mom=sector_mom, macro=macro,
+                           buy_levels=buy_levels, send_alert=send_alert)
 
 
 # ── salida: consola, dashboard json, alerta whatsapp ───────────────────────────
@@ -157,7 +163,22 @@ def _pos_lines(pp, cl):
     return sorted(out, key=lambda x: -x[1])
 
 
-def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date):
+def _levels_lines(tickers, buy_levels, prefix="   ↳ "):
+    """Líneas legibles de niveles de entrada sugeridos para los tickers de compra."""
+    out = []
+    for tk in tickers or []:
+        lv = (buy_levels or {}).get(tk)
+        if not lv or not lv["levels"]:
+            continue
+        lvls = "  ".join(f"{lbl} ${p:g}" for lbl, p in lv["levels"])
+        line = f"{prefix}{tk}: {lvls}"
+        if lv.get("stop"):
+            line += f"  | stop~ ${lv['stop']:g}"
+        out.append(line)
+    return out
+
+
+def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date, buy_levels=None):
     init = pp.s["capital_initial"]
     print(f"\n=== MOMENTUM MULTI-DÍA (Marea + PED) — {date} ===")
     print(f"Equity ${eq:,.0f}  ({(eq/init-1)*100:+.1f}% desde inicio)  | cash ${pp.cash:,.0f} | "
@@ -168,6 +189,8 @@ def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date):
             if a["action"]=="BUY": print(f"  COMPRA {a['ticker']} [{a.get('source','marea')}] @ ${a['price']} (${a['cost']:.0f})")
             else: print(f"  VENTA  {a['ticker']} @ ${a['price']} ({a['pnl_pct']:+.1f}%, ${a['pnl_usd']:+.0f})")
     print(f"MANANA AL ABRIR -> Marea: {buys or '—'} | PED: {ped_buys or '—'} | vender: {sells or '—'}")
+    for ln in _levels_lines((buys or []) + (ped_buys or []), buy_levels):
+        print(ln)
     pl = _pos_lines(pp, cl)
     if pl:
         print("En cartera:")
@@ -175,7 +198,7 @@ def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date):
             print(f"  {tk:6} {pnl:+5.1f}%  (entrada ${ent} -> ${px})")
 
 
-def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date):
+def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_levels=None):
     init = pp.s["capital_initial"]
     L = [f"📈 *MOMENTUM MULTI-DÍA* — {date}",
          f"Equity ${eq:,.0f} ({(eq/init-1)*100:+.1f}%) | {len(pp.positions)}/{K} pos"]
@@ -190,6 +213,10 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date):
         if buys:     L.append(f"🟢 COMPRAR (Marea): {', '.join(buys)}")
         if ped_buys: L.append(f"🟣 PED (earnings): {', '.join(ped_buys)}")
         if sells:    L.append(f"🔴 VENDER: {', '.join(sells)}")
+        lv_lines = _levels_lines((buys or []) + (ped_buys or []), buy_levels)
+        if lv_lines:
+            L.append("\n🎯 _Entradas sugeridas (límite, opcional):_")
+            L.extend(lv_lines)
     if not macro:
         L.append("\n⚠️ Mercado bajo SMA200 — sin nuevas entradas")
     pl = _pos_lines(pp, cl)
@@ -201,8 +228,15 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date):
 
 
 def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=None,
-                    new_ped_buys=None, top_set=None, sector_mom=None, macro=True, send_alert=True):
+                    new_ped_buys=None, top_set=None, sector_mom=None, macro=True,
+                    buy_levels=None, send_alert=True):
     top_set = top_set or set()
+    # Niveles de entrada sugeridos. En el camino "ya corrido" no se recomputan compras,
+    # así que se derivan de pp.pending con los indicadores frescos de hoy.
+    if buy_levels is None:
+        pend_buys = (pp.pending.get("buys") or []) + (pp.pending.get("ped_buys") or [])
+        buy_levels = {tk: entry_levels(inds.get(tk)) for tk in pend_buys}
+        buy_levels = {k: v for k, v in buy_levels.items() if v}
     eh = pp.s["equity_history"]
     eq = eh[-1]["equity"] if eh else pp.cash
     # benchmark QQQ sobre el mismo span del piloto (honestidad: ¿alpha o beta?)
@@ -239,6 +273,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
             for tk, pnl, ent, px in _pos_lines(pp, cl)
         ],
         "pending": pp.pending,
+        "entry_levels": buy_levels,                         # niveles sugeridos por ticker de compra (Fase 1)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,
@@ -262,7 +297,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         body = _build_alert(pp, cl, eq, actions, new_buys or pp.pending.get("buys"),
                             new_sells or pp.pending.get("sells"),
                             new_ped_buys if new_ped_buys is not None else pp.pending.get("ped_buys", []),
-                            macro, date)
+                            macro, date, buy_levels)
         if to:
             try:
                 from alerts.twilio_sms import send_raw_message
