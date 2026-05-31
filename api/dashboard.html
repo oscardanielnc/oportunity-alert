@@ -699,6 +699,34 @@ function _plSpark(hist) {
     </svg></div>`;
 }
 
+// Card de COMPRA para "mañana al abrir": ticker + stop 4×ATR (validado, protagonista)
+// + niveles de pullback (referencia opcional). lvl = entry_levels[ticker] | undefined.
+function _plBuyCard(tk, source, isTop, lvl) {
+  const srcBadge = source === 'ped'
+    ? '<span style="font-size:9px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
+    : '<span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 Marea</span>';
+  const star = isTop ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518">⭐</span>' : '';
+  const edge = source === 'ped' ? '#7c6ff7' : 'var(--green)';
+  let mid = '';
+  if (lvl) {
+    if (lvl.stop != null)
+      mid += `<div style="margin-top:7px;font-size:12px">🛑 Stop 4×ATR: <b class="c-red" style="font-size:15px">$${lvl.stop}</b></div>`;
+    if (lvl.ref != null)
+      mid += `<div style="font-size:11px;color:var(--text2);margin-top:2px">ref. cierre $${lvl.ref}</div>`;
+    if (lvl.levels && lvl.levels.length) {
+      const chips = lvl.levels.map(x =>
+        `<span style="font-size:10px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;margin:3px 3px 0 0;display:inline-block">${x[0]} <b>$${x[1]}</b></span>`).join('');
+      mid += `<div style="margin-top:7px;font-size:10px;color:var(--text3)">Pullback opcional (referencia):</div><div>${chips}</div>`;
+    }
+  } else {
+    mid = '<div style="margin-top:7px;font-size:11px;color:var(--text3)">Niveles no disponibles (correr el pilot)</div>';
+  }
+  return `<div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${edge};border-radius:8px;padding:11px 13px;min-width:175px;flex:1 1 175px">
+    <div style="font-size:16px;font-weight:700">${tk}${star} <span style="margin-left:4px">${srcBadge}</span></div>
+    ${mid}
+  </div>`;
+}
+
 async function loadPilot() {
   const setT = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
   let d;
@@ -730,18 +758,26 @@ async function loadPilot() {
     note.innerHTML = `<div class="acard" style="padding:12px;border-left:3px solid var(--yellow)">⚠️ La curva incluye un <b>backfill seed</b> (replay in-sample) — el retorno total NO es performance live.${parts.length ? '<br>' + parts.join(' · ') : ''}</div>`;
   }
 
-  // Órdenes para mañana al abrir (⭐ = setup TOP de alta convicción, validado)
+  // ➡️ MAÑANA AL ABRIR — protagonista: qué comprar (con stop 4×ATR validado) y vender
   const pend = d.pending || { buys: [], sells: [] };
   const pedb = pend.ped_buys || [];
   const starTop = new Set(d.star_top || []);
-  const mark = arr => (arr || []).map(t => starTop.has(t) ? t + '⭐' : t).join(', ');
+  const elv = d.entry_levels || {};
+  const allBuys = [...(pend.buys || []).map(t => [t, 'marea']), ...pedb.map(t => [t, 'ped'])];
   let oh = '';
-  if ((pend.buys && pend.buys.length) || (pend.sells && pend.sells.length) || pedb.length) {
-    oh = '<div class="acard alta" style="padding:14px"><b>➡️ Mañana al abrir (ejecutar en eToro):</b><br>';
-    if (pend.buys && pend.buys.length)  oh += `<span style="color:var(--green)">🟢 COMPRAR (Marea): ${mark(pend.buys)}</span><br>`;
-    if (pedb.length) oh += `<span style="color:#a99cff">🟣 PED (earnings): ${mark(pedb)}</span><br>`;
-    if (pend.sells && pend.sells.length) oh += `<span style="color:var(--red)">🔴 VENDER: ${pend.sells.join(', ')}</span>`;
-    oh += '<div style="font-size:10px;color:var(--text3);margin-top:6px">⭐ = setup TOP (alta convicción, validado)</div></div>';
+  if (allBuys.length || (pend.sells && pend.sells.length)) {
+    oh = '<div class="acard alta" style="padding:16px">';
+    oh += '<div style="font-size:15px;font-weight:700;margin-bottom:10px">➡️ Mañana al abrir — ejecutar en eToro</div>';
+    if (allBuys.length)
+      oh += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+            allBuys.map(([t, src]) => _plBuyCard(t, src, starTop.has(t), elv[t])).join('') + '</div>';
+    if (pend.sells && pend.sells.length)
+      oh += `<div style="margin-top:12px;padding:9px 13px;background:rgba(248,81,73,.10);border-radius:8px;color:var(--red);font-weight:700">🔴 VENDER al open: ${pend.sells.join(', ')}</div>`;
+    oh += '<div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.5">' +
+          '⭐ = setup TOP (alta convicción, validado) · Entrada validada = al <b>OPEN</b> · ' +
+          '🛑 Stop 4×ATR (chandelier) = la salida validada · ' +
+          'niveles de pullback = referencia opcional (no mejoran el edge, medido)</div>';
+    oh += '</div>';
   } else {
     oh = '<div class="acard" style="padding:14px;color:var(--text2)">Sin órdenes pendientes para mañana.' +
          (d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.') + '</div>';
