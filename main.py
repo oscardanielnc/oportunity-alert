@@ -968,8 +968,10 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 current_keys = {p["ticker"] for p in positions}
                 for ticker_closed, snap in prev_tickers.items():
                     if ticker_closed not in current_keys:
-                        # Posición desapareció → cerrada
-                        # Intentar obtener precio actual de Alpaca como close_rate
+                        # Posición desapareció → cerrada. close_rate via get_realtime_price,
+                        # que ahora es eToro-primaria → precio del MISMO broker donde cerró
+                        # la posición (P&L histórico fiel; #4 resuelto). Fallback: último
+                        # current_rate del snapshot eToro previo.
                         try:
                             from utils.alpaca_price import get_realtime_price
                             pd = get_realtime_price(ticker_closed)

@@ -1,6 +1,30 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-05-30 (sesión larga de reconstrucción)
+# Última actualización: 2026-05-31 (sesión: noticias Alpaca/Benzinga + eToro precio + robustez)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## ⚡ SESIÓN 2026-05-31 — 12 commits LOCALES sin pushear (Oscar pushea/despliega él mismo)
+Rama main, working tree limpio. Pendiente: `git push origin main` + `bash deploy.sh` en la VM.
+Hecho esta sesión (todo verificado en vivo, imports + tests OK):
+- **Brazo de noticias en tiempo real**: Alpaca News = feed Benzinga GRATIS por WebSocket
+  (descartado Benzinga pago). `sources/alpaca_news.py`. Ya desplegado antes (commit d63f757).
+- **PED arreglado**: `fetch_earnings_map` usa Finnhub (no yfinance roto en py3.9). Ya desplegado.
+- **eToro = fuente PRIMARIA de precio actual + velas 1m** (broker real → fidelidad máxima),
+  Alpaca fallback. `utils/etoro_market.py`. prev_close vía snapshot IEX (free no permite SIP
+  reciente). Resuelve deficiencias IEX #1 (Gate1) y #4 (P&L de cierres fiel).
+- **Arquitectura de datos** (ver memoria project_data_sources_arch): eToro = precio intradía +
+  portfolio; Alpaca = barras diarias batch (Marea/PED/universo — eToro es 1 id/llamada, sin batch).
+- **Robustez**: (#1) circuit breaker + token-expiry compartido en etoro_market; (#2) pre-warm del
+  mapa instrumentos (evita 4.5s en la 1ª noticia); (#3) weekend_queue persistida a disco; (#4 PED)
+  log de cobertura earnings; (#6) event-mode usa dirección adivinada (no LONG fijo);
+  (#7 dedup) ventana cross-source 20→60min; (Gate5) lee account_cache, no llama eToro síncrono;
+  (#2 stream) watchlist viva refrescada cada 60s.
+- **Equity real eToro** (curva en dashboard) + limpieza cosmética (premarket/win-rates Watcher).
+- NO tocados por criterio: EDGAR map manual (#5, ticker_in_text ya cubre) y huecos de equity (#7).
+
+⚠️ Validar en deploy: la VM necesita `etoro_config.json` con keys vivas (ya lo tiene del portfolio
+read-only). Confirmar en logs: `[Startup] Mapa de instrumentos eToro pre-cargado` y
+`[AlpacaNews] WebSocket conectado`. Si el token eToro está muerto, ahora llega SMS de aviso.
+
 
 > Este es el documento de continuidad. Para retomar: leé esto + las memorias en
 > `.claude/.../memory/` (índice en MEMORY.md) + `REBUILD_PLAN.md` para el detalle histórico.
