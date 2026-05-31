@@ -917,9 +917,14 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 metrics.log_position_snapshot(positions)
 
             from utils.position_strategy import evaluate_position, write_account_cache
+            from utils.equity_history import record_equity_snapshot
 
             cash  = etoro_data.get("available_cash", 0)
             total = etoro_data.get("total_value", 0)
+
+            # Historial diario de equity REAL (idempotente por día; reusa los valores que
+            # el tracker ya tiene → cero llamadas extra a eToro). Cubre flat y con posiciones.
+            record_equity_snapshot(total, cash)
 
             if not positions:
                 logger.debug("[PositionTracker] Sin posiciones abiertas")

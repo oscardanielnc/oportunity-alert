@@ -606,15 +606,15 @@ function refreshAll() {
   });
 }
 
-// ── Session info table (backtest-derived WR, easily editable) ────────────────
-// WR = win rate from super_backtest.py (1m, 1 week, 10 tickers)
-// elevated = true cuando el umbral de entrada sube respecto al default
+// ── Session info (indicador de sesión de mercado) ────────────────────────────
+// Los win-rates viejos eran del Watcher de scalping 1m (ELIMINADO 2026-05-30 por
+// net-negativo tras fees) → se quitaron por engañosos. Solo informa sesión + feed.
 const SESSION_INFO = {
-  REGULAR:          { label: 'REGULAR',      dot: 'var(--green)',  wr: '62%', feed: 'IEX · real-time', warn: null },
-  PRE_MARKET_EARLY: { label: 'PRE-MARKET',   dot: 'var(--yellow)', wr: '45%', feed: 'SIP · 15min delay', warn: '⚠ umbral 6/9' },
-  PRE_MARKET:       { label: 'PRE-MARKET',   dot: 'var(--accent)', wr: '58%', feed: 'SIP · 15min delay', warn: null },
-  AFTER_HOURS:      { label: 'AFTER-HOURS',  dot: 'var(--blue)',   wr: '56%', feed: 'SIP · 15min delay', warn: null },
-  CLOSED:           { label: 'CERRADO',       dot: 'var(--text3)', wr: '—',   feed: '—',                warn: null },
+  REGULAR:          { label: 'REGULAR',      dot: 'var(--green)',  feed: 'IEX · real-time',   warn: null },
+  PRE_MARKET_EARLY: { label: 'PRE-MARKET',   dot: 'var(--yellow)', feed: 'SIP · 15min delay', warn: null },
+  PRE_MARKET:       { label: 'PRE-MARKET',   dot: 'var(--accent)', feed: 'SIP · 15min delay', warn: null },
+  AFTER_HOURS:      { label: 'AFTER-HOURS',  dot: 'var(--blue)',   feed: 'SIP · 15min delay', warn: null },
+  CLOSED:           { label: 'CERRADO',      dot: 'var(--text3)',  feed: '—',                 warn: null },
 };
 
 async function updateTopbar() {
@@ -638,7 +638,6 @@ async function updateTopbar() {
 
     document.getElementById('sdot').style.background  = info.dot;
     document.getElementById('sname').textContent       = info.label;
-    document.getElementById('swr').textContent         = `WR ${info.wr}`;
     document.getElementById('sfeed').textContent       = info.feed;
     const warnEl = document.getElementById('swarn');
     if (info.warn) { warnEl.textContent = info.warn; warnEl.style.display = ''; }

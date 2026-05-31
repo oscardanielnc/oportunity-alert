@@ -150,20 +150,6 @@ def _market_session() -> str:
         else:                       return "AFTER_HOURS"  # 21:00–24:00 UTC
 
 
-def _next_premarket() -> str:
-    """Retorna el próximo scan 6am Lima como string legible."""
-    now = datetime.now(LIMA)
-    target = now.replace(hour=6, minute=0, second=0, microsecond=0)
-    if now.hour >= 7:
-        target = target + timedelta(days=1)
-    while target.weekday() >= 5:
-        target = target + timedelta(days=1)
-    diff = target - now
-    hours = int(diff.total_seconds() // 3600)
-    mins  = int((diff.total_seconds() % 3600) // 60)
-    return f"{hours}h {mins}min" if hours > 0 else f"{mins}min"
-
-
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -181,7 +167,6 @@ def health():
         "ts":                now.strftime("%Y-%m-%dT%H:%M:%S"),
         "market":            "ABIERTO" if _is_market_open() else "CERRADO",
         "market_session":    session,
-        "next_premarket":    _next_premarket(),
         "feed_mode":         "IEX" if session == "REGULAR" else "SIP",
         "sip_delay_warning": session != "REGULAR",
         "capital_disponible": cap["value"],
@@ -255,6 +240,16 @@ def get_pilot(_: str = Depends(_require_auth)):
         return d
     except Exception as e:
         return {"available": False, "error": str(e)}
+
+
+@app.get("/api/equity-history")
+def get_equity_history_api(
+    days: int = Query(365, ge=1, le=730),
+    _: str = Depends(_require_auth),
+):
+    """Curva de equity REAL de eToro (snapshot diario que escribe el PositionTracker)."""
+    from utils.equity_history import get_equity_history
+    return get_equity_history(days=days)
 
 
 @app.get("/api/watchlist")

@@ -164,9 +164,22 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
      "alerta WhatsApp: enviada" y llegar el mensaje; o
    - Esperar al cron del lunes 22:00 UTC.
 
-## 6ter. PENDIENTES MENORES (no bloquean)
-- **📈 Historial de equity real eToro:** snapshot diario de equity real → curva P&L histórica (plata real).
-- **🧹** dead CSS/tablas premarket residuales (cosmético).
+## 6ter. PENDIENTES MENORES
+- **📈 Historial de equity real eToro:** ✅ BACKEND HECHO (2026-05-31) — `utils/equity_history.py`
+  (snapshot diario idempotente del equity real), cableado en `position_tracker_loop` (cero llamadas
+  extra a eToro), endpoint `/api/equity-history`. ⚠️ Falta: verificar imports en runtime + visualización
+  en el dashboard (frontend). NO commiteado aún (rendering de salidas se cayó mid-sesión → sin verificar).
+- **🧹 Limpieza cosmética dashboard:** ✅ HECHO (2026-05-31) — quitado `_next_premarket()` + campo
+  `next_premarket` de `/api/health` (premarket scanner archivado); `SESSION_INFO` ya no muestra los
+  win-rates del Watcher eliminado (eran engañosos); `sess-wr`/`sess-next-pm` blanqueados. Mismo caveat:
+  sin verificar/commitear por el problema de tooling.
+
+## 6quater. 🔔 RECORDATORIOS CON FECHA (decir a Oscar el día/hora)
+| Cuándo (Lima) | Tarea | Cómo |
+|---|---|---|
+| **Lun 1-jun ~17:30** | Confirmar que llegó la alerta del pilot por WhatsApp | El cron corre lun 22:00 UTC (17:00 Lima). Revisar que llegó el mensaje |
+| **Mar 2-jun 08:45** | Validar stream de noticias + correr latencia | En la VM: `venv/bin/python -m research.latency_alpaca_vs_finnhub --minutes 90` (mañana de mercado activa) |
+| **Mar 30-jun 09:00** | Revalidación mensual del edge | Correr los 3 backtests de `research/` (ver `pilot/REVALIDACION_MENSUAL.md`) |
 
 ---
 
