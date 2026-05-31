@@ -27,3 +27,6 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Config local de Claude Code (settings locales, locks de tareas)
+.claude/
