@@ -240,7 +240,15 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
     print(f"[pilot] dashboard -> {DASH_PATH}")
 
     if send_alert:
+        # El número destino vive en config.json (api_keys.twilio_to), igual que en main.py.
+        # Respaldo a env TWILIO_TO. Sin esto, el cron generaba recomendaciones pero no avisaba.
         to = os.environ.get("TWILIO_TO", "")
+        if not to:
+            try:
+                _cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
+                to = json.load(open(_cfg_path, encoding="utf-8")).get("api_keys", {}).get("twilio_to", "")
+            except Exception:
+                to = ""
         body = _build_alert(pp, cl, eq, actions, new_buys or pp.pending.get("buys"),
                             new_sells or pp.pending.get("sells"),
                             new_ped_buys if new_ped_buys is not None else pp.pending.get("ped_buys", []),

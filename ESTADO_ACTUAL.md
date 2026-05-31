@@ -116,14 +116,20 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
      Watchlist, sin botón de borrar (los gestiona el tracker).
    - **E.** Tests: `python test_position_strategy.py` (13 tests, sin red). + bug corregido:
      `_explain_large_moves` nunca disparaba (snapshot mal-ordenado + faltaba `current_rate`).
-4. **🚀 Deploy a VM — EN PROCESO (2026-05-30).** Mecanismo SIN cambios: `bash /home/opc/oportunity-alert/deploy.sh`
-   (git pull main → pip install → syntax check → systemctl restart opportunity-alert). El servicio
-   corre main.py = noticias + advisor de posiciones + dashboard (thread daemon, puerto 8081).
-   **DOS pasos manuales que deploy.sh NO hace:**
-   (a) crear `data/etoro_config.json` en la VM (gitignored → no viaja por git pull) — ONE-TIME;
-   (b) cron post-cierre para el pilot: `10 21 * * 1-5  cd /home/opc/oportunity-alert && venv/bin/python -m pilot.run_pilot`
-   (el pilot NO está en main.py; sin cron, Marea/PED no generan órdenes diarias solas).
-   Se agregó `yfinance` + `matplotlib` a requirements.txt (yfinance era CRÍTICO y faltaba → sin él PED no detecta earnings).
+4. ✅ **HECHO — Deploy a VM (2026-05-30).** Servicio `opportunity-alert` corriendo el código nuevo
+   (commits `18c341b`→`a5c429a`+). main.py = noticias + advisor posiciones + dashboard (:8081).
+   eToro READ-ONLY confirmado en vivo en la VM ($5,505 cash). Marea genera recomendaciones OK
+   (ej. SNDK/MU/WDC/DELL/ARM). Cron del pilot agendado: `0 22 * * 1-5` (VM en UTC; ~1-2h post-cierre).
+   Mecanismo SIN cambios: `bash /home/opc/oportunity-alert/deploy.sh`. `data/etoro_config.json` se crea
+   manual en la VM (gitignored). VM = **Python 3.9** → yfinance pineado a `<0.2.52` (las nuevas exigen py≥3.10).
+
+   ⚠️ **DOS hallazgos del deploy:**
+   - **(a) PED roto en la VM:** yfinance <0.2.52 NO puede leer earnings de Yahoo (todos los mega-cap dan
+     "possibly delisted") → PED nunca detecta candidatos. Marea NO se afecta. **A resolver próxima sesión**
+     (junto con Benzinga/fuentes de datos): opciones = earnings vía Finnhub (validar cobertura) o subir
+     la VM a Python ≥3.10 para yfinance moderno. Ver [[project_ped_earnings_vm]].
+   - **(b) Alerta del pilot — ARREGLADO:** `run_pilot` leía `TWILIO_TO` de env (vacío); el número vive en
+     `config.json`. Fix: lee `config.json` como respaldo. Tras el próximo `deploy.sh` el cron ya avisará por WhatsApp.
 5. **🔴 PRÓXIMA SESIÓN — PRIORIDAD: Benzinga / brazo de NOTICIAS.** La mayoría de trades vendrán de
    PED+Marea, pero los de la sección de NOTICIAS son los de mayor upside ($) si se dan. Requieren:
    muchas pruebas, posibles cambios, y quizás una API de pago (Benzinga) — Finnhub free lagea 30-60min
