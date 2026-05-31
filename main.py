@@ -466,9 +466,30 @@ def process_article(
                 + result.get("resumen_cataliz", "")
             )
 
+    # ── Fase 3: SALIDA event-driven — noticia ADVERSA sobre una posición abierta ──
+    # Si la noticia es bajista (direccion=SHORT) y de alta convicción sobre un ticker
+    # que YA tenemos en cartera (sistema long-only), avisar URGENTE para considerar
+    # salir. Inmediata 24/5 (Oscar opera en eToro fuera de horario USA) → NO se encola
+    # al digest del domingo. Dedup: 1 alerta por ticker/día (re-avisa al día siguiente).
+    adverse_exit = False
+    if direction == "SHORT" and ticker.upper() in _held_tickers() \
+            and (score_ia >= ADVERSE_EXIT_SCORE_MIN or event_mode):
+        day = datetime.now(LIMA).strftime("%Y%m%d")
+        flag_key = f"advnews_{ticker}_{day}"
+        if not dedup.has_flag(flag_key):
+            _send_adverse_news_alert(ticker, result, twilio_to)
+            dedup.set_flag(flag_key, ttl_hours=20)
+            with _stats_lock:
+                _stats["sms_sent"] += 1
+            logger.info(
+                f"[AdverseNews] URGENTE — {ticker}: noticia adversa sobre posición "
+                f"abierta (score={score_ia}, dir=SHORT, event={event_type})"
+            )
+        adverse_exit = True   # no duplicar con el flujo normal de oportunidad
+
     min_score_sms = config.get("min_score_sms", 7)
     sms_enviado = False
-    if score_ia >= min_score_sms:
+    if score_ia >= min_score_sms and not adverse_exit:
         market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
 
@@ -844,6 +865,40 @@ def _send_position_alert(alert: dict, twilio_from: str, twilio_to: str):
         f"→ {action}"
     )
 
+    _send_twilio_raw(body, twilio_to)
+
+
+# ── Fase 3: salida event-driven por noticia adversa ─────────────────────────────
+ADVERSE_EXIT_SCORE_MIN = 7   # score_ia mínimo para una alerta de salida por noticia (alta convicción)
+
+
+def _held_tickers() -> set:
+    """
+    Tickers en cartera REAL (eToro), leídos del account_cache que escribe el
+    PositionTracker cada 10 min. Sin llamada sincrónica a eToro. Si el cache no existe
+    o está viejo (>60 min ≈ tracker caído), retorna set() → la alerta de salida por
+    noticia simplemente no dispara (fail-safe, nunca avisa con datos podridos).
+    """
+    try:
+        from utils.position_strategy import read_account_cache, account_cache_age_minutes
+        cache = read_account_cache()
+        age = account_cache_age_minutes()
+        if cache and age is not None and age < 60 and "positions" in cache:
+            return {p.get("ticker", "").upper() for p in cache.get("positions", [])
+                    if p.get("ticker")}
+    except Exception as e:
+        logger.debug(f"[AdverseNews] cache no usable ({e})")
+    return set()
+
+
+def _send_adverse_news_alert(ticker: str, result: dict, twilio_to: str) -> None:
+    """Alerta URGENTE: noticia adversa sobre una posición abierta. Inmediata (24/5)."""
+    resumen = (result.get("resumen_cataliz") or "")[:200]
+    body = (
+        f"🔴 URGENTE — NOTICIA ADVERSA sobre tu posición {ticker}\n"
+        f"{resumen}\n"
+        f"→ Considerá SALIR en eToro (podés actuar 24/5). Revisá si rompe tu tesis."
+    )
     _send_twilio_raw(body, twilio_to)
 
 
