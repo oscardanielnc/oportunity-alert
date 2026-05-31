@@ -51,18 +51,30 @@ def _try_etoro_price(ticker: str) -> dict:
         return {}
     current_price = px["current_price"]
 
-    # prev_close: barra diaria previa de Alpaca SIP (no IEX — cobertura completa).
+    # prev_close: cierre diario ANTERIOR, desde barras diarias SIP de Alpaca.
+    # OJO: el snapshot con feed=sip está BLOQUEADO en el plan free ("subscription does
+    # not permit querying recent SIP data"), pero las barras DIARIAS históricas SIP sí
+    # se permiten. Pedimos las últimas 2: si la más reciente es la sesión de hoy,
+    # prev_close = la anterior; si el mercado aún no abrió hoy, la más reciente ya es
+    # el cierre previo. Distinguimos por fecha.
     prev_close = None
     try:
         headers = _get_headers()
-        snap_resp = requests.get(
-            f"{ALPACA_BASE}/v2/stocks/{ticker}/snapshot",
-            params={"feed": ALPACA_FEED_BARS},   # SIP: prevDailyBar completo
+        bars_resp = requests.get(
+            f"{ALPACA_BASE}/v2/stocks/{ticker}/bars",
+            params={"timeframe": "1Day", "limit": 2, "feed": ALPACA_FEED_BARS, "sort": "desc"},
             headers=headers,
             timeout=8,
         )
-        if snap_resp.status_code == 200:
-            prev_close = snap_resp.json().get("prevDailyBar", {}).get("c")
+        if bars_resp.status_code == 200:
+            daily = bars_resp.json().get("bars") or []
+            if daily:
+                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                latest_day = str(daily[0].get("t", ""))[:10]
+                if latest_day == today and len(daily) >= 2:
+                    prev_close = daily[1].get("c")   # la de hoy es daily[0] → previo = daily[1]
+                else:
+                    prev_close = daily[0].get("c")   # mercado no abrió hoy → daily[0] ya es el previo
     except Exception:
         pass
 
