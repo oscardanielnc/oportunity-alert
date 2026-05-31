@@ -34,6 +34,56 @@ def _get_headers() -> dict:
     }
 
 
+def _try_etoro_price(ticker: str) -> dict:
+    """
+    Intenta armar el dict de get_realtime_price con datos de eToro (precio fiel del
+    broker real). Necesita precio Y prev_close para calcular change_pct (clave para
+    Gate 1). El prev_close lo saca de la barra diaria de Alpaca SIP (gratis, fiable,
+    no time-sensitive). Retorna {} si falta cualquier pieza → el caller cae a Alpaca.
+    """
+    try:
+        from utils.etoro_market import fetch_price as _etoro_fetch
+    except Exception:
+        return {}
+
+    px = _etoro_fetch(ticker)
+    if not px or not px.get("current_price"):
+        return {}
+    current_price = px["current_price"]
+
+    # prev_close: barra diaria previa de Alpaca SIP (no IEX — cobertura completa).
+    prev_close = None
+    try:
+        headers = _get_headers()
+        snap_resp = requests.get(
+            f"{ALPACA_BASE}/v2/stocks/{ticker}/snapshot",
+            params={"feed": ALPACA_FEED_BARS},   # SIP: prevDailyBar completo
+            headers=headers,
+            timeout=8,
+        )
+        if snap_resp.status_code == 200:
+            prev_close = snap_resp.json().get("prevDailyBar", {}).get("c")
+    except Exception:
+        pass
+
+    if not prev_close:
+        return {}   # sin change_pct el Gate 1 no puede operar → mejor usar Alpaca
+
+    change_pct = round((current_price - float(prev_close)) / float(prev_close) * 100, 2)
+    return {
+        "ticker": ticker,
+        "current_price": current_price,
+        "prev_close": float(prev_close),
+        "change_pct": change_pct,
+        "last_trade_time": px.get("last_trade_time"),
+        "last_trade_age_minutes": px.get("last_trade_age_minutes"),
+        "candles_1m": px.get("candles_1m", []),
+        "volume_ratio": None,
+        "error": None,
+        "price_source": "etoro",
+    }
+
+
 def get_realtime_price(ticker: str) -> dict:
     """
     Retorna precio actual del ticker incluyendo pre-market y AH.
@@ -67,6 +117,16 @@ def get_realtime_price(ticker: str) -> dict:
         result["error"] = f"{ticker} es crypto — precio via Binance, no Alpaca"
         logger.debug(f"Alpaca no soporta {ticker} (crypto) — continuando sin precio")
         return result
+
+    # ── Fuente primaria: eToro (mismo broker donde opera Oscar → precio fiel) ──
+    # Si eToro responde con precio + change_pct, lo usamos. Si falla o le falta el
+    # change_pct (necesita prev_close), caemos al flujo Alpaca de abajo (IEX→SIP).
+    try:
+        etoro_px = _try_etoro_price(ticker)
+        if etoro_px:
+            return etoro_px
+    except Exception as e:
+        logger.debug(f"[alpaca_price] eToro primaria falló {ticker}: {e} — fallback Alpaca")
 
     try:
         headers = _get_headers()
