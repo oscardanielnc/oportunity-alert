@@ -194,14 +194,12 @@ Dashboard: el server en background se recicla; correrlo en terminal propia para 
    - Esperar al cron del lunes 22:00 UTC.
 
 ## 6ter. PENDIENTES MENORES
-- **📈 Historial de equity real eToro:** ✅ BACKEND HECHO (2026-05-31) — `utils/equity_history.py`
-  (snapshot diario idempotente del equity real), cableado en `position_tracker_loop` (cero llamadas
-  extra a eToro), endpoint `/api/equity-history`. ⚠️ Falta: verificar imports en runtime + visualización
-  en el dashboard (frontend). NO commiteado aún (rendering de salidas se cayó mid-sesión → sin verificar).
-- **🧹 Limpieza cosmética dashboard:** ✅ HECHO (2026-05-31) — quitado `_next_premarket()` + campo
-  `next_premarket` de `/api/health` (premarket scanner archivado); `SESSION_INFO` ya no muestra los
-  win-rates del Watcher eliminado (eran engañosos); `sess-wr`/`sess-next-pm` blanqueados. Mismo caveat:
-  sin verificar/commitear por el problema de tooling.
+- **📈 Historial de equity real eToro:** ✅ HECHO Y DESPLEGADO (2026-05-31) — `utils/equity_history.py`
+  (snapshot diario idempotente), cableado en `position_tracker_loop`, endpoint `/api/equity-history`,
+  curva en la pestaña Posiciones. Se construye sola (1 punto/día) → tendrá forma tras varios días vivo.
+- **🧹 Limpieza cosmética dashboard:** ✅ HECHO Y DESPLEGADO (2026-05-31) — quitado `_next_premarket()`
+  + campo `next_premarket` de `/api/health`; `SESSION_INFO` ya no muestra los win-rates del Watcher
+  eliminado (engañosos); span `swr` quitado de la topbar.
 
 ## 6quater. 🔔 RECORDATORIOS CON FECHA (decir a Oscar el día/hora)
 | Cuándo (Lima) | Tarea | Cómo |
