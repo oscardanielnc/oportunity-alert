@@ -1,6 +1,55 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-05-31 (noche) — sesión: tarjetas del Piloto pulidas + referencias discrecionales + stop 4×ATR vivo + backtest invalidación
+# Última actualización: 2026-06-01 — sesión: contexto macro por código + lenguaje simple + continuación en brazo de noticias (DESPLEGADO)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## ⚡ SESIÓN 2026-06-01 — IA de noticias: contexto por código + análisis macro + lenguaje simple — ✅ DESPLEGADO Y VIVO EN SONNET 4.6 (commit `5e2ef5b`)
+
+> **Origen:** Oscar notó que el evaluador de noticias (Sonnet 4.6) "no recomendaba nada acertado".
+> Diagnóstico con el log real del día (`data/noticias_log_2026-06-01.csv`, 397 filas): **el modelo NO
+> era el cuello de botella** — evaluaba a ciegas (solo título + 450 chars + precio, sin contexto) y sus
+> rechazos eran correctos; simplemente **no hubo catalizador fresco no-priceado** ese día (PT raises ya
+> priceados, ruido Bitcoin/SpaceX). Solo **11 llamadas a IA en todo el día → 0 SMS** (silencio correcto).
+
+**Decisiones de Oscar (cerradas):**
+- **Mantener Sonnet 4.6** — NO cambiar a Opus ni cascada DeepSeek. A 11 llamadas/día el costo es trivial;
+  la cascada barata no se justifica. El arreglo correcto es **dar contexto, no más inteligencia**.
+- **Principio:** todo lo computable por código se calcula (ahorra tokens/latencia); la IA solo razona
+  lo NO computable (macro/sector/vientos en contra).
+- **Mantener Finnhub/Yahoo** (más candidatos > pocos), aunque genere ruido por edad.
+
+**Implementado (commit `5e2ef5b`, 6 archivos):**
+1. **`utils/news_context.py` (NUEVO)** — arma contexto sin tokens: trayectoria (RSI/EMA20/EMA50/ATR%),
+   **sector+macro leídos de `pilot_dashboard.json`** (sector_strength + macro_bullish, mapeo ticker→ETF
+   vía `star_score.SECTOR_ETF`), noticias previas del ticker (90 min), estado priceado/continuación.
+2. **`conviction_gates.py`** — `allow_priced_momentum`: un movimiento ya priceado CON catalizador fresco
+   (Tier-1 / earnings / FDA) ya **no se descarta**; pasa marcado `momentum_continuation=True`.
+3. **`claude_scorer.py`** — prompt de analista macro + campos nuevos `titular_simple` / `analisis_simple`
+   (bueno-malo entendible, sin jerga ni "8-K Item X") / `contexto_sector` / `ventana` / `tipo_alerta`.
+   `max_tokens` 512→768.
+4. **`main.py`** — detecta catalizador fresco, arma contexto, lo pasa al scorer; **suprime SMS** de las
+   advertencias de continuación (solo dashboard — decisión Oscar).
+5. **`metrics_store.py`** — persiste/expone los campos nuevos (raw_json cap 2000→3000).
+6. **`dashboard.html`** — card muestra titular simple, análisis, 📊 contexto, ⏳ ventana, badge ⚠ ADVERTENCIA.
+
+**Gate1 vs momentum (la contradicción que Oscar detectó):** el brazo de noticias bloqueaba como "ya
+priceado" justo los movimientos que Marea/PED quieren montar (DELL +34% post-earnings + 6 upgrades). Ahora
+esos pasan como **ADVERTENCIA de continuación** (ventana 1-2 días, dashboard-only) en vez de morir en seco.
+
+**⚠️ TRAP del modelo (documentado):** `ai_client._CLAUDE_DEFAULT = claude-haiku-4-5`. El `model` que
+`main.py` lee de `config.json` se pasa a `score_with_claude` pero **NUNCA llega a `call_ai`** (código
+muerto); el modelo real lo decide la env var **`CLAUDE_MODEL`**. Para correr en Sonnet hacen falta DOS
+vars: `AI_ENGINE=claude` **y** `CLAUDE_MODEL=claude-sonnet-4-6`. **Ambas confirmadas en el `.env` de la VM**
+→ corre en Sonnet 4.6 de verdad. PENDIENTE OPCIONAL (endurecimiento): cablear `model` a través de `call_ai`
+para que `config.json` sea la fuente de verdad y no se dependa de la env var.
+
+**Despliegue:** `deploy.sh` OK (fast-forward `8b01aed..5e2ef5b`, sintaxis OK, servicio activo, AlpacaNews
+WS conectado, eToro pre-cargado). Validado `AI_ENGINE=claude` + `CLAUDE_MODEL=claude-sonnet-4-6` en la VM.
+**Falta solo:** ver en una noticia real de mercado que Sonnet pueble bien `titular_simple`/`analisis_simple`/
+`contexto_sector` (verificar en dashboard, no probado con tokens en vivo — se usó respuesta simulada).
+
+**PRÓXIMO TEMA (lo trae Oscar):** ¿el **Piloto** (Marea/PED) necesita una capa de análisis IA macro/
+fundamental antes de recomendar comprar/vender? Disparado por la misma contradicción DELL: a veces una
+noticia anula la matemática. — A discutir.
 
 ## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
 
