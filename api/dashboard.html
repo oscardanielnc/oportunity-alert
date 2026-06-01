@@ -806,7 +806,9 @@ function _leaderRow(r) {
   const top3 = r.rank != null && r.rank <= 3;
   const rankPill = r.rank != null
     ? `<div style="min-width:40px;text-align:center;font-size:20px;font-weight:800;color:${top3 ? 'var(--accent)' : 'var(--text2)'}">#${r.rank}</div>`
-    : `<div style="min-width:40px;text-align:center;font-size:15px;color:var(--text3)" title="En cartera, fuera del top-10 — candidato a rotar">⬇</div>`;
+    : held
+      ? `<div style="min-width:40px;text-align:center;font-size:15px;color:var(--text3)" title="En cartera, fuera del top-10 — candidato a rotar">⬇</div>`
+      : `<div style="min-width:40px;text-align:center;font-size:15px" title="Breakout nuevo — fuera del top-10 por fuerza 6m">🆕</div>`;
 
   let badges = '';
   if (r.is_top) badges += ' <span title="Setup TOP (validado)" style="color:#f5c518">⭐</span>';
@@ -825,7 +827,8 @@ function _leaderRow(r) {
     if (r.days_held != null) inline += ` <span style="color:var(--text3)">· D+${r.days_held}</span>`;
     if (r.stop_4atr != null) inline += ` <span style="color:var(--text3)">· stop $${r.stop_4atr}</span>`;
   }
-  const mom = r.momentum_pct != null ? `<span style="color:var(--text2)">fuerza ${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</span>` : '';
+  const recent = r.recent_pct != null ? `<span class="c-green" style="font-weight:700">↑ +${r.recent_pct}% 10d</span>` : '';
+  const mom = r.momentum_pct != null ? `<span style="color:var(--text2)">fuerza 6m ${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</span>` : '';
   const sec = r.sector_name ? `<span style="color:var(--text3)">· ${r.sector_name} <b style="color:${r.sector_favor ? 'var(--green)' : 'var(--red)'}">${r.sector_mom_pct >= 0 ? '+' : ''}${r.sector_mom_pct}%</b></span>` : '';
   const adv = r.adverse_news ? `<div style="font-size:11px;color:#ffd591;background:rgba(124,74,3,.25);border-radius:6px;padding:4px 8px;margin-top:5px">⚠ Noticia adversa reciente: ${esc(r.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>` : '';
 
@@ -849,7 +852,7 @@ function _leaderRow(r) {
       ${rankPill}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:17px;font-weight:800">${r.ticker}</span>${badges} ${action}</div>
-        <div style="font-size:12px;margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;align-items:center">${inline} ${mom} ${sec} ${toggle}</div>
+        <div style="font-size:12px;margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;align-items:center">${inline} ${recent} ${mom} ${sec} ${toggle}</div>
       </div>
     </div>
     ${adv}
@@ -866,7 +869,17 @@ function renderLeaders(d) {
   h += '<div style="font-size:15px;font-weight:700">🏆 Top-10 líderes — fuerza relativa (momentum 6m)</div>';
   h += '<div style="font-size:11px;color:var(--text3);margin:3px 0 12px">📈 Horizonte: <b>TENDENCIA</b> (semanas–meses) · distinto a Noticias (corto plazo / evento). El sistema sostiene con chandelier; vos rotás con criterio. 🎯/🛑 = acción al open de mañana.</div>';
   h += L.map(_leaderRow).join('');
-  h += '<div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">⭐ TOP validado · 🆕 breakout (candidato de entrada) · ⬇ en cartera fuera del top-10 (candidato a rotar — tu criterio) · 🛑 stop 4×ATR = única salida Marea · PED sale ≈Day+7. La rotación automática se midió (empeora drawdown/Sharpe) → este panel es <b>discrecional</b>.</div>';
+
+  // 🆕 Breakouts nuevos: rupturas frescas que aún no rankean en el top-10 por fuerza 6m (caso SNOW)
+  const fb = d.fresh_breakouts || [];
+  if (fb.length) {
+    h += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">';
+    h += '<div style="font-size:13px;font-weight:700">🆕 Breakouts nuevos <span style="font-weight:400;color:var(--text3);font-size:11px">— rompieron máximo pero su fuerza de 6m aún es baja (despiertan ahora). Candidatos si se libera un slot.</span></div>';
+    h += '<div style="margin-top:8px">' + fb.map(_leaderRow).join('') + '</div>';
+    h += '</div>';
+  }
+
+  h += '<div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">⭐ TOP validado · 🆕 breakout nuevo (fuerza 6m baja) · ⬇ en cartera fuera del top-10 (candidato a rotar — tu criterio) · 🛑 stop 4×ATR = única salida Marea · PED sale ≈Day+7. La rotación automática se midió (empeora drawdown/Sharpe) → este panel es <b>discrecional</b>.</div>';
   h += '</div>';
   return h;
 }

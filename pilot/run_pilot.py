@@ -143,6 +143,40 @@ def _leaders(pp, inds, cl, top_set, sector_mom, held_days, pending, n=10):
     return out
 
 
+def _fresh_breakouts(pp, inds, cl, top_set, sector_mom, leaders, n=8):
+    """
+    Breakouts NUEVOS invisibles en el top-10: sobre SMA200 + nuevo máximo 50d pero con
+    momentum 6m bajo (recién despiertan) → no rankean como líderes. Caso SNOW (2026-06-01):
+    explotó +58% en días pero su momentum 126d es solo +11.6%, así que quedaba oculto.
+    Informativo (candidatos de entrada si se libera un slot) — NO toca la señal.
+    """
+    shown = {r["ticker"] for r in leaders}
+    # Ordenar por fuerza RECIENTE (10d), no por momentum 6m — eso es lo que define un breakout
+    # "nuevo" (caso SNOW: 6m flojo pero +58% reciente). Sin ret_10d, cae al fondo.
+    cands = sorted(
+        [(ind.get("ret_10d") if ind.get("ret_10d") is not None else -9, tk)
+         for tk, ind in inds.items()
+         if ind.get("above_sma") and ind.get("is_breakout")
+         and tk not in pp.positions and tk not in shown],
+        reverse=True)
+    pick = [tk for _, tk in cands[:n]]
+    ctx = _news_sector_ctx(pick, sector_mom or {})
+    top_set = top_set or set()
+    out = []
+    for tk in pick:
+        ind = inds.get(tk) or {}
+        row = {
+            "ticker": tk, "rank": None, "in_top": False, "held": False, "source": None,
+            "action": None, "is_top": tk in top_set, "is_breakout": True,
+            "momentum_pct": round(ind["momentum"] * 100, 1) if ind.get("momentum") is not None else None,
+            "recent_pct": round(ind["ret_10d"] * 100, 1) if ind.get("ret_10d") is not None else None,
+            "entry": entry_levels(ind) or {},
+        }
+        row.update(ctx.get(tk) or {})
+        out.append(row)
+    return out
+
+
 def _last_bar_maps(data, ref_date):
     """open/high/close/atr% por ticker SOLO si su ultima barra es de ref_date."""
     opn, hi, cl = {}, {}, {}
@@ -373,6 +407,8 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
     buy_context = _buy_context(pend_buys, sector_mom or {})
     # Top-10 líderes (ranking fuerza relativa) — panel discrecional que reemplaza "Mañana al abrir".
     leaders = _leaders(pp, inds, cl, top_set, sector_mom or {}, held_days, pp.pending)
+    # Breakouts nuevos (fuera del top-10 por momentum 6m bajo) — caso SNOW. Informativo.
+    fresh_breakouts = _fresh_breakouts(pp, inds, cl, top_set, sector_mom or {}, leaders)
     eh = pp.s["equity_history"]
     eq = eh[-1]["equity"] if eh else pp.cash
     # benchmark QQQ sobre el mismo span del piloto (honestidad: ¿alpha o beta?)
@@ -416,6 +452,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "entry_levels": buy_levels,                         # niveles sugeridos por ticker de compra (Fase 1)
         "buy_context": buy_context,                         # contexto informativo (sector + noticia adversa)
         "leaders": leaders,                                 # top-10 ranking fuerza relativa (panel discrecional)
+        "fresh_breakouts": fresh_breakouts,                 # breakouts nuevos invisibles en el top-10 (caso SNOW)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,

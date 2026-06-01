@@ -90,10 +90,11 @@ def indicators(bars):
     atr    = _atr(bars)
     prior_high = max(closes[-BREAKOUT-1:-1])             # max cierre de los 50 dias previos (sin hoy)
     mom    = (closes[-1]/closes[-MOM_LOOKBACK-1]-1) if len(closes) > MOM_LOOKBACK else None
+    ret_10d = (closes[-1]/closes[-11]-1) if len(closes) > 11 else None   # fuerza RECIENTE (breakouts nuevos)
     support = min(b["l"] for b in bars[-10:])           # swing low reciente (soporte 10d)
     return {
         "price": price, "sma200": sma200, "atr": atr,
-        "prior_high": prior_high, "momentum": mom,
+        "prior_high": prior_high, "momentum": mom, "ret_10d": ret_10d,
         "ema20": _ema(closes, 20), "support": support,
         "above_sma": price > sma200 if sma200 else False,
         "is_breakout": price >= prior_high,
