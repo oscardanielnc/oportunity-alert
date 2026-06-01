@@ -25,9 +25,75 @@ from pilot.ped_signals import (
     ped_entry_candidates, ped_should_exit, fetch_earnings_map, MEGA_CAP_PED,
     days_held, PED_HOLD_DAYS,
 )
-from pilot.star_score import compute_top, sector_strength, SECTOR_ETFS
+from pilot.star_score import compute_top, sector_strength, SECTOR_ETFS, SECTOR_ETF, SECTOR_NAME, DEFAULT_ETF
 
 DASH_PATH = os.path.join(DATA_DIR, "pilot_dashboard.json")
+NEWS_FLAG_LOG = os.path.join(DATA_DIR, "pilot_news_flags.jsonl")  # log informativo (punto 4)
+
+
+def _buy_context(pend_buys, sector_mom):
+    """
+    Contexto INFORMATIVO por cada compra recomendada (NO veta — solo informa).
+    Le da al Piloto los OJOS del brazo de noticias: estado del sector + noticia
+    adversa reciente. La decisión sigue siendo la matemática de Marea/PED.
+
+    Decisión Oscar 2026-06-01. Best-effort: si algo falla, esa compra va sin contexto.
+    """
+    # Ranking de sectores por momentum (para etiquetar caliente/frío)
+    ranked = sorted((e for e, m in sector_mom.items() if m is not None),
+                    key=lambda e: -sector_mom[e])
+    rank_of = {e: i for i, e in enumerate(ranked)}
+
+    # Noticias recientes (5 días) desde la misma metrics.db que escribe el brazo de noticias
+    metrics = None
+    try:
+        from utils.metrics_store import MetricsStore
+        metrics = MetricsStore(os.path.join(DATA_DIR, "metrics.db"))
+    except Exception:
+        pass
+
+    out = {}
+    for tk in pend_buys:
+        ctx = {}
+        # — Estado del sector —
+        etf = SECTOR_ETF.get(tk, DEFAULT_ETF)
+        mom = sector_mom.get(etf)
+        if mom is not None:
+            pct = mom * 100
+            ctx["sector_name"] = SECTOR_NAME.get(etf, etf)
+            ctx["sector_mom_pct"] = round(pct, 1)
+            ctx["sector_favor"] = pct >= 0
+            if ranked:
+                ctx["sector_rank"] = rank_of.get(etf, len(ranked)) + 1
+                ctx["sector_total"] = len(ranked)
+        # — Noticia adversa reciente (informativo) —
+        if metrics is not None:
+            try:
+                recent = metrics.get_recent_news_for_ticker(tk, minutes=5 * 24 * 60)
+                adverse = next((n for n in recent if (n.get("direccion") or "").upper() == "SHORT"), None)
+                if adverse:
+                    ctx["adverse_news"] = (adverse.get("resumen_cataliz") or "")[:120]
+                    ctx["adverse_ts"] = adverse.get("ts")
+            except Exception:
+                pass
+        if ctx:
+            out[tk] = ctx
+
+    # — Log informativo (punto 4): registrar las compras con noticia adversa para
+    #   revisar a futuro si rindieron peor (antes de automatizar nada) —
+    try:
+        flagged = {tk: c for tk, c in out.items() if c.get("adverse_news")}
+        if flagged:
+            with open(NEWS_FLAG_LOG, "a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "flagged": flagged,
+                }, ensure_ascii=False) + "\n")
+            print(f"[pilot] {len(flagged)} compra(s) con noticia adversa reciente: {list(flagged)}")
+    except Exception:
+        pass
+
+    return out
 
 
 def _last_bar_maps(data, ref_date):
@@ -252,10 +318,12 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
     held_days = held_days or {}
     # Niveles de entrada sugeridos. En el camino "ya corrido" no se recomputan compras,
     # así que se derivan de pp.pending con los indicadores frescos de hoy.
+    pend_buys = (pp.pending.get("buys") or []) + (pp.pending.get("ped_buys") or [])
     if buy_levels is None:
-        pend_buys = (pp.pending.get("buys") or []) + (pp.pending.get("ped_buys") or [])
         buy_levels = {tk: entry_levels(inds.get(tk)) for tk in pend_buys}
         buy_levels = {k: v for k, v in buy_levels.items() if v}
+    # Contexto informativo por compra (sector + noticia adversa) — NO veta, solo informa.
+    buy_context = _buy_context(pend_buys, sector_mom or {})
     eh = pp.s["equity_history"]
     eq = eh[-1]["equity"] if eh else pp.cash
     # benchmark QQQ sobre el mismo span del piloto (honestidad: ¿alpha o beta?)
@@ -297,6 +365,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         ],
         "pending": pp.pending,
         "entry_levels": buy_levels,                         # niveles sugeridos por ticker de compra (Fase 1)
+        "buy_context": buy_context,                         # contexto informativo (sector + noticia adversa)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,

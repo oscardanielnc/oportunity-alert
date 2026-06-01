@@ -440,6 +440,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 
     <!-- ===== NOTICIAS ===== -->
     <div id="p-noticias" class="panel on">
+      <div style="font-size:11px;color:var(--text3);margin:0 0 8px 2px">⏱ Horizonte: <b>CORTO PLAZO / EVENTO</b> (1–2 días) · distinto al Piloto, que opera la tendencia (semanas–meses)</div>
       <div class="stats-strip" id="n-stats">
         <div class="stat-cell"><div class="stat-label">Total alertas</div><div class="stat-value" id="ns-total">—</div><div class="stat-sub">últimas 24h</div></div>
         <div class="stat-cell"><div class="stat-label">Score 7-10</div><div class="stat-value c-red" id="ns-alta">—</div><div class="stat-sub">SMS enviados</div></div>
@@ -703,7 +704,7 @@ function _plSpark(hist) {
 // salida = stop 4×ATR (Marea, trailing) o por tiempo ~Day+7 (PED), sin target fijo.
 // Dos referencias DISCRECIONALES (no reglas): pullback opcional (orden límite, sin SL) e
 // invalidación (soporte 10d). lvl = entry_levels[ticker] | undefined.
-function _plBuyCard(tk, source, isTop, lvl) {
+function _plBuyCard(tk, source, isTop, lvl, ctx) {
   const isPed = source === 'ped';
   const srcBadge = isPed
     ? '<span style="font-size:11px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:4px;padding:2px 9px">🟣 PED</span>'
@@ -759,6 +760,21 @@ function _plBuyCard(tk, source, isTop, lvl) {
         🔎 Invalidación (soporte 10d) <b>$${sup[1]}</b> — si cae por debajo, evaluar posible <b>tesis rota</b> <span style="opacity:.8">(raro · desenlace histórico mixto · criterio, no SL)</span></div>`;
   }
 
+  // Contexto INFORMATIVO (decisión Oscar 2026-06-01): los OJOS del brazo de noticias.
+  // Estado del sector + noticia adversa reciente. NO veta — la señal sigue siendo la matemática.
+  let ctxBlock = '';
+  if (ctx) {
+    let bits = [];
+    if (ctx.sector_name && ctx.sector_mom_pct != null) {
+      const fav = ctx.sector_favor;
+      bits.push(`<div style="font-size:11px;color:var(--text2)">📊 Sector ${ctx.sector_name}: <b style="color:${fav?'var(--green)':'var(--red)'}">${ctx.sector_mom_pct>=0?'+':''}${ctx.sector_mom_pct}%</b>${ctx.sector_rank?` · ranking ${ctx.sector_rank}/${ctx.sector_total}`:''} <span style="color:var(--text3)">(${fav?'a favor':'en contra'})</span></div>`);
+    }
+    if (ctx.adverse_news) {
+      bits.push(`<div style="font-size:11px;color:#ffd591;background:rgba(124,74,3,.25);border-radius:6px;padding:5px 8px;margin-top:4px">⚠ Noticia adversa reciente: ${esc(ctx.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>`);
+    }
+    if (bits.length) ctxBlock = `<div style="margin-top:9px;border-top:1px dashed var(--border);padding-top:8px">${bits.join('')}</div>`;
+  }
+
   return `<div style="background:var(--card);border:1px solid var(--border);border-left:4px solid ${edge};border-radius:12px;padding:16px 18px;min-width:240px;flex:1 1 300px;box-shadow:0 1px 3px rgba(0,0,0,.25)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
       <div style="font-size:24px;font-weight:800">${tk}${star}</div>
@@ -771,6 +787,7 @@ function _plBuyCard(tk, source, isTop, lvl) {
     ${stopBlock}
     ${inval}
     ${horizon}
+    ${ctxBlock}
   </div>`;
 }
 
@@ -810,14 +827,16 @@ async function loadPilot() {
   const pedb = pend.ped_buys || [];
   const starTop = new Set(d.star_top || []);
   const elv = d.entry_levels || {};
+  const bctx = d.buy_context || {};
   const allBuys = [...(pend.buys || []).map(t => [t, 'marea']), ...pedb.map(t => [t, 'ped'])];
   let oh = '';
   if (allBuys.length || (pend.sells && pend.sells.length)) {
     oh = '<div class="acard alta" style="padding:16px">';
-    oh += '<div style="font-size:15px;font-weight:700;margin-bottom:10px">➡️ Mañana al abrir — ejecutar en eToro</div>';
+    oh += '<div style="font-size:15px;font-weight:700;margin-bottom:2px">➡️ Mañana al abrir — ejecutar en eToro</div>';
+    oh += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">📈 Horizonte: <b>TENDENCIA</b> (semanas–meses) · distinto a Noticias, que es corto plazo / evento</div>';
     if (allBuys.length)
       oh += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
-            allBuys.map(([t, src]) => _plBuyCard(t, src, starTop.has(t), elv[t])).join('') + '</div>';
+            allBuys.map(([t, src]) => _plBuyCard(t, src, starTop.has(t), elv[t], bctx[t])).join('') + '</div>';
     if (pend.sells && pend.sells.length)
       oh += `<div style="margin-top:12px;padding:9px 13px;background:rgba(248,81,73,.10);border-radius:8px;color:var(--red);font-weight:700">🔴 VENDER al open: ${pend.sells.join(', ')}</div>`;
     oh += '<div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.5">' +
