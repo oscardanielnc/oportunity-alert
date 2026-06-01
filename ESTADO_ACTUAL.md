@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 (CIERRE) — IA noticias (contexto+lenguaje simple) + Piloto (panel Top-10, rotación rechazada, breakouts nuevos) + 2 BUGS eToro resueltos (equity real + atribución/override). TODO DESPLEGADO Y EN VALIDACIÓN. PENDIENTE próxima sesión: backtest breakouts frescos + rediseño frontend. REGLA: commits sí, push NO (lo hace Oscar)
+# Última actualización: 2026-06-01 (CIERRE 2) — Estudios A (selección/rotación), B (breakouts frescos) y lever K: VEREDICTO Marea NO se toca (todo medido bear-inclusive; los "ascensos" eran trampa de muestra-bull). + Pulidos: modelo Claude endurecido (config.json=verdad) + cap de noticias source-aware (Finnhub 90/EDGAR 240) + dedup 120min. TODO DESPLEGADO EN LA VM. ÚNICO PENDIENTE: rediseño del frontend. REGLA: commits sí, push NO (lo hace Oscar)
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
@@ -182,7 +182,7 @@ Finnhub + jitter: si Alpaca/Benzinga ya trajo Y procesó el evento (`sent_to_cla
 se descarta; si nunca se procesó, la 2da copia pasa (decisión de Oscar: estar al tanto no daña, pero sin
 repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 no.
 
-**FALTA: deploy a la VM** (`bash deploy.sh`) — junto con el resto en validación. Commits en main, sin push.
+✅ **DESPLEGADO en la VM (2026-06-01).** Los 3 fixes en producción. Commits en main; Oscar pushea.
 
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
