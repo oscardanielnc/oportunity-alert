@@ -535,7 +535,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 
       <h3 style="font-size:13px;color:var(--text2);margin:0 0 8px">Posiciones abiertas</h3>
       <div class="pm-wrap"><table>
-        <thead><tr><th>Ticker</th><th>Fuente</th><th>Entrada</th><th>Precio</th><th>P&L %</th></tr></thead>
+        <thead><tr><th>Ticker</th><th>Fuente</th><th>Días</th><th>Entrada</th><th>Precio</th><th>Stop 4×ATR</th><th>P&L %</th></tr></thead>
         <tbody id="pl-holdings"></tbody>
       </table></div>
 
@@ -699,31 +699,78 @@ function _plSpark(hist) {
     </svg></div>`;
 }
 
-// Card de COMPRA para "mañana al abrir": ticker + stop 4×ATR (validado, protagonista)
-// + niveles de pullback (referencia opcional). lvl = entry_levels[ticker] | undefined.
+// Card de COMPRA para "mañana al abrir" — protagonista. Regla validada: entrada al OPEN,
+// salida = stop 4×ATR (Marea, trailing) o por tiempo ~Day+7 (PED), sin target fijo.
+// Dos referencias DISCRECIONALES (no reglas): pullback opcional (orden límite, sin SL) e
+// invalidación (soporte 10d). lvl = entry_levels[ticker] | undefined.
 function _plBuyCard(tk, source, isTop, lvl) {
-  const srcBadge = source === 'ped'
-    ? '<span style="font-size:9px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
-    : '<span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 Marea</span>';
-  const star = isTop ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518">⭐</span>' : '';
-  const edge = source === 'ped' ? '#7c6ff7' : 'var(--green)';
-  let mid = '';
-  if (lvl) {
-    if (lvl.stop != null)
-      mid += `<div style="margin-top:7px;font-size:12px">🛑 Stop 4×ATR: <b class="c-red" style="font-size:15px">$${lvl.stop}</b></div>`;
-    if (lvl.ref != null)
-      mid += `<div style="font-size:11px;color:var(--text2);margin-top:2px">ref. cierre $${lvl.ref}</div>`;
-    if (lvl.levels && lvl.levels.length) {
-      const chips = lvl.levels.map(x =>
-        `<span style="font-size:10px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;margin:3px 3px 0 0;display:inline-block">${x[0]} <b>$${x[1]}</b></span>`).join('');
-      mid += `<div style="margin-top:7px;font-size:10px;color:var(--text3)">Pullback opcional (referencia):</div><div>${chips}</div>`;
-    }
+  const isPed = source === 'ped';
+  const srcBadge = isPed
+    ? '<span style="font-size:11px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:4px;padding:2px 9px">🟣 PED</span>'
+    : '<span style="font-size:11px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:4px;padding:2px 9px">🟢 Marea</span>';
+  const star = isTop ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518;font-size:20px">⭐</span>' : '';
+  const edge = isPed ? '#7c6ff7' : 'var(--green)';
+
+  // Horizonte / salida — distinto por estrategia.
+  const horizon = isPed
+    ? `<div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px">
+         <span style="font-size:16px">⏱️</span>
+         <div>Salida por tiempo <b>≈ Day+7</b><div style="font-size:11px;color:var(--text3)">compra ≈ Day+2 · 6 días hábiles · sin target</div></div>
+       </div>`
+    : `<div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px">
+         <span style="font-size:16px">📈</span>
+         <div>Trend — <b>sin target fijo</b><div style="font-size:11px;color:var(--text3)">sales cuando cierra bajo el stop (sube contigo)</div></div>
+       </div>`;
+
+  // Bloque de stop (la única salida en Marea). Si no hay niveles aún → aviso de correr el pilot.
+  let stopBlock;
+  if (lvl && lvl.stop != null) {
+    stopBlock = `<div style="margin-top:10px;background:rgba(248,81,73,.10);border-radius:8px;padding:9px 12px">
+        <div style="font-size:11px;color:var(--text2);letter-spacing:.3px">🛑 STOP 4×ATR (chandelier) — la salida</div>
+        <div class="c-red" style="font-size:24px;font-weight:800;line-height:1.1;margin-top:2px">$${lvl.stop}</div>
+        ${lvl.ref != null ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">ref. cierre $${lvl.ref}</div>` : ''}
+      </div>`;
   } else {
-    mid = '<div style="margin-top:7px;font-size:11px;color:var(--text3)">Niveles no disponibles (correr el pilot)</div>';
+    stopBlock = `<div style="margin-top:10px;font-size:12px;color:var(--text3)">Niveles no disponibles (correr el pilot)</div>`;
   }
-  return `<div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${edge};border-radius:8px;padding:11px 13px;min-width:175px;flex:1 1 175px">
-    <div style="font-size:16px;font-weight:700">${tk}${star} <span style="margin-left:4px">${srcBadge}</span></div>
-    ${mid}
+
+  // Pullback opcional (DISCRECIONAL): niveles por debajo del cierre para una orden límite y
+  // entrar más barato. SIN SL — el chandelier 4×ATR es la única salida (stop fijo en soporte
+  // ya se midió: no baja DD + churn). Si no llena, compras al open igual. Soporte 10d se
+  // reserva como invalidación, no como entrada.
+  let pullback = '';
+  const chips = (lvl && lvl.levels) ? lvl.levels.filter(x => x[0] !== 'Soporte 10d') : [];
+  if (chips.length) {
+    const c = chips.map(x =>
+      `<span style="font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;margin:3px 3px 0 0;display:inline-block">${x[0]} <b>$${x[1]}</b></span>`).join('');
+    pullback = `<div style="margin-top:10px">
+        <div style="font-size:11px;color:var(--text2)">🟢 Pullback opcional <span style="color:var(--text3)">(orden límite, sin SL · si no llena, al open)</span></div>
+        <div>${c}</div>
+      </div>`;
+  }
+
+  // Invalidación DISCRECIONAL: piso de 10 días. Si cae por debajo, evaluar tesis rota con
+  // criterio + investigación. NO es regla ni SL: el backtest mostró que el breakout/soporte
+  // perdido NO predice fracaso de forma fiable (raro ~9%, desenlace mixto). Solo bandera.
+  let inval = '';
+  const sup = (lvl && lvl.levels) ? lvl.levels.find(x => x[0] === 'Soporte 10d') : null;
+  if (sup) {
+    inval = `<div style="margin-top:8px;font-size:11px;color:var(--text3);border-top:1px dashed var(--border);padding-top:7px">
+        🔎 Invalidación (soporte 10d) <b>$${sup[1]}</b> — si cae por debajo, evaluar posible <b>tesis rota</b> <span style="opacity:.8">(raro · desenlace histórico mixto · criterio, no SL)</span></div>`;
+  }
+
+  return `<div style="background:var(--card);border:1px solid var(--border);border-left:4px solid ${edge};border-radius:12px;padding:16px 18px;min-width:240px;flex:1 1 300px;box-shadow:0 1px 3px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="font-size:24px;font-weight:800">${tk}${star}</div>
+      ${srcBadge}
+    </div>
+    <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px">
+      <span style="font-size:16px">🎯</span><div>Comprar al <b>OPEN</b> de mañana</div>
+    </div>
+    ${pullback}
+    ${stopBlock}
+    ${inval}
+    ${horizon}
   </div>`;
 }
 
@@ -775,8 +822,9 @@ async function loadPilot() {
       oh += `<div style="margin-top:12px;padding:9px 13px;background:rgba(248,81,73,.10);border-radius:8px;color:var(--red);font-weight:700">🔴 VENDER al open: ${pend.sells.join(', ')}</div>`;
     oh += '<div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.5">' +
           '⭐ = setup TOP (alta convicción, validado) · Entrada validada = al <b>OPEN</b> · ' +
-          '🛑 Stop 4×ATR (chandelier) = la salida validada · ' +
-          'niveles de pullback = referencia opcional (no mejoran el edge, medido)</div>';
+          '🛑 Stop 4×ATR (chandelier) = la única salida en Marea (trailing, sin target) · ' +
+          'PED = salida por tiempo ≈ Day+7 · ' +
+          '🟢 Pullback e 🔎 Invalidación = referencias <b>discrecionales</b> (no validadas como regla; el filtro de entrada se midió y no fue robusto)</div>';
     oh += '</div>';
   } else {
     oh = '<div class="acard" style="padding:14px;color:var(--text2)">Sin órdenes pendientes para mañana.' +
@@ -804,10 +852,32 @@ async function loadPilot() {
             ? '<span style="font-size:9px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
             : '<span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 Marea</span>';
           const star = p.top ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518">⭐</span>' : '';
-          return `<tr><td><b>${p.ticker}</b>${star}</td><td>${src}</td><td>$${p.entry}</td><td>$${p.price}</td>
-            <td class="${c}">${p.pnl_pct >= 0 ? '+' : ''}${p.pnl_pct}%</td></tr>`;
+          // Contexto D+x: PED muestra progreso hacia la salida por tiempo (D{x}/{hold});
+          // Marea solo días en cartena (la salida la decide el stop 4×ATR, no el tiempo).
+          let days = '—';
+          if (p.days_held != null) {
+            if (p.source === 'ped') {
+              const hold = p.ped_hold_days || 6;
+              const near = p.days_held >= hold;
+              days = `<span title="Salida PED por tiempo ~Day+7" class="${near ? 'c-red' : ''}" style="${near ? 'font-weight:700' : ''}">D${p.days_held}/${hold}</span>`;
+            } else {
+              days = `<span title="Días hábiles en cartera (la salida la marca el stop 4×ATR)">D${p.days_held}</span>`;
+            }
+          }
+          // Stop 4×ATR vivo (solo Marea): valor + colchón % del precio actual sobre el stop.
+          // PED no tiene stop de precio (sale por tiempo) → "—".
+          let stopCell = '<span style="color:var(--text3)">—</span>';
+          if (p.stop_4atr != null) {
+            const cushion = p.price ? (p.price / p.stop_4atr - 1) * 100 : null;
+            const cu = (cushion != null)
+              ? ` <span style="font-size:10px;color:var(--text3)" title="colchón: cuánto puede caer el precio antes de tocar el stop">(+${cushion.toFixed(1)}%)</span>`
+              : '';
+            stopCell = `<span class="c-red" title="Salida Marea: vendes si el cierre cae bajo este nivel. Sube con los máximos, nunca baja.">$${p.stop_4atr}</span>${cu}`;
+          }
+          return `<tr><td><b>${p.ticker}</b>${star}</td><td>${src}</td><td>${days}</td><td>$${p.entry}</td><td>$${p.price}</td>
+            <td>${stopCell}</td><td class="${c}">${p.pnl_pct >= 0 ? '+' : ''}${p.pnl_pct}%</td></tr>`;
         }).join('')
-      : '<tr><td colspan="5" style="color:var(--text3)">Sin posiciones abiertas</td></tr>';
+      : '<tr><td colspan="7" style="color:var(--text3)">Sin posiciones abiertas</td></tr>';
 
   // Trades cerrados
   const ct = (d.closed_trades || []).slice().reverse();

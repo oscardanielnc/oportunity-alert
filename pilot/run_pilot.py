@@ -23,6 +23,7 @@ from pilot.momentum_signals import (
 from pilot.paper_portfolio import PaperPortfolio, K, DATA_DIR
 from pilot.ped_signals import (
     ped_entry_candidates, ped_should_exit, fetch_earnings_map, MEGA_CAP_PED,
+    days_held, PED_HOLD_DAYS,
 )
 from pilot.star_score import compute_top, sector_strength, SECTOR_ETFS
 
@@ -65,10 +66,14 @@ def run(send_alert=True):
                 star_rows.append({"tk": tk, "mom": ind["momentum"], "trend": ind["price"]/ind["sma200"]-1})
     top_set, _ = compute_top(star_rows, sector_mom)
 
+    # Días hábiles en cartera por posición (contexto D+x; para PED define la salida ~Day+7).
+    held_days = {tk: days_held(data.get(tk, []), p["entry_date"])
+                 for tk, p in pp.positions.items()}
+
     if pp.s["last_run_date"] == ref_date:
         print(f"[pilot] ya corrido para {ref_date} — nada que hacer")
         return _emit_dashboard(pp, inds, cl, qqq, ref_date, [], top_set=top_set,
-                               sector_mom=sector_mom, send_alert=False)
+                               sector_mom=sector_mom, send_alert=False, held_days=held_days)
 
     actions = []   # fills de hoy (ordenes que estaban pendientes)
     earnings_map = fetch_earnings_map([t for t in MEGA_CAP_PED if t in data])
@@ -149,7 +154,7 @@ def run(send_alert=True):
     return _emit_dashboard(pp, inds, cl, qqq, ref_date, actions,
                            new_buys=new_buys, new_sells=new_sells, new_ped_buys=new_ped_buys,
                            top_set=top_set, sector_mom=sector_mom, macro=macro,
-                           buy_levels=buy_levels, send_alert=send_alert)
+                           buy_levels=buy_levels, send_alert=send_alert, held_days=held_days)
 
 
 # ── salida: consola, dashboard json, alerta whatsapp ───────────────────────────
@@ -161,6 +166,19 @@ def _pos_lines(pp, cl):
         pnl = (px/p["entry_price"]-1)*100
         out.append((tk, round(pnl, 1), p["entry_price"], round(px, 2)))
     return sorted(out, key=lambda x: -x[1])
+
+
+def _live_chandelier(pp, inds, tk):
+    """Stop 4×ATR vivo (chandelier) de una posición Marea: hh_desde_entrada − 4×ATR actual.
+    Sube con los máximos, nunca baja. None para PED (sale por tiempo) o si falta ATR/hh."""
+    pos = pp.positions.get(tk, {})
+    if pos.get("source", "marea") == "ped":
+        return None
+    ind = inds.get(tk)
+    if not ind or ind.get("atr") is None or not pos.get("hh"):
+        return None
+    stop = chandelier_stop(pos["hh"], ind["atr"])
+    return round(stop, 2) if stop is not None else None
 
 
 def _levels_lines(tickers, buy_levels, prefix="   ↳ "):
@@ -229,8 +247,9 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_le
 
 def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=None,
                     new_ped_buys=None, top_set=None, sector_mom=None, macro=True,
-                    buy_levels=None, send_alert=True):
+                    buy_levels=None, send_alert=True, held_days=None):
     top_set = top_set or set()
+    held_days = held_days or {}
     # Niveles de entrada sugeridos. En el camino "ya corrido" no se recomputan compras,
     # así que se derivan de pp.pending con los indicadores frescos de hoy.
     if buy_levels is None:
@@ -269,6 +288,10 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "positions": [
             {"ticker": tk, "pnl_pct": pnl, "entry": ent, "price": px,
              "source": pp.positions.get(tk, {}).get("source", "marea"),
+             "entry_date": pp.positions.get(tk, {}).get("entry_date"),
+             "days_held": held_days.get(tk),
+             "ped_hold_days": PED_HOLD_DAYS,
+             "stop_4atr": _live_chandelier(pp, inds, tk),   # salida Marea viva (None en PED)
              "top": tk in top_set}
             for tk, pnl, ent, px in _pos_lines(pp, cl)
         ],

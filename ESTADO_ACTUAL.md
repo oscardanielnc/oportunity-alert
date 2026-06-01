@@ -1,6 +1,45 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-05-31 (tarde) — sesión: tácticas de entrada (cerradas con datos) + Fase 3 salida event-driven + protagonismo Piloto
+# Última actualización: 2026-05-31 (noche) — sesión: tarjetas del Piloto pulidas + referencias discrecionales + stop 4×ATR vivo + backtest invalidación
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
+
+> **Contexto:** Oscar vio "Niveles no disponibles (correr el pilot)" en las cards → era dashboard JSON viejo
+> (la feature de niveles es de esta misma sesión). Se resolvió corriendo el pilot en la VM. OJO trampa: en la
+> VM `python -m pilot.run_pilot` con el python del sistema falla (`ModuleNotFoundError: dotenv`); usar el venv:
+> **`venv/bin/python -m pilot.run_pilot`**.
+
+**1. Salida de Marea — CLARIFICADA (era confusión de Oscar).** El stop 4×ATR es un **SL TRAILING (chandelier)**,
+   NO un TP: `máx_desde_entrada − 4×ATR`, solo sube nunca baja; sales si el **cierre diario** rompe el nivel.
+   Marea NO tiene target (trend-following: deja correr). PED sale por **tiempo ≈ Day+7**. Sin TP en ninguna.
+
+**2. Tarjetas "Mañana al abrir" rediseñadas** (`api/dashboard.html` `_plBuyCard`): más grandes (protagonistas),
+   jerarquía clara — 🎯 comprar al OPEN · 🛑 STOP 4×ATR destacado (la salida) · horizonte por estrategia
+   (Marea sin target / PED ≈Day+7). Se QUITARON los chips de pullback como "stops" (confundían) y se
+   reintrodujeron como **DOS referencias DISCRECIONALES** (no reglas, etiquetadas como tal):
+   - 🟢 **Pullback opcional** (orden límite, **SIN SL** · si no llena, al open) = EMA20 + Retest breakout.
+   - 🔎 **Invalidación** (soporte 10d) = "si cae por debajo, evaluar posible tesis rota (criterio, no SL)".
+
+**3. Filtro de entrada por invalidación — MEDIDO y RECHAZADO como regla** (`research/backtest_marea_invalidation.py`).
+   Veto de entrada si el open abre bajo breakout/soporte/gap. El "veto breakout" parecía ganar (+103pp total,
+   Sharpe 1.25→1.43) pero NO es real: n=7 vetos en 4 años, mejora por **path-dependence** (reshuffle de cartera),
+   **se revierte en 2025** (−4.2pp), y el **DD EMPEORA** (−27.0 vs −25.2). Las vetadas eran mixtas (1 runner /
+   1 perdedora). Veredicto: **NO veto automático**; el breakout/soporte perdido NO predice fracaso de forma
+   fiable. Se rescata solo como **referencia discrecional** en la tarjeta (punto 2). Refuerza el "sin SL":
+   el chandelier 4×ATR ya da espacio; un SL fijo en soporte churnnea (ya rechazado en sección 2 del test previo).
+
+**4. Posiciones "En cartera" — dos columnas nuevas:**
+   - **Días** (D+x): PED muestra `D{x}/6` (rojo cuando toca salir ~Day+7); Marea solo días en cartera.
+   - **Stop 4×ATR** vivo (solo Marea): nivel chandelier + **colchón %** (cuánto cae antes de tocarlo).
+     Backend `run_pilot._live_chandelier()`; payload `positions[]` ahora trae `days_held`, `entry_date`,
+     `ped_hold_days`, `stop_4atr`. Se actualiza en cada corrida diaria del pilot (no intradía — es cierre diario).
+
+**PENDIENTES:**
+- 🚀 **Oscar despliega esta versión** (`deploy.sh` + `venv/bin/python -m pilot.run_pilot` para repoblar
+  `entry_levels` + `days_held` + `stop_4atr` en el JSON).
+- 🔔 **TEMA DE MAÑANA (lo trae Oscar): uso de la IA en el sistema.** Continuación pactada.
+- 🔍 **Verificar MU ~$971 en eToro** — parece dato malo de Alpaca (Micron debería ~$100-130; posible ajuste
+  de split). Si está mal, escala mal toda la tarjeta de MU. Revisar aparte (no es bug de diseño).
 
 ## ⚡ SESIÓN 2026-05-31 (TARDE) — análisis de tácticas + Fase 3 + dashboard — COMMITEADO EN main, SIN PUSH NI DEPLOY
 
