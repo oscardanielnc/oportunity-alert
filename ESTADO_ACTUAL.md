@@ -82,8 +82,8 @@ esos pasan como **ADVERTENCIA de continuación** (ventana 1-2 días, dashboard-o
 `main.py` lee de `config.json` se pasa a `score_with_claude` pero **NUNCA llega a `call_ai`** (código
 muerto); el modelo real lo decide la env var **`CLAUDE_MODEL`**. Para correr en Sonnet hacen falta DOS
 vars: `AI_ENGINE=claude` **y** `CLAUDE_MODEL=claude-sonnet-4-6`. **Ambas confirmadas en el `.env` de la VM**
-→ corre en Sonnet 4.6 de verdad. PENDIENTE OPCIONAL (endurecimiento): cablear `model` a través de `call_ai`
-para que `config.json` sea la fuente de verdad y no se dependa de la env var.
+→ corre en Sonnet 4.6 de verdad. ✅ **ENDURECIDO (2026-06-01):** `model` ya se cablea por `call_ai`;
+`config.json` es la fuente de verdad (env var = override opcional). Ya no cae a Haiku en silencio.
 
 **Despliegue:** `deploy.sh` OK (fast-forward `8b01aed..5e2ef5b`, sintaxis OK, servicio activo, AlpacaNews
 WS conectado, eToro pre-cargado). Validado `AI_ENGINE=claude` + `CLAUDE_MODEL=claude-sonnet-4-6` en la VM.
@@ -166,13 +166,30 @@ K=10-12 se aplana/decae. NO bajar de 5; mild upgrade a 6-8 solo si se automatiza
 **CIERRE DEL BLOQUE (A+B+K):** Marea NO se toca. Es robusta tal cual (gate breakout + chandelier, K=5).
 Todas las decisiones medidas con datos bear-inclusive. Commits en main (sin push, los pushea Oscar).
 
+## 🔧 SESIÓN 2026-06-01 (CONT.) — pulidos: plumbing modelo Claude + cap de noticias — HECHO (falta deploy)
+
+**1. Plumbing del modelo Claude — ENDURECIDO.** Antes el `model`/`claude_model` de config.json era
+código muerto: nunca llegaba a `call_ai`, el modelo real lo decidía SOLO la env var `CLAUDE_MODEL`
+→ si se perdía, caía a Haiku EN SILENCIO. Fix: `call_ai`/`_call_claude` aceptan `model`;
+`score_with_claude` lo pasa; precedencia **config.json (vía main) > env CLAUDE_MODEL > default Haiku**.
+Ahora config.json es la fuente de verdad (la env var queda como override opcional). Validado sin red.
+
+**2. Cap de edad de noticias — source-aware restaurado.** `config.json` tenía
+`max_article_age_minutes: 45` que PISABA la lógica source-aware (mataba earnings de Finnhub que
+laguean 60-90 min y hasta 8-Ks tardíos). Puesto a `null` → EDGAR=240min, Finnhub/Yahoo=90, Alpaca=120,
+default=90. **Dedup ensanchado a 120 min** (`cross_source_dedup_minutes`) para cubrir el lag de 90 de
+Finnhub + jitter: si Alpaca/Benzinga ya trajo Y procesó el evento (`sent_to_claude=1`), la copia tardía
+se descarta; si nunca se procesó, la 2da copia pasa (decisión de Oscar: estar al tanto no daña, pero sin
+repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 no.
+
+**FALTA: deploy a la VM** (`bash deploy.sh`) — junto con el resto en validación. Commits en main, sin push.
+
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
    se queda como vigilancia, no lista de compra.
-2. **Rediseño completo del frontend** — organizar mejor todo el dashboard (limpiar `_plBuyCard` muerto, etc.).
-3. (Opcional/menor) endurecer el plumbing del modelo Claude (cablear `model` por `call_ai`); revisar el
-   cap global de 45 min de edad de noticias vs la lógica source-aware.
+2. **Rediseño completo del frontend** — organizar mejor todo el dashboard (limpiar `_plBuyCard` muerto, etc.). ÚNICO PENDIENTE.
+3. ✅ **HECHO — plumbing del modelo Claude + cap de noticias** (2026-06-01, ver bloque abajo).
 
 ## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
 

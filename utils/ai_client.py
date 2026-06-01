@@ -29,6 +29,7 @@ def call_ai(
     system: str = "",
     max_tokens: int = 512,
     engine: str = None,
+    model: str = None,
     temperature: float = 0.1,
     force_json: bool = True,
 ) -> Optional[str]:
@@ -41,6 +42,8 @@ def call_ai(
         system:      Instrucción de sistema / system prompt (opcional)
         max_tokens:  Máximo de tokens en la respuesta
         engine:      "gemini" | "claude" — por defecto usa AI_ENGINE env var
+        model:       Modelo explícito (Claude). Si se pasa, MANDA sobre la env var CLAUDE_MODEL
+                     (config.json = fuente de verdad; env var = override opcional). None → env/default.
         temperature: 0.1 = determinístico, 1.0 = creativo
         force_json:  Gemini: añade response_mime_type="application/json"
     """
@@ -55,7 +58,7 @@ def call_ai(
         if eng == "claude":
             return _call_claude(
                 prompt, system=system, max_tokens=max_tokens,
-                temperature=temperature,
+                temperature=temperature, model=model,
             )
         logger.error(f"[AIClient] Motor desconocido: {eng!r} — usar 'gemini' o 'claude'")
         return None
@@ -142,6 +145,7 @@ def _call_claude(
     system: str = "",
     max_tokens: int = 512,
     temperature: float = 0.1,
+    model: str = None,
 ) -> Optional[str]:
     try:
         import anthropic
@@ -154,7 +158,10 @@ def _call_claude(
         logger.error("[AIClient] ANTHROPIC_API_KEY no configurada")
         return None
 
-    model_name = os.environ.get("CLAUDE_MODEL", _CLAUDE_DEFAULT)
+    # Precedencia: model explícito (config.json vía main) > env CLAUDE_MODEL > default Haiku.
+    # Antes el `model` no llegaba hasta acá (código muerto) y el modelo real lo decidía SOLO la
+    # env var → si CLAUDE_MODEL se perdía, caía a Haiku en silencio. Ahora config.json manda.
+    model_name = model or os.environ.get("CLAUDE_MODEL", _CLAUDE_DEFAULT)
     client = anthropic.Anthropic(api_key=api_key)
 
     kwargs: dict = {

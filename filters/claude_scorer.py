@@ -222,6 +222,7 @@ def score_with_claude(
         system=system_prompt,
         max_tokens=768,   # +campos de lenguaje simple + contexto sectorial + ventana
         engine=ai_engine,
+        model=model,      # config.json (vía main) = fuente de verdad del modelo Claude
     )
 
     result = parse_json_response(raw)

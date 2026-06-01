@@ -12,7 +12,8 @@
     "finnhub": 120,
     "reddit": 600
   },
-  "max_article_age_minutes": 45,
+  "max_article_age_minutes": null,
+  "cross_source_dedup_minutes": 120,
   "min_pct_for_alta": 8.0,
   "min_pct_for_media": 3.0,
   "already_priced_threshold_pct": 5.0,

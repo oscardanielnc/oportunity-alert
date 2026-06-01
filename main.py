@@ -327,13 +327,14 @@ def process_article(
     score = article.get("keyword_score", 0)
     raw_text = article.get("raw_text", "")
 
-    # Dedup cross-source (mismo evento, distinta fuente). Ventana ampliada a 60 min
-    # (configurable) porque Alpaca/Benzinga es push en segundos pero Finnhub free lagea
-    # 30-60 min → el mismo evento llega por ambas con esa separación.
-    cross_dedup_min = config.get("cross_source_dedup_minutes", 60)
+    # Dedup cross-source (mismo evento, distinta fuente). Ventana = 120 min para CUBRIR la
+    # edad source-aware de Finnhub/Yahoo (hasta 90 min) + jitter de poll: si Alpaca/Benzinga
+    # (push en segundos) ya trajo y PROCESÓ el evento, la copia tardía de Finnhub se descarta;
+    # si nunca se procesó (sent_to_claude=0), la 2da copia SÍ pasa (estar al tanto no daña).
+    cross_dedup_min = config.get("cross_source_dedup_minutes", 120)
     fingerprint = dedup.get_event_fingerprint(ticker, raw_text)
     if dedup.is_cross_source_duplicate(ticker, fingerprint, window_minutes=cross_dedup_min):
-        logger.info(f"[CROSS-DUP] {ticker} mismo evento <20min — skip | {article.get('title', '')[:60]}")
+        logger.info(f"[CROSS-DUP] {ticker} mismo evento <{cross_dedup_min}min — skip | {article.get('title', '')[:60]}")
         dedup.mark_seen(article_id, source)
         return
 
