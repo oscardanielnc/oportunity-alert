@@ -31,31 +31,26 @@ DASH_PATH = os.path.join(DATA_DIR, "pilot_dashboard.json")
 NEWS_FLAG_LOG = os.path.join(DATA_DIR, "pilot_news_flags.jsonl")  # log informativo (punto 4)
 
 
-def _buy_context(pend_buys, sector_mom):
+def _news_sector_ctx(tks, sector_mom, metrics=None):
     """
-    Contexto INFORMATIVO por cada compra recomendada (NO veta — solo informa).
-    Le da al Piloto los OJOS del brazo de noticias: estado del sector + noticia
-    adversa reciente. La decisión sigue siendo la matemática de Marea/PED.
-
-    Decisión Oscar 2026-06-01. Best-effort: si algo falla, esa compra va sin contexto.
+    Contexto INFORMATIVO por ticker: estado del sector (momentum + ranking + a favor/en
+    contra) + noticia adversa reciente (5 días, desde la metrics.db del brazo de noticias).
+    NO veta — solo informa. Best-effort: si algo falla, ese ticker va sin contexto.
     """
-    # Ranking de sectores por momentum (para etiquetar caliente/frío)
     ranked = sorted((e for e, m in sector_mom.items() if m is not None),
                     key=lambda e: -sector_mom[e])
     rank_of = {e: i for i, e in enumerate(ranked)}
 
-    # Noticias recientes (5 días) desde la misma metrics.db que escribe el brazo de noticias
-    metrics = None
-    try:
-        from utils.metrics_store import MetricsStore
-        metrics = MetricsStore(os.path.join(DATA_DIR, "metrics.db"))
-    except Exception:
-        pass
+    if metrics is None:
+        try:
+            from utils.metrics_store import MetricsStore
+            metrics = MetricsStore(os.path.join(DATA_DIR, "metrics.db"))
+        except Exception:
+            metrics = None
 
     out = {}
-    for tk in pend_buys:
+    for tk in tks:
         ctx = {}
-        # — Estado del sector —
         etf = SECTOR_ETF.get(tk, DEFAULT_ETF)
         mom = sector_mom.get(etf)
         if mom is not None:
@@ -66,7 +61,6 @@ def _buy_context(pend_buys, sector_mom):
             if ranked:
                 ctx["sector_rank"] = rank_of.get(etf, len(ranked)) + 1
                 ctx["sector_total"] = len(ranked)
-        # — Noticia adversa reciente (informativo) —
         if metrics is not None:
             try:
                 recent = metrics.get_recent_news_for_ticker(tk, minutes=5 * 24 * 60)
@@ -78,9 +72,12 @@ def _buy_context(pend_buys, sector_mom):
                 pass
         if ctx:
             out[tk] = ctx
+    return out
 
-    # — Log informativo (punto 4): registrar las compras con noticia adversa para
-    #   revisar a futuro si rindieron peor (antes de automatizar nada) —
+
+def _buy_context(pend_buys, sector_mom):
+    """Contexto de las COMPRAS recomendadas + log informativo (punto 4, Oscar 2026-06-01)."""
+    out = _news_sector_ctx(pend_buys, sector_mom)
     try:
         flagged = {tk: c for tk, c in out.items() if c.get("adverse_news")}
         if flagged:
@@ -92,7 +89,57 @@ def _buy_context(pend_buys, sector_mom):
             print(f"[pilot] {len(flagged)} compra(s) con noticia adversa reciente: {list(flagged)}")
     except Exception:
         pass
+    return out
 
+
+def _leaders(pp, inds, cl, top_set, sector_mom, held_days, pending, n=10):
+    """
+    Top-N líderes por fuerza relativa (momentum 126d, en tendencia QQB>SMA200), con la
+    info para que Oscar decida DISCRECIONALMENTE qué rotar (decisión Oscar 2026-06-01:
+    rotación automática rechazada por backtest — más DD/menos Sharpe; este panel es la vía).
+
+    Incluye además los holdings que CAYERON fuera del top-N (candidatos a rotar). Cada fila
+    trae acción del día (comprar/vender al open), niveles desplegables, sector y noticia.
+    """
+    top_set = top_set or set()
+    ranked = sorted(
+        [(ind["momentum"], tk) for tk, ind in inds.items()
+         if ind.get("momentum") is not None and ind.get("above_sma")],
+        reverse=True)
+    leader_tks = [tk for _, tk in ranked[:n]]
+    # Garantizar visibilidad de holdings y compras pendientes aunque caigan fuera del top-N
+    must = list(pp.positions) + (pending.get("buys") or []) + (pending.get("ped_buys") or [])
+    extra = [tk for tk in dict.fromkeys(must) if tk not in leader_tks]
+    all_tks = leader_tks + extra
+
+    ctx = _news_sector_ctx(all_tks, sector_mom or {})
+    buys = set((pending.get("buys") or []) + (pending.get("ped_buys") or []))
+    sells = set(pending.get("sells") or [])
+
+    out = []
+    for i, tk in enumerate(all_tks):
+        ind = inds.get(tk) or {}
+        in_top = tk in leader_tks
+        held_pos = pp.positions.get(tk)
+        row = {
+            "rank": (i + 1) if in_top else None,
+            "ticker": tk,
+            "momentum_pct": round(ind["momentum"] * 100, 1) if ind.get("momentum") is not None else None,
+            "in_top": in_top,
+            "held": bool(held_pos),
+            "source": (held_pos or {}).get("source"),
+            "is_top": tk in top_set,
+            "is_breakout": bool(ind.get("is_breakout")),
+            "action": "buy" if tk in buys else ("sell" if tk in sells else None),
+            "entry": entry_levels(ind) or {},
+        }
+        row.update(ctx.get(tk) or {})
+        if held_pos:
+            px = cl.get(tk, held_pos["entry_price"])
+            row["pnl_pct"] = round((px / held_pos["entry_price"] - 1) * 100, 1)
+            row["days_held"] = held_days.get(tk)
+            row["stop_4atr"] = _live_chandelier(pp, inds, tk)
+        out.append(row)
     return out
 
 
@@ -324,6 +371,8 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         buy_levels = {k: v for k, v in buy_levels.items() if v}
     # Contexto informativo por compra (sector + noticia adversa) — NO veta, solo informa.
     buy_context = _buy_context(pend_buys, sector_mom or {})
+    # Top-10 líderes (ranking fuerza relativa) — panel discrecional que reemplaza "Mañana al abrir".
+    leaders = _leaders(pp, inds, cl, top_set, sector_mom or {}, held_days, pp.pending)
     eh = pp.s["equity_history"]
     eq = eh[-1]["equity"] if eh else pp.cash
     # benchmark QQQ sobre el mismo span del piloto (honestidad: ¿alpha o beta?)
@@ -366,6 +415,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "pending": pp.pending,
         "entry_levels": buy_levels,                         # niveles sugeridos por ticker de compra (Fase 1)
         "buy_context": buy_context,                         # contexto informativo (sector + noticia adversa)
+        "leaders": leaders,                                 # top-10 ranking fuerza relativa (panel discrecional)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,

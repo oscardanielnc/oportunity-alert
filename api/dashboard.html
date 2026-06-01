@@ -791,6 +791,86 @@ function _plBuyCard(tk, source, isTop, lvl, ctx) {
   </div>`;
 }
 
+// ── 🏆 Top-10 líderes (panel discrecional, reemplaza "Mañana al abrir") ─────────
+function _toggleLeader(tk) {
+  const e = document.getElementById('ld-' + tk);
+  const a = document.getElementById('lda-' + tk);
+  if (!e) return;
+  const open = e.style.display === 'none';
+  e.style.display = open ? 'block' : 'none';
+  if (a) a.textContent = open ? '▾ ocultar' : '▸ detalles';
+}
+
+function _leaderRow(r) {
+  const held = r.held, isPed = r.source === 'ped';
+  const top3 = r.rank != null && r.rank <= 3;
+  const rankPill = r.rank != null
+    ? `<div style="min-width:40px;text-align:center;font-size:20px;font-weight:800;color:${top3 ? 'var(--accent)' : 'var(--text2)'}">#${r.rank}</div>`
+    : `<div style="min-width:40px;text-align:center;font-size:15px;color:var(--text3)" title="En cartera, fuera del top-10 — candidato a rotar">⬇</div>`;
+
+  let badges = '';
+  if (r.is_top) badges += ' <span title="Setup TOP (validado)" style="color:#f5c518">⭐</span>';
+  if (held) badges += isPed
+    ? ' <span style="font-size:10px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
+    : ' <span style="font-size:10px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 en cartera</span>';
+  if (!held && r.is_breakout) badges += ' <span style="font-size:10px;background:var(--card2);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--text2)">🆕 breakout</span>';
+
+  let action = '';
+  if (r.action === 'buy')  action = `<span style="font-size:11px;font-weight:700;background:rgba(34,197,94,.18);color:#4ade80;border-radius:5px;padding:3px 9px">🎯 COMPRAR al open</span>`;
+  if (r.action === 'sell') action = `<span style="font-size:11px;font-weight:700;background:rgba(248,81,73,.15);color:var(--red);border-radius:5px;padding:3px 9px">🛑 VENDER al open — stop roto</span>`;
+
+  let inline = '';
+  if (held) {
+    inline += `<span class="${r.pnl_pct >= 0 ? 'c-green' : 'c-red'}" style="font-weight:700">${r.pnl_pct >= 0 ? '+' : ''}${r.pnl_pct}%</span>`;
+    if (r.days_held != null) inline += ` <span style="color:var(--text3)">· D+${r.days_held}</span>`;
+    if (r.stop_4atr != null) inline += ` <span style="color:var(--text3)">· stop $${r.stop_4atr}</span>`;
+  }
+  const mom = r.momentum_pct != null ? `<span style="color:var(--text2)">fuerza ${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</span>` : '';
+  const sec = r.sector_name ? `<span style="color:var(--text3)">· ${r.sector_name} <b style="color:${r.sector_favor ? 'var(--green)' : 'var(--red)'}">${r.sector_mom_pct >= 0 ? '+' : ''}${r.sector_mom_pct}%</b></span>` : '';
+  const adv = r.adverse_news ? `<div style="font-size:11px;color:#ffd591;background:rgba(124,74,3,.25);border-radius:6px;padding:4px 8px;margin-top:5px">⚠ Noticia adversa reciente: ${esc(r.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>` : '';
+
+  const e = r.entry || {}, lv = e.levels || [];
+  let detail = '', toggle = '';
+  if (lv.length || e.stop != null || r.sector_rank) {
+    let bits = [];
+    if (e.stop != null) bits.push(`🛑 Stop 4×ATR estim. <b>$${e.stop}</b>`);
+    lv.forEach(x => bits.push(`${x[0] === 'Soporte 10d' ? '🔎 ' : '🟢 '}${x[0]} <b>$${x[1]}</b>`));
+    if (r.sector_rank) bits.push(`Sector ranking <b>${r.sector_rank}/${r.sector_total}</b>`);
+    detail = `<div id="ld-${r.ticker}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+        ${bits.map(b => `<span style="display:inline-block;font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;margin:2px 4px 2px 0">${b}</span>`).join('')}
+        <div style="font-size:10px;color:var(--text3);margin-top:5px">🟢 Pullback opcional (orden límite, sin SL · si no llena, al open) · 🔎 Invalidación = soporte 10d (criterio, no SL)</div>
+      </div>`;
+    toggle = `<span id="lda-${r.ticker}" onclick="_toggleLeader('${r.ticker}')" style="cursor:pointer;font-size:11px;color:var(--accent)">▸ detalles</span>`;
+  }
+
+  const edge = held ? (isPed ? '#7c6ff7' : 'var(--green)') : 'var(--border)';
+  return `<div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${edge};border-radius:10px;padding:11px 14px;margin-bottom:7px">
+    <div style="display:flex;align-items:center;gap:12px">
+      ${rankPill}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:17px;font-weight:800">${r.ticker}</span>${badges} ${action}</div>
+        <div style="font-size:12px;margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;align-items:center">${inline} ${mom} ${sec} ${toggle}</div>
+      </div>
+    </div>
+    ${adv}
+    ${detail}
+  </div>`;
+}
+
+function renderLeaders(d) {
+  const L = d.leaders || [];
+  if (!L.length)
+    return '<div class="acard" style="padding:14px;color:var(--text2)">Sin datos de líderes — correr el pilot.' +
+           (d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.') + '</div>';
+  let h = '<div class="acard alta" style="padding:16px">';
+  h += '<div style="font-size:15px;font-weight:700">🏆 Top-10 líderes — fuerza relativa (momentum 6m)</div>';
+  h += '<div style="font-size:11px;color:var(--text3);margin:3px 0 12px">📈 Horizonte: <b>TENDENCIA</b> (semanas–meses) · distinto a Noticias (corto plazo / evento). El sistema sostiene con chandelier; vos rotás con criterio. 🎯/🛑 = acción al open de mañana.</div>';
+  h += L.map(_leaderRow).join('');
+  h += '<div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">⭐ TOP validado · 🆕 breakout (candidato de entrada) · ⬇ en cartera fuera del top-10 (candidato a rotar — tu criterio) · 🛑 stop 4×ATR = única salida Marea · PED sale ≈Day+7. La rotación automática se midió (empeora drawdown/Sharpe) → este panel es <b>discrecional</b>.</div>';
+  h += '</div>';
+  return h;
+}
+
 async function loadPilot() {
   const setT = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
   let d;
@@ -822,33 +902,9 @@ async function loadPilot() {
     note.innerHTML = `<div class="acard" style="padding:12px;border-left:3px solid var(--yellow)">⚠️ La curva incluye un <b>backfill seed</b> (replay in-sample) — el retorno total NO es performance live.${parts.length ? '<br>' + parts.join(' · ') : ''}</div>`;
   }
 
-  // ➡️ MAÑANA AL ABRIR — protagonista: qué comprar (con stop 4×ATR validado) y vender
-  const pend = d.pending || { buys: [], sells: [] };
-  const pedb = pend.ped_buys || [];
-  const starTop = new Set(d.star_top || []);
-  const elv = d.entry_levels || {};
-  const bctx = d.buy_context || {};
-  const allBuys = [...(pend.buys || []).map(t => [t, 'marea']), ...pedb.map(t => [t, 'ped'])];
-  let oh = '';
-  if (allBuys.length || (pend.sells && pend.sells.length)) {
-    oh = '<div class="acard alta" style="padding:16px">';
-    oh += '<div style="font-size:15px;font-weight:700;margin-bottom:2px">➡️ Mañana al abrir — ejecutar en eToro</div>';
-    oh += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">📈 Horizonte: <b>TENDENCIA</b> (semanas–meses) · distinto a Noticias, que es corto plazo / evento</div>';
-    if (allBuys.length)
-      oh += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
-            allBuys.map(([t, src]) => _plBuyCard(t, src, starTop.has(t), elv[t], bctx[t])).join('') + '</div>';
-    if (pend.sells && pend.sells.length)
-      oh += `<div style="margin-top:12px;padding:9px 13px;background:rgba(248,81,73,.10);border-radius:8px;color:var(--red);font-weight:700">🔴 VENDER al open: ${pend.sells.join(', ')}</div>`;
-    oh += '<div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.5">' +
-          '⭐ = setup TOP (alta convicción, validado) · Entrada validada = al <b>OPEN</b> · ' +
-          '🛑 Stop 4×ATR (chandelier) = la única salida en Marea (trailing, sin target) · ' +
-          'PED = salida por tiempo ≈ Day+7 · ' +
-          '🟢 Pullback e 🔎 Invalidación = referencias <b>discrecionales</b> (no validadas como regla; el filtro de entrada se midió y no fue robusto)</div>';
-    oh += '</div>';
-  } else {
-    oh = '<div class="acard" style="padding:14px;color:var(--text2)">Sin órdenes pendientes para mañana.' +
-         (d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.') + '</div>';
-  }
+  // 🏆 TOP-10 LÍDERES — reemplaza "Mañana al abrir" (panel discrecional, decisión Oscar 2026-06-01).
+  // Conserva lo accionable (🎯 comprar / 🛑 vender al open, stop 4×ATR, niveles desplegables, sector, noticia).
+  let oh = renderLeaders(d);
   // Fuerza por sector (momentum 6m del ETF) — qué sectores trendean ahora
   const sec = d.sector_strength || [];
   if (sec.length) {
