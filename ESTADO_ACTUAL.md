@@ -20,6 +20,15 @@
 > - `equity_history` se autocorrige (idempotente por día): la fila mala de hoy se sobrescribe en el
 >   próximo ciclo del tracker tras el deploy.
 > - PENDIENTE: **desplegar a la VM** (`deploy.sh`) para que el tracker en vivo lo aplique.
+>
+> **Bug #2 (mismo día, post-deploy del #1):** las 5 posiciones salían "Manual" (no auto-Marea) y el
+> override del dashboard **no persistía** (volvía a Manual al refrescar). Causas: (a) `/api/positions`
+> leía la estrategia del **cache del tracker** (10 min viejo) en vez del tag en vivo → el override se
+> revertía; (b) `resolve_strategy` solo auto-matcheaba contra el paper portfolio → MU/DELL/ARM caían a
+> manual (ARM ni está en el top-80, vive en MEGA_CAP_PED). **Fix:** (a) `/api/positions` ahora resuelve
+> la estrategia SIEMPRE con `resolve_strategy` (tag-aware → override instantáneo; el estado de salida
+> sigue del cache); (b) `resolve_strategy` cae a **marea** si el ticker está en el alcance del Piloto
+> (universo top-80 ∪ MEGA_CAP_PED), origin "universe". Verificado: las 5 → marea, override persiste.
 
 ## ⚡ SESIÓN 2026-06-01 — IA de noticias: contexto por código + análisis macro + lenguaje simple — ✅ DESPLEGADO Y VIVO EN SONNET 4.6 (commit `5e2ef5b`)
 

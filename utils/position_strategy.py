@@ -144,10 +144,37 @@ def _pilot_positions() -> dict:
 
 # ── Resolución híbrida ──────────────────────────────────────────────────────────
 
+_pilot_scope: set = None
+
+
+def _in_pilot_scope(ticker: str) -> bool:
+    """
+    ¿El ticker está en el alcance operativo del Piloto? = universo Marea (top-80 liquidez)
+    ∪ MEGA_CAP_PED. Sirve para auto-atribuir a 'marea' las posiciones reales que vienen de
+    recomendaciones del Piloto pero NO están en el paper portfolio (caso típico: el paper
+    simula otros nombres, o el ticker salió del top-80 como ARM que vive en MEGA_CAP_PED).
+    """
+    global _pilot_scope
+    if _pilot_scope is None:
+        scope = set()
+        try:
+            from pilot.universe import load_universe
+            scope |= set(load_universe())
+        except Exception:
+            pass
+        try:
+            from pilot.ped_signals import MEGA_CAP_PED
+            scope |= set(MEGA_CAP_PED)
+        except Exception:
+            pass
+        _pilot_scope = scope
+    return ticker in _pilot_scope
+
+
 def resolve_strategy(ticker: str) -> dict:
     """
     Determina la estrategia de una posición real.
-    Retorna {"strategy": "marea"|"ped"|"manual", "origin": "override"|"pilot"|"default"}.
+    Retorna {"strategy": "marea"|"ped"|"manual", "origin": "override"|"pilot"|"universe"|"default"}.
     """
     ticker = ticker.upper().strip()
 
@@ -161,6 +188,11 @@ def resolve_strategy(ticker: str) -> dict:
         # todo lo demás (incl. estado viejo sin 'source') es Marea por defecto.
         src = pilot.get("source", "marea")
         return {"strategy": src if src in ("marea", "ped") else "marea", "origin": "pilot"}
+
+    # No está en el paper, pero SÍ en el alcance del Piloto → Marea por defecto (estrategia
+    # dominante). Si fue una entrada PED, Oscar lo corrige con el override (ahora persiste).
+    if _in_pilot_scope(ticker):
+        return {"strategy": "marea", "origin": "universe"}
 
     return {"strategy": "manual", "origin": "default"}
 

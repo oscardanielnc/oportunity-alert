@@ -193,23 +193,24 @@ def get_positions(_: str = Depends(_require_auth)):
     from utils.position_strategy import resolve_strategy, read_account_cache
     evals = (read_account_cache() or {}).get("evals", {})
     for r in rows:
+        # Estrategia SIEMPRE desde resolve_strategy (tag-aware) → el override del dashboard
+        # se refleja AL INSTANTE. Antes salía del cache del tracker (10 min viejo), así que
+        # un override volvía a "Manual" al refrescar (bug reportado 2026-06-01).
+        try:
+            res = resolve_strategy(r["ticker"])
+            r["strategy"], r["strategy_origin"] = res["strategy"], res["origin"]
+        except Exception:
+            r["strategy"], r["strategy_origin"] = "manual", "default"
+        # El estado de SALIDA (chandelier/Day+7) sí viene del cache del tracker (puede lagear
+        # ~10 min tras un override; se recalcula en el próximo ciclo).
         ev = evals.get(r["ticker"])
         if ev:
-            r["strategy"]        = ev.get("strategy", "manual")
-            r["strategy_origin"] = ev.get("origin", "default")
             r["exit_signal"]     = ev.get("exit", False)
             r["exit_reason"]     = ev.get("reason", "")
             r["exit_detail"]     = ev.get("detail", "")
             r["stop_price"]      = ev.get("stop_price")
             r["days_held"]       = ev.get("days_held")
             r["entry_date"]      = ev.get("entry_date", "")
-        else:
-            # Sin cache (tracker no corriendo): al menos resolvemos la estrategia.
-            try:
-                res = resolve_strategy(r["ticker"])
-                r["strategy"], r["strategy_origin"] = res["strategy"], res["origin"]
-            except Exception:
-                r["strategy"], r["strategy_origin"] = "manual", "default"
     snap_ts = rows[0]["ts"] if rows else None
     return {"positions": rows, "snapshot_ts": snap_ts}
 
