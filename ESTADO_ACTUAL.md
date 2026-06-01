@@ -2,6 +2,25 @@
 # Última actualización: 2026-06-01 — sesión: IA noticias (contexto+lenguaje simple) + Piloto (panel Top-10 líderes, rotación rechazada por backtest, breakouts nuevos, horizonte). PENDIENTE próxima sesión: backtest breakouts frescos + rediseño frontend
 # Dueño: Oscar Navarro | Asistente: Claude
 
+## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
+
+> **Síntoma (Oscar, primer día con 5 posiciones reales):** dashboard mostraba equity
+> $5,505 → **$500.34 (−90.91%)** y "Sin datos de posiciones" pese a tener 5 abiertas.
+> **Causa raíz:** el endpoint `/trading/info/portfolio` de eToro devuelve cada posición con
+> `instrumentID` NUMÉRICO y **sin símbolo ni currentRate**. `_extract_ticker` las marcaba
+> UNKNOWN → `get_portfolio` las **descartaba** (las 5) → `invested=0` → `total = credit (cash)
+> = $500`. **Path nunca ejecutado** porque hasta hoy había 0 posiciones. eToro es el núcleo de
+> datos → arrastraba equity_history, /api/positions, P&L, Gate5.
+>
+> **Fix (verificado en vivo, equity ahora $5,656 = real):**
+> - `etoro_market.py`: `get_symbol_for_id(iid)` (mapa inverso id→símbolo) + `fetch_price_by_id(iid)`
+>   + refactor `_fetch_candles_by_id`/`_price_from_candles`.
+> - `etoro_client.get_portfolio`: resuelve ticker por instrumentID, **nunca descarta** una
+>   posición, trae precio actual por id → valor + P&L reales, `total = cash + valor_actual_posiciones`.
+> - `equity_history` se autocorrige (idempotente por día): la fila mala de hoy se sobrescribe en el
+>   próximo ciclo del tracker tras el deploy.
+> - PENDIENTE: **desplegar a la VM** (`deploy.sh`) para que el tracker en vivo lo aplique.
+
 ## ⚡ SESIÓN 2026-06-01 — IA de noticias: contexto por código + análisis macro + lenguaje simple — ✅ DESPLEGADO Y VIVO EN SONNET 4.6 (commit `5e2ef5b`)
 
 > **Origen:** Oscar notó que el evaluador de noticias (Sonnet 4.6) "no recomendaba nada acertado".

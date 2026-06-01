@@ -50,6 +50,7 @@ _HTTP_TIMEOUT = 10
 
 # Mapa símbolo→id en memoria (se carga del cache/red una vez por proceso)
 _symbol_to_id: dict = {}
+_id_to_symbol: dict = {}        # reverse (id→símbolo), para resolver posiciones de eToro
 _map_loaded_at: float = 0.0
 
 
@@ -177,18 +178,41 @@ def get_instrument_id(symbol: str) -> int | None:
     return _symbol_to_id.get(sym)
 
 
+# ── Reverse map (id → símbolo) — para resolver posiciones de eToro ───────────────
+
+def _ensure_map() -> None:
+    """Carga el mapa símbolo→id (cache o red) si está vacío en memoria."""
+    global _symbol_to_id, _map_loaded_at
+    if _symbol_to_id:
+        return
+    cached, _age = _load_cache()
+    if cached:
+        _symbol_to_id = cached
+    else:
+        fresh = _fetch_instruments_map()
+        if fresh:
+            _symbol_to_id = {**_symbol_to_id, **fresh}
+            _save_cache(_symbol_to_id)
+    _map_loaded_at = time.time()
+
+
+def get_symbol_for_id(iid: int) -> str | None:
+    """Resuelve símbolo desde instrumentId (las posiciones de eToro traen id, no símbolo)."""
+    global _id_to_symbol
+    if not iid:
+        return None
+    _ensure_map()
+    if len(_id_to_symbol) != len(_symbol_to_id):
+        _id_to_symbol = {v: k for k, v in _symbol_to_id.items()}
+    return _id_to_symbol.get(iid)
+
+
 # ── Velas 1m + precio ───────────────────────────────────────────────────────────
 
-def fetch_candles_1m(symbol: str, count: int = 10) -> list:
-    """
-    Velas de 1 minuto más recientes (orden cronológico ascendente para encajar con
-    el resto del pipeline). Cada vela: {t (ISO), o, h, l, c, v}. [] si falla.
-    """
-    iid = get_instrument_id(symbol)
-    if not iid:
+def _fetch_candles_by_id(iid: int, count: int = 10) -> list:
+    """Núcleo de fetch de velas por instrumentId. [] si falla / circuito abierto."""
+    if not iid or not _circuit_ok():
         return []
-    if not _circuit_ok():
-        return []   # circuito abierto → caller cae a Alpaca
     try:
         cfg = _config()
         count = max(1, min(int(count), 1000))
@@ -204,37 +228,29 @@ def fetch_candles_1m(symbol: str, count: int = 10) -> list:
         # Estructura: {"interval":..,"candles":[{"instrumentId":..,"candles":[{...}]}]}
         groups = payload.get("candles", [])
         raw = groups[0].get("candles", []) if groups else []
-        out = []
-        for c in raw:
-            out.append({
-                "t": c.get("fromDate"),
-                "o": c.get("open"),
-                "h": c.get("high"),
-                "l": c.get("low"),
-                "c": c.get("close"),
-                "v": c.get("volume"),
-            })
+        out = [{"t": c.get("fromDate"), "o": c.get("open"), "h": c.get("high"),
+                "l": c.get("low"), "c": c.get("close"), "v": c.get("volume")} for c in raw]
         out.reverse()   # Desc → Asc (más viejo primero), como las velas de Alpaca
         return out
     except Exception as e:
-        logger.warning(f"[eToroMkt] velas {symbol} (id {iid}): {e}")
+        logger.warning(f"[eToroMkt] velas id {iid}: {e}")
         return []
 
 
-def fetch_price(symbol: str) -> dict:
-    """
-    Precio actual + change_pct desde las velas 1m de eToro (cierre de la última vela
-    vs cierre de la primera del día disponible). Estructura compatible con lo que
-    espera get_realtime_price. Retorna {} si falla → el caller cae a Alpaca.
-    """
-    candles = fetch_candles_1m(symbol, count=10)
+def fetch_candles_1m(symbol: str, count: int = 10) -> list:
+    """Velas 1m por SÍMBOLO. Cada vela: {t (ISO), o, h, l, c, v}. [] si falla."""
+    iid = get_instrument_id(symbol)
+    return _fetch_candles_by_id(iid, count) if iid else []
+
+
+def _price_from_candles(candles: list) -> dict:
+    """Arma el dict de precio (compatible con get_realtime_price) desde velas 1m asc."""
     if not candles:
         return {}
     last = candles[-1]
     price = last.get("c")
     if not price:
         return {}
-    # antigüedad de la última vela
     age_min = None
     try:
         t = datetime.fromisoformat(str(last["t"]).replace("Z", "+00:00"))
@@ -248,3 +264,13 @@ def fetch_price(symbol: str) -> dict:
         "candles_1m": list(reversed(candles)),   # pipeline espera desc (reciente primero)
         "source": "etoro",
     }
+
+
+def fetch_price(symbol: str) -> dict:
+    """Precio actual por SÍMBOLO. {} si falla → el caller cae a Alpaca."""
+    return _price_from_candles(fetch_candles_1m(symbol, count=10))
+
+
+def fetch_price_by_id(iid: int) -> dict:
+    """Precio actual por instrumentId (para posiciones de eToro). {} si falla."""
+    return _price_from_candles(_fetch_candles_by_id(iid, count=10))

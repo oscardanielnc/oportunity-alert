@@ -228,36 +228,71 @@ def get_portfolio() -> dict:
 
         raw_positions = portfolio.get("positions") or []
 
+        # El endpoint de portfolio de eToro trae cada posición con instrumentID NUMÉRICO
+        # y SIN símbolo ni currentRate (verificado en vivo 2026-06-01). Por eso:
+        #   1. el ticker se resuelve por instrumentID (mapa inverso de etoro_market);
+        #   2. el precio actual se trae por id (para valor + P&L reales);
+        #   3. NUNCA se descarta una posición — su `amount` debe contar en el equity total
+        #      (descartar posiciones colapsaba el equity al cash → falso -90%).
+        try:
+            from utils.etoro_market import get_symbol_for_id, fetch_price_by_id
+        except Exception:
+            get_symbol_for_id = lambda _iid: None
+            fetch_price_by_id = lambda _iid: {}
+
         positions = []
+        positions_value = 0.0
         for p in raw_positions:
+            iid = p.get("instrumentID") or p.get("instrumentId")
             ticker = _extract_ticker(p)
             if ticker in _INVALID_TICKERS:
-                logger.debug(f"[eToro] Posicion con ticker invalido descartada: {p}")
-                continue
+                resolved = get_symbol_for_id(iid) if iid else None
+                ticker = resolved or (f"ID:{iid}" if iid else "UNKNOWN")
+
+            amount    = float(p.get("amount") or p.get("initialAmountInDollars") or p.get("investedAmount") or 0)
+            units     = float(p.get("units") or 0)
+            open_rate = float(p.get("openRate") or 0)
+            is_buy    = bool(p.get("isBuy", True))
+
+            # Precio actual por id → valor + P&L reales (el portfolio no los trae)
+            current_rate = open_rate
+            try:
+                pr = fetch_price_by_id(iid) if iid else {}
+                if pr.get("current_price"):
+                    current_rate = float(pr["current_price"])
+            except Exception:
+                pass
+
+            current_value = units * current_rate if (units and current_rate) else amount
+            net_profit    = current_value - amount
+            pnl_pct = ((current_rate / open_rate - 1) * 100) if open_rate else 0.0
+            if not is_buy:
+                pnl_pct = -pnl_pct
+
+            positions_value += current_value
             positions.append({
                 "ticker": ticker,
-                "instrument_id": p.get("instrumentID") or p.get("instrumentId"),
-                "units": float(p.get("units") or p.get("amount") or 0),
-                "open_rate": float(p.get("openRate") or 0),
-                "current_rate": float(p.get("currentRate") or p.get("rate") or 0),
-                "net_profit": float(p.get("netProfit") or p.get("profit") or 0),
-                "net_profit_pct": _calc_pnl_pct(p),
-                "direction": "BUY" if p.get("isBuy", True) else "SELL",
-                "invested_amount": float(p.get("amount") or p.get("investedAmount") or 0),
+                "instrument_id": iid,
+                "units": units,
+                "open_rate": open_rate,
+                "current_rate": current_rate,
+                "net_profit": round(net_profit, 2),
+                "net_profit_pct": round(pnl_pct, 2),
+                "direction": "BUY" if is_buy else "SELL",
+                "invested_amount": amount,
+                "current_value": round(current_value, 2),
                 # openDateTime (ISO) -> fecha de entrada real, base para Day+7 (PED) y hh (Marea)
                 "open_datetime": str(p.get("openDateTime") or p.get("OpenDateTime") or ""),
             })
 
-        equity = float(portfolio.get("credit") or 0)
-        # total = credit + valor de posiciones abiertas
-        invested = sum(p["invested_amount"] for p in positions)
-        total = equity + invested
+        cash = float(portfolio.get("credit") or 0)
+        total = cash + positions_value   # equity real = efectivo + valor actual de posiciones
 
         _on_success()
         return {
             "positions": positions,
-            "available_cash": equity,
-            "total_value": total,
+            "available_cash": cash,
+            "total_value": round(total, 2),
             "error": None,
         }
 
