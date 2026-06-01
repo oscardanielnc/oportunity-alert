@@ -197,15 +197,23 @@ def evaluate_conviction(
     ticker: str,
     price_data: dict,
     direction: str = "LONG",
+    allow_priced_momentum: bool = False,
 ) -> dict:
     """
     Evalúa los 3 conviction gates y calcula stop/target basados en ATR.
+
+    allow_priced_momentum: si True y Gate1 falla por "ya priceado" (movimiento grande),
+    NO se descarta: se evalúa igual y se marca momentum_continuation=True para que la IA
+    lo juzgue como CONTINUACIÓN de corto plazo (ventana 1-2 días). El caller solo debe
+    activarlo cuando hay catalizador fresco fuerte (Tier-1 / earnings / FDA), no por
+    cualquier acción que ya subió por drift. (Decisión Oscar 2026-06-01.)
 
     Retorna dict con:
       conviction_score (0-7), skip_ai (bool),
       gate1_score, gate2_score, gate3_score,
       gate2_rsi, gate2_ema20, gate2_ema50, gate2_bb_upper, gate2_bb_lower,
-      atr14, entry_price, stop_code, target_code, reasoning
+      atr14, entry_price, stop_code, target_code, reasoning,
+      priced_momentum (bool), momentum_continuation (bool)
     """
     result = {
         "conviction_score": 0,
@@ -223,6 +231,8 @@ def evaluate_conviction(
         "stop_code": 0.0,
         "target_code": 0.0,
         "reasoning": "",
+        "priced_momentum": False,
+        "momentum_continuation": False,
     }
 
     # Gate 1
@@ -230,9 +240,14 @@ def evaluate_conviction(
     result["gate1_score"] = g1_score
 
     if g1_score == 0:
-        result["skip_ai"] = True
-        result["reasoning"] = f"Gate1 FAIL: {g1_reason}"
-        return result
+        result["priced_momentum"] = True
+        if not allow_priced_momentum:
+            # Movimiento grande sin catalizador fresco → descartar barato (sin fetch de barras)
+            result["skip_ai"] = True
+            result["reasoning"] = f"Gate1 FAIL (ya priceado): {g1_reason}"
+            return result
+        # Con catalizador fresco: NO descartar — evaluar como continuación de corto plazo
+        result["momentum_continuation"] = True
 
     # Gate 2
     g2_score, rsi14, ema20, ema50, bb_upper, bb_lower, atr14 = _gate2(ticker, price_data, direction)
@@ -251,7 +266,11 @@ def evaluate_conviction(
     # Score total
     total = g1_score + g2_score + g3_score
     result["conviction_score"] = total
-    result["skip_ai"] = total < GATE_SKIP_THRESHOLD
+    if result["momentum_continuation"]:
+        # Gate1=0 pero hay catalizador fresco → la IA juzga la ventana de continuación
+        result["skip_ai"] = False
+    else:
+        result["skip_ai"] = total < GATE_SKIP_THRESHOLD
 
     # Stop y target basados en ATR
     entry = price_data.get("current_price") or 0.0
@@ -290,8 +309,9 @@ def evaluate_conviction(
         f"G1={g1_score} G2={g2_score}/3 G3={g3_score} | "
         f"RSI={rsi14:.1f} EMA20=${ema20:.2f} ATR=${result.get('atr14', atr14):.2f}({atr_src})"
     )
+    cont_tag = " [CONTINUACIÓN: ya priceado, ventana corta]" if result["momentum_continuation"] else ""
     result["reasoning"] = (
-        f"{'PASA' if not result['skip_ai'] else 'DESCARTADO'} ({total}/7) — {gate_str}"
+        f"{'PASA' if not result['skip_ai'] else 'DESCARTADO'} ({total}/7){cont_tag} — {gate_str}"
     )
 
     return result

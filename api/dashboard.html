@@ -966,10 +966,15 @@ function renderAlert(a) {
     <span class="acard-ticker">${a.ticker}</span>
     ${dir ? `<span class="dir-pill ${dir}">${(a.direccion||'').toUpperCase()}</span>` : ''}
     ${pct ? `<span class="pct-badge">${pct}</span>` : ''}
+    ${a.tipo_alerta === 'ADVERTENCIA' ? `<span class="pct-badge" style="background:#7c4a03;color:#ffd591">⚠ ADVERTENCIA</span>` : ''}
     ${catT ? `<span style="font-size:11px;color:var(--text2)">${catT}</span>` : ''}
     <span class="acard-age">${age}</span>
   </div>
-  <div class="acard-cataliz">${esc(a.resumen_cataliz || '—')}</div>
+  <div class="acard-cataliz"><strong>${esc(a.titular_simple || a.resumen_cataliz || '—')}</strong></div>
+  ${a.analisis_simple ? `<div style="font-size:13px;color:var(--text);margin:4px 0;line-height:1.4">${esc(a.analisis_simple)}</div>` : ''}
+  ${a.contexto_sector ? `<div style="font-size:12px;color:var(--text2);margin:3px 0">📊 ${esc(a.contexto_sector)}</div>` : ''}
+  ${a.ventana ? `<div style="font-size:12px;color:#ffb84d;margin:3px 0">⏳ Ventana: ${esc(a.ventana)}</div>` : ''}
+  ${(a.titular_simple && a.resumen_cataliz && a.titular_simple !== a.resumen_cataliz) ? `<div style="font-size:11px;color:var(--text2);opacity:.7;margin-top:3px">${esc(a.resumen_cataliz)}</div>` : ''}
   <div class="acard-meta">
     <span class="sms-dot ${a.sms_enviado ? 'sent' : 'unsent'}"></span>
     <span>${src}</span>

@@ -281,7 +281,7 @@ class MetricsStore:
                     1 if portfolio.get("can_enter", True) else 0,
                     result.get("horizonte_tiempo"),
                     result.get("resumen_cataliz", "")[:300],
-                    json.dumps(result, ensure_ascii=False)[:2000],
+                    json.dumps(result, ensure_ascii=False)[:3000],
                 ))
                 c.commit()
         except Exception as e:
@@ -665,6 +665,12 @@ class MetricsStore:
                 row["salida_fecha"]      = raw.get("salida_fecha", "")
                 row["confianza"]         = raw.get("confianza", "")
                 row["article_url"]       = raw.get("article_url", "")
+                # Lenguaje simple + contexto (v2026-06-01)
+                row["titular_simple"]    = raw.get("titular_simple", "")
+                row["analisis_simple"]   = raw.get("analisis_simple", "")
+                row["contexto_sector"]   = raw.get("contexto_sector", "")
+                row["ventana"]           = raw.get("ventana", "")
+                row["tipo_alerta"]       = raw.get("tipo_alerta", "OPORTUNIDAD")
             except Exception:
                 pass
             results.append(row)

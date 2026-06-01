@@ -88,8 +88,9 @@ def _build_prompt(
     article: dict,
     price_data: dict,
     conviction: dict = None,
+    context_text: str = "",
 ) -> tuple[str, str]:
-    """Retorna (system_prompt, user_prompt). Con conviction, el prompt es ~50% más corto."""
+    """Retorna (system_prompt, user_prompt). context_text = contexto calculado por código."""
     ticker      = (article.get("tickers_found") or ["UNKNOWN"])[0]
     title       = article.get("title", "")
     summary     = article.get("summary", "")
@@ -127,11 +128,30 @@ def _build_prompt(
             f"  Score: {score}/7 | RSI14: {rsi:.1f} | EMA20: ${ema20:.2f} | ATR14: ${atr:.2f}\n"
         )
 
+    is_continuation = bool(conviction and conviction.get("momentum_continuation"))
+    context_block = f"\nCONTEXTO (calculado por código — úsalo, no lo recalcules):\n{context_text}\n" if context_text else ""
+
+    continuation_note = ""
+    if is_continuation:
+        continuation_note = (
+            "\n⚠️ CONTINUACIÓN: la acción YA tuvo un movimiento grande con este catalizador. "
+            "NO la trates como entrada fresca. Decide si queda recorrido de CORTO PLAZO "
+            "(continuación de 1-2 días antes de revertir) o si el catalizador ya se agotó. "
+            "Si queda algo de recorrido pon score 5-6 (ADVERTENCIA, no oportunidad limpia) y "
+            "en 'ventana' indica los días. Si ya se agotó, score ≤4.\n"
+        )
+
     system_prompt = (
-        "Eres el sistema de alertas de trading de Oscar, 25 años, ingeniero, capital $6,000 en eToro. "
-        "Oscar busca movimientos de 15-100%+ en 1-5 días. Opera LONG y SHORT en eToro 24h. "
-        "Tu trabajo: DETECTAR y CLASIFICAR catalizadores con un score_ia del 1 al 10. "
-        "NO calcules stops ni targets — los calcula el código por ATR. "
+        "Eres el analista de mercado de Oscar (25 años, ingeniero, ~$6,000 en eToro, busca "
+        "movimientos de 15-100% en 1-5 días, opera LONG y SHORT 24h). Tu trabajo tiene DOS partes:\n"
+        "1) CLASIFICAR el catalizador con score_ia 1-10 y dirección.\n"
+        "2) Analizar el CONTEXTO que el código NO puede calcular: ¿el sector vive un buen "
+        "momento o enfrenta vientos en contra (prohibiciones, guerra, regulación, sector saturado)? "
+        "¿Hay catalizadores macro que REFUERCEN o ANULEN esta noticia? Una buena noticia en un "
+        "sector en caída puede no mover el precio; una mediana en un sector caliente sí.\n"
+        "Además TRADUCE la noticia a lenguaje simple: sin códigos ni jerga (ej. quita '8-K Item 3.02'), "
+        "que cualquiera entienda QUÉ pasó y SI es bueno o malo.\n"
+        "NO calcules stops ni targets (los calcula el código por ATR). "
         "Responde SOLO con JSON válido, sin texto adicional, sin markdown."
     )
 
@@ -140,9 +160,9 @@ def _build_prompt(
 Ticker: {ticker} | Precio: ${current_price if current_price else 'N/D'} | Cambio: {f'{change_pct:+.1f}%' if change_pct is not None else 'N/D'}
 Noticia: hace {age_minutes:.0f} min | Fuente: {source}
 {price_warning}
-{conv_str}
+{conv_str}{context_block}
 Sector: {sector_ctx}
-{breaking_note}
+{breaking_note}{continuation_note}
 
 Titulo: {title}
 Resumen: {summary[:450]}
@@ -154,18 +174,22 @@ RESPONDE SOLO con este JSON (entrada/stop/target los agrega el codigo — no los
   "tipo_catalizador": "DIRECTO|SECTORIAL|RUMOR",
   "direccion": "LONG|SHORT",
   "catalizador_priceado": false,
-  "resumen_cataliz": "descripcion en 1 linea del catalizador",
+  "titular_simple": "el titular en lenguaje claro, sin codigos ni jerga (max 12 palabras)",
+  "analisis_simple": "1-2 frases que cualquiera entienda: que paso y si es bueno o malo para la accion y por que",
+  "contexto_sector": "como esta el sector/macro y si refuerza o debilita esta noticia (1 linea)",
+  "resumen_cataliz": "descripcion tecnica en 1 linea del catalizador",
+  "ventana": "vacio normalmente; si es CONTINUACION indica dias (ej. '1-2 dias antes de revertir')",
   "timing_entrada": "ahora AH | apertura 8:30am Lima | esperar pullback a $X",
   "horizonte_tiempo": "mismo dia | Day+1 | 3-5 dias",
   "riesgo": "descripcion del riesgo principal en 1 linea"
 }}
 
-score_ia — escala ESTRICTA del 1 al 10 (entero):
-  9-10: catalizador transformacional directo, no priceado, direccion inequivoca (FDA aprobado, contrato billonario, earnings beat masivo)
-  7-8 : catalizador claro y nuevo, buena certeza de direccion, vale entrar sin dudas
-  5-6 : catalizador real pero con dudas notables de impacto, timing o si ya esta priceado
-  3-4 : señal debil, ambigua o catalizador ya parcialmente absorbido por el mercado
-  1-2 : especulativo, sin evidencia solida o precio ya movio lo que correspondia"""
+score_ia — escala ESTRICTA del 1 al 10 (entero), PONDERANDO el contexto sectorial/macro:
+  9-10: catalizador transformacional directo, no priceado, direccion inequivoca, sector a favor
+  7-8 : catalizador claro y nuevo, buena certeza de direccion, contexto no lo contradice
+  5-6 : catalizador real pero con dudas (impacto, timing, ya priceado, o sector en contra)
+  3-4 : señal debil/ambigua, o el contexto macro/sectorial anula el efecto de la noticia
+  1-2 : especulativo, sin evidencia solida, o precio ya movio lo que correspondia"""
 
     return system_prompt, user_prompt
 
@@ -177,23 +201,26 @@ def score_with_claude(
     price_data: dict,
     model: str = None,
     conviction: dict = None,
+    context_text: str = "",
 ) -> dict:
     """
     Punto de entrada principal. Delega la llamada IA a utils.ai_client.call_ai().
     conviction: dict de evaluate_conviction() — si se pasa, el prompt es más corto
     y el post-procesamiento rellena stops/targets/conviction_score desde código.
+    context_text: contexto calculado por código (utils.news_context) — sector/macro,
+    trayectoria, noticias previas. Lo analiza la IA pero NO gasta tokens calculándolo.
     """
     ai_engine = os.environ.get("AI_ENGINE", "gemini").lower()
     ticker    = (article.get("tickers_found") or ["UNKNOWN"])[0]
 
-    system_prompt, user_prompt = _build_prompt(article, price_data, conviction)
+    system_prompt, user_prompt = _build_prompt(article, price_data, conviction, context_text)
 
     logger.info(f"[Scorer] {ai_engine.capitalize()} — {ticker}")
 
     raw = call_ai(
         user_prompt,
         system=system_prompt,
-        max_tokens=512,
+        max_tokens=768,   # +campos de lenguaje simple + contexto sectorial + ventana
         engine=ai_engine,
     )
 
@@ -207,6 +234,17 @@ def score_with_claude(
     score_ia = int(result.get("score_ia") or 0)
     result["score_ia"] = score_ia
     result["prioridad"] = _score_to_prioridad(score_ia)
+
+    # Campos de lenguaje simple + contexto (defaults si la IA los omite)
+    result.setdefault("titular_simple", result.get("resumen_cataliz", ""))
+    result.setdefault("analisis_simple", "")
+    result.setdefault("contexto_sector", "")
+    result.setdefault("ventana", "")
+    # Tipo de alerta: continuación de un movimiento ya priceado = ADVERTENCIA (no oportunidad limpia)
+    if conviction and conviction.get("momentum_continuation"):
+        result["tipo_alerta"] = "ADVERTENCIA"
+    else:
+        result["tipo_alerta"] = "OPORTUNIDAD"
 
     # Post-procesamiento: inyectar stops/targets/convicción calculados por código
     if conviction:

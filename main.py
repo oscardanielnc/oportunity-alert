@@ -25,8 +25,9 @@ from sources.edgar import fetch_8k_filings
 from sources.finnhub_news import fetch_company_news, fetch_market_news
 from sources.reddit_monitor import fetch_reddit_mentions
 from sources.alpaca_news import stream_news as alpaca_stream_news
-from filters.keyword_filter import passes_filter
+from filters.keyword_filter import passes_filter, TIER_1_KEYWORDS
 from filters.claude_scorer import score_with_claude
+from utils.news_context import build_context
 from alerts.twilio_sms import send_sms, format_sms, send_raw_message as _send_twilio_raw
 from alerts.alert_logger import log_alert, log_claude_analysis, update_24h_prices, get_recent_alerts
 from utils.alpaca_price import get_realtime_price
@@ -350,8 +351,19 @@ def process_article(
     event_mode      = is_event_mode(event_type)
     initial_dir     = _guess_direction(article)
 
+    # ── Catalizador fresco fuerte? (decide si un movimiento ya priceado pasa como
+    #    CONTINUACIÓN en vez de descartarse). Solo Tier-1 o earnings/FDA — no drift. ──
+    _t1 = set(TIER_1_KEYWORDS)
+    fresh_catalyst = (
+        any(kw in _t1 for kw in (article.get("keywords_found") or []))
+        or event_type in ("earnings", "fda", "government_contract")
+    )
+
     # ── Conviction Gates v2.0 (código puro, < 1 segundo, sin tokens) ──────────
-    conviction = evaluate_conviction(ticker, price_data, direction=initial_dir)
+    conviction = evaluate_conviction(
+        ticker, price_data, direction=initial_dir,
+        allow_priced_momentum=fresh_catalyst,
+    )
 
     # En event mode: Gate 2 técnico se reemplaza por análisis de velas 1m.
     # Usa initial_dir (no "LONG" hardcodeado): un earnings miss / FDA reject es SHORT,
@@ -362,7 +374,11 @@ def process_article(
         old_total = conviction["conviction_score"]
         conviction["gate2_score"]      = ev_g2
         conviction["conviction_score"] = conviction["gate1_score"] + ev_g2 + conviction["gate3_score"]
-        conviction["skip_ai"]          = conviction["gate1_score"] == 0  # en event mode solo Gate1 puede bloquear
+        # En event mode solo Gate1 puede bloquear — salvo continuación (catalizador fresco
+        # sobre un movimiento ya priceado): esa pasa a la IA como ADVERTENCIA.
+        conviction["skip_ai"] = (
+            conviction["gate1_score"] == 0 and not conviction.get("momentum_continuation")
+        )
         logger.info(
             f"[EVENT-MODE] {ticker} tipo={event_type} | "
             f"gate2 tecnico reemplazado por estabilizacion ({old_total}→{conviction['conviction_score']}/7)"
@@ -399,9 +415,22 @@ def process_article(
         f"{conviction['reasoning']}"
     )
 
-    # ── Scoring IA (prompt reducido — stops/targets los calcula conviction) ───
+    # ── Contexto por CÓDIGO (sector/macro, trayectoria, noticias previas) ─────
+    # Todo lo computable sin IA va acá → Claude solo razona lo que no se puede calcular.
+    earnings_flag = has_earnings_today_or_yesterday(ticker)
+    recent_news   = _metrics.get_recent_news_for_ticker(ticker, minutes=90) if _metrics else None
+    context_text, _ctx = build_context(
+        ticker, price_data, conviction, article,
+        recent_news=recent_news,
+        earnings_soon=earnings_flag,
+        momentum_continuation=conviction.get("momentum_continuation", False),
+    )
+
+    # ── Scoring IA (prompt con contexto — stops/targets los calcula conviction) ──
     model = os.environ.get("CLAUDE_MODEL", config.get("claude_model", "claude-sonnet-4-6"))
-    result = score_with_claude(article, price_data, model=model, conviction=conviction)
+    result = score_with_claude(
+        article, price_data, model=model, conviction=conviction, context_text=context_text,
+    )
 
     score_ia  = int(result.get("score_ia") or 0)
     prioridad = result.get("prioridad", "BAJA")
@@ -413,7 +442,7 @@ def process_article(
 
     # ── Rescate filtro EARNINGS (validado: el pop intradía en día de earnings es perdedor) ──
     # No descarta la alerta; la marca para que Oscar no persiga el pop y considere PED multi-día.
-    if has_earnings_today_or_yesterday(ticker):
+    if earnings_flag:
         result["earnings_day"] = True
         result["resumen_cataliz"] = (
             "[⚠️ EARNINGS hoy/ayer — el gap ya priceó, NO chase intradía. "
@@ -489,7 +518,10 @@ def process_article(
 
     min_score_sms = config.get("min_score_sms", 7)
     sms_enviado = False
-    if score_ia >= min_score_sms and not adverse_exit:
+    # Advertencias de continuación (movimiento ya priceado) = SOLO dashboard, sin SMS
+    # (decisión Oscar 2026-06-01: cero ruido en el teléfono para estos casos).
+    is_warning = bool(conviction.get("momentum_continuation"))
+    if score_ia >= min_score_sms and not adverse_exit and not is_warning:
         market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
 
