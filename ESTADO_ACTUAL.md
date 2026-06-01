@@ -38,8 +38,13 @@
 - 🚀 **Oscar despliega esta versión** (`deploy.sh` + `venv/bin/python -m pilot.run_pilot` para repoblar
   `entry_levels` + `days_held` + `stop_4atr` en el JSON).
 - 🔔 **TEMA DE MAÑANA (lo trae Oscar): uso de la IA en el sistema.** Continuación pactada.
-- 🔍 **Verificar MU ~$971 en eToro** — parece dato malo de Alpaca (Micron debería ~$100-130; posible ajuste
-  de split). Si está mal, escala mal toda la tarjeta de MU. Revisar aparte (no es bug de diseño).
+- ✅ **MU ~$971 NO es bug** — Oscar confirmó que MU superó los $1000 hoy (los $100-130 eran de hace meses;
+  conocimiento del asistente desactualizado). El dato de eToro es correcto; la tarjeta escala bien.
+
+**DESPLEGADO Y CONFIRMADO (2026-05-31 23:08 Lima, commit `8b01aed`):** `deploy.sh` OK (fast-forward,
+servicio activo, AlpacaNews WS conectado, WhatsApp de arranque enviado). `venv/bin/python -m pilot.run_pilot`
+→ "ya corrido para 2026-05-29 — nada que hacer" + reescribió `pilot_dashboard.json` con los campos nuevos.
+Oscar ve el frontend al día. Sesión cerrada.
 
 ## ⚡ SESIÓN 2026-05-31 (TARDE) — análisis de tácticas + Fase 3 + dashboard — COMMITEADO EN main, SIN PUSH NI DEPLOY
 
