@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 — sesión: contexto macro por código + lenguaje simple + continuación en brazo de noticias (DESPLEGADO)
+# Última actualización: 2026-06-01 — sesión: IA noticias (contexto+lenguaje simple) + Piloto (panel Top-10 líderes, rotación rechazada por backtest, breakouts nuevos, horizonte). PENDIENTE próxima sesión: backtest breakouts frescos + rediseño frontend
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## ⚡ SESIÓN 2026-06-01 — IA de noticias: contexto por código + análisis macro + lenguaje simple — ✅ DESPLEGADO Y VIVO EN SONNET 4.6 (commit `5e2ef5b`)
@@ -47,9 +47,42 @@ WS conectado, eToro pre-cargado). Validado `AI_ENGINE=claude` + `CLAUDE_MODEL=cl
 **Falta solo:** ver en una noticia real de mercado que Sonnet pueble bien `titular_simple`/`analisis_simple`/
 `contexto_sector` (verificar en dashboard, no probado con tokens en vivo — se usó respuesta simulada).
 
-**PRÓXIMO TEMA (lo trae Oscar):** ¿el **Piloto** (Marea/PED) necesita una capa de análisis IA macro/
-fundamental antes de recomendar comprar/vender? Disparado por la misma contradicción DELL: a veces una
-noticia anula la matemática. — A discutir.
+**Piloto — contexto + horizonte (RESUELTO esta sesión, commit `d6f31ea`):** el Piloto NO lleva capa IA
+que vetee la matemática (rompe el edge validado; ya se midió que vetar no es robusto). En su lugar le dimos
+"los OJOS del brazo de noticias, no las MANOS": (1) **etiquetas de horizonte** (Noticias=corto plazo/evento
+1-2 días; Piloto=tendencia semanas-meses) para matar la sensación de contradicción DELL; (2) **flag
+informativo por compra** (estado del sector + noticia adversa reciente, leído de metrics.db) — NO veta;
+(3) **log informativo** `data/pilot_news_flags.jsonl` para revisar a futuro.
+
+**Piloto — rotación MEDIDA Y RECHAZADA (commit `d15e54b` + `research/backtest_marea_rotation.py`):** Oscar
+propuso rotar a los líderes más fuertes. Backtest (2022-26, neto de fees): la rotación da **más retorno
+bruto** (CAGR 77% vs 57%) pero **peor riesgo-ajustado** (Sharpe 1.31→1.22, MaxDD −25%→−36%, peor mes
+−12%→−22%), **5× turnover** y **NO es robusta** (gana en años trending, pierde en 2025). Veredicto: NO
+rotación automática. En su lugar → **panel Top-10 líderes** (ranking fuerza relativa) que **reemplaza
+"Mañana al abrir"**: pila ranqueada #1..#10 + holdings fuera del top-10 (candidatos a rotar) + acción del
+open (🎯/🛑) + stop 4×ATR + niveles desplegables + sector + noticia. Rotación = decisión DISCRECIONAL de Oscar.
+
+**Piloto — sección "Breakouts nuevos" (commit `7ee7a49`):** disparada por el caso SNOW (+77% en 10d pero
+fuerza 6m solo +12% → invisible en el top-10). `indicators()` ahora calcula `ret_10d`; `_fresh_breakouts`
+surfacea rupturas frescas (sobre SMA200 + nuevo máx 50d, fuera del top-10) ordenadas por retorno reciente.
+Es **RADAR, no lista de compra**: los 🎯 son compras validadas, los 🆕 son vigilancia.
+
+**Caso SNOW analizado (NO era bug):** en Piloto, su momentum 6m bajo lo deja fuera del top-10 (correcto, por
+diseño) + cartera 5/5 sin slot. En Noticias, llegó pero se filtró bien (2 artículos Finnhub de ~9h de viejo
++ 1 Alpaca con keyword score 0). El brazo de noticias dispara por CATALIZADOR (titular Tier-1), no por precio.
+*(Aparte detectado: corre un cap global de 45 min que pisa la lógica source-aware de 90 min de Finnhub —
+podría matar noticias legítimas que laguean 60-90 min. Revisar.)*
+
+## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
+1. **Backtest de "Breakouts frescos"** — ¿los breakouts recientes con fuerza 6m baja (estilo SNOW) son
+   tradeables sistemáticamente o son solo radar? Hipótesis: probablemente NO robusto (los pops revierten;
+   el edge del momentum vive en la persistencia de 6m, no en el pop de 2 días). Medir entrada en ruptura +
+   salida chandelier, neto de fees, vs Marea base. Hasta entonces el panel 🆕 es RADAR, no estrategia.
+   Salida sugerida si Oscar lo tradea discrecional: chandelier 4×ATR (es momentum/trend, NO time-exit de PED)
+   + tamaño chico + saber que es unvalidated.
+2. **Rediseño completo del frontend** — organizar mejor todo el dashboard (limpiar `_plBuyCard` muerto, etc.).
+3. (Opcional/menor) endurecer el plumbing del modelo Claude (cablear `model` por `call_ai`); revisar el
+   cap global de 45 min de edad de noticias vs la lógica source-aware.
 
 ## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
 
