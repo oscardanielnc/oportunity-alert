@@ -144,14 +144,32 @@ el cierre diario rompe máx-desde-entrada − 4×ATR). No le falta deadline; dej
 edge del trend-following. Único lever real = K (subir a 8-10 mejora Sharpe/DD pero choca con ~5
 manejables en eToro). Detalle en memoria [[study_marea_selection_rotation]].
 
+## 🔬 SESIÓN 2026-06-01 (CONT.) — ESTUDIO B: breakouts frescos/SNOW + LEVER K — VEREDICTOS CERRADOS
+
+> `research/backtest_fresh_breakouts.py` + `backtest_marea_selection.py --mode ksweep`, ambos
+> bear-inclusive (datos desde 2020, lección del Estudio A). Detalle en [[study_fresh_breakouts_and_k]].
+
+**B — Breakouts frescos: RADAR, NO COMPRA (hipótesis confirmada).**
+- Event study (exceso vs QQQ tras la ruptura, primer toque): jerarquía **STRONG >> SNOW > FRESH**.
+  +20d: STRONG +6.8% / SNOW +2.5% / FRESH +1.7%. El pop no se invierte de golpe pero rinde 1/4–1/2
+  de los LÍDERES que Marea ya compra. SNOW **negativo en 2022 (−1.2%) y 2023 (−0.5%)** → revierte en
+  el bear. No robusto.
+- Sleeve operable: peor riesgo-ajustado que Marea (Sharpe 1.15 vs 1.35, MaxDD −38% vs −24%). Su mejor
+  caso (stop 3×ATR) solo IGUALA con menos retorno. → el panel 🆕 sigue siendo RADAR/vigilancia. Si se
+  tradea uno discrecional: stop angosto 3×ATR + tamaño chico + unvalidated.
+
+**LEVER K (nº posiciones, sobre BASE bear-inclusive): K=5 BIEN ELEGIDO.**
+K=3-4 Sharpe ~1.22/DD −31% (concentrar empeora) · **K=5 Sharpe 1.35/DD −23.8% (live)** · K=8 Sharpe
+1.39/DD −22.1% (sweet spot, pero +0.04 Sharpe no compensa +60% trades/fees + 8 nombres manuales) ·
+K=10-12 se aplana/decae. NO bajar de 5; mild upgrade a 6-8 solo si se automatiza la ejecución.
+
+**CIERRE DEL BLOQUE (A+B+K):** Marea NO se toca. Es robusta tal cual (gate breakout + chandelier, K=5).
+Todas las decisiones medidas con datos bear-inclusive. Commits en main (sin push, los pushea Oscar).
+
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
-0. ✅ **HECHO — Estudio A (selección/rotación)** → NO CAMBIAR (ver sección arriba). El Estudio B sigue:
-1. **Backtest de "Breakouts frescos"** — ¿los breakouts recientes con fuerza 6m baja (estilo SNOW) son
-   tradeables sistemáticamente o son solo radar? Hipótesis: probablemente NO robusto (los pops revierten;
-   el edge del momentum vive en la persistencia de 6m, no en el pop de 2 días). Medir entrada en ruptura +
-   salida chandelier, neto de fees, vs Marea base. Hasta entonces el panel 🆕 es RADAR, no estrategia.
-   Salida sugerida si Oscar lo tradea discrecional: chandelier 4×ATR (es momentum/trend, NO time-exit de PED)
-   + tamaño chico + saber que es unvalidated.
+0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
+1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
+   se queda como vigilancia, no lista de compra.
 2. **Rediseño completo del frontend** — organizar mejor todo el dashboard (limpiar `_plBuyCard` muerto, etc.).
 3. (Opcional/menor) endurecer el plumbing del modelo Claude (cablear `model` por `call_ai`); revisar el
    cap global de 45 min de edad de noticias vs la lógica source-aware.

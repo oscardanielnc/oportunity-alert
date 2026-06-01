@@ -53,11 +53,17 @@ LECCIONES:
   3. Rotar a los líderes (rank-band) es un espejismo de bull; con el bear adentro hunde Sharpe y DD.
      Confirma y EXPLICA el rechazo previo (backtest_marea_rotation.py): no es que rinda poco, es que
      el DD se descontrola justo cuando importa.
-  4. Único lever real: K. Subir a K=8-10 mejora Sharpe/DD por diversificación, pero choca con la
-     restricción operativa de Oscar (~5 manejables en eToro). K=5 es un trade-off razonable.
+  4. Único lever real: K (--mode ksweep, BASE bear-inclusive). MEDIDO:
+       K=3-4 Sharpe 1.22-1.23 MaxDD −31% (más concentración EMPEORA) | K=5 Sharpe 1.35 MaxDD −23.8%
+       (live) | K=8 Sharpe 1.39 MaxDD −22.1% (sweet spot) | K=10-12 se aplana/decae + fees suben.
+     Veredicto: K=5 está bien elegido. K=8 es marginalmente mejor (Sharpe +0.04, DD +1.7pp) pero el
+     gain es chico y no compensa +60% de trades/fees ni manejar 8 nombres manuales en eToro. NO bajar
+     de 5. Mild upgrade a K=6-8 solo si algún día se automatiza la ejecución.
 
-REPRODUCIR: python backtest_marea_selection.py --mode stress   (el grid/neighborhood quedan como
-registro del artefacto-de-sample que el stress desmiente — NO usarlos para decidir).
+REPRODUCIR: python backtest_marea_selection.py --mode stress  (veredicto selección/rotación)
+            python backtest_marea_selection.py --mode ksweep  (lever K)
+El grid/neighborhood quedan como registro del artefacto-de-sample que el stress desmiente — NO
+usarlos para decidir.
 ═══════════════════════════════════════════════════════════════════════════════════════════════
 """
 import os, sys, json, statistics, argparse
@@ -228,6 +234,18 @@ def run(data, calendar, cfg, idx_obj):
         # ---------- 2) RELLENO de slots libres ----------
         free = kk - len(positions)
         if free > 0 and regime_ok:
+            # gate "fresh": breakout que NO es un líder de momentum 6m (fuera del top-N por mom126).
+            # Operacionaliza el panel _fresh_breakouts (caso SNOW: rompe pero 6m flojo).
+            strong_set = set()
+            if cfg["gate"] == "fresh":
+                pool = []
+                for tk in data:
+                    dd = data[tk]; i = dd["idx"].get(d)
+                    if i is None or i < WARM: continue
+                    c = dd["bars"][i]["c"]; sma = dd["pre"]["sma"][i]; m126 = dd["pre"]["mom"][126][i]
+                    if sma and c > sma and m126 is not None: pool.append((m126, tk))
+                pool.sort(reverse=True)
+                strong_set = {tk for _, tk in pool[:cfg.get("fresh_topn", 10)]}
             cands = []
             for tk in data:
                 if tk in positions: continue
@@ -235,7 +253,8 @@ def run(data, calendar, cfg, idx_obj):
                 if i is None or i < WARM or i+1 >= len(dd["bars"]): continue
                 c = dd["bars"][i]["c"]; sma = dd["pre"]["sma"][i]; bkh = dd["pre"]["bkh"][i]
                 if not (sma and c > sma): continue
-                if cfg["gate"] == "breakout" and not (bkh and c >= bkh): continue
+                if cfg["gate"] in ("breakout", "fresh") and not (bkh and c >= bkh): continue
+                if cfg["gate"] == "fresh" and tk in strong_set: continue
                 s = sig_of(tk, i)
                 if s is not None: cands.append((s, tk, i))
             cands.sort(reverse=True)
@@ -254,7 +273,7 @@ def run(data, calendar, cfg, idx_obj):
 
         eq = cash + sum(positions[tk]["shares"]*_close_on(data[tk], d) for tk in positions)
         daily_eq.append((d, eq))
-        invested_frac.append(len(positions)/K)
+        invested_frac.append(len(positions)/kk)
 
     return {"deq": daily_eq, "trades": trades, "fees": fees,
             "invested": statistics.mean(invested_frac) if invested_frac else 0}
@@ -462,12 +481,39 @@ def stress(uni, uni_name):
     print(f"{'='*104}\n")
 
 
+def ksweep(uni, uni_name):
+    """
+    Lever K (nº de posiciones) sobre la BASE Marea REAL (gate breakout + chandelier 4×ATR),
+    bear-inclusive (datos desde 2020). ¿Subir de 5 a 8-10 mejora Sharpe/MaxDD por diversificación,
+    o el chandelier ya basta? Tensión operativa: Oscar maneja ~5 manuales en eToro.
+    """
+    START_S = "2020-01-01T00:00:00Z"
+    CACHE_S = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_selection_cache_2020.json")
+    print(f"\n{'#'*96}")
+    print(f"  LEVER K — BASE Marea (gate breakout + chandelier 4×ATR) | universo {uni_name} | datos desde 2020")
+    print(f"{'#'*96}")
+    data, idx_obj, qqq = load_data(uni, START_S, CACHE_S)
+    cal = build_calendar(data)
+    print(f"  {len(data)}/{len(uni)} con historia | {len(cal)} días (2022 = bear real operable)\n")
+    print(f"  {'K':>3} {'CAGR%':>6} {'Sharpe':>6} {'MaxDD%':>7} {'PeorMes':>7} {'2022':>6} {'WR%':>4} "
+          f"{'Trades':>6} {'%Inv':>5} {'Fees$':>6}")
+    print(f"  {'-'*70}")
+    for kk in (3, 4, 5, 6, 8, 10, 12):
+        res = run(data, cal, base_cfg(K=kk), idx_obj); s = summarize(res)
+        y22 = year_perf(res["deq"], "2022")
+        r22 = f"{y22['total']:>+4.0f}%" if y22 else " n/a "
+        print(f"  {kk:>3} {s['cagr']:>+5.1f}% {s['sharpe']:>6.2f} {s['mdd']:>+6.1f}% {s['worst_m']:>+6.1f}% "
+              f"{r22:>6} {s['wr']:>3.0f}% {s['trades']:>6} {s['invested']:>4.0f}% {s['fees']:>6.0f}")
+    print(f"\n  Lectura: más K = menos concentración (mejor Sharpe/DD) pero más nombres que manejar y más")
+    print(f"  fees. Buscar el punto donde la mejora riesgo-ajustada se aplana vs el costo operativo (~5).\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--universe", choices=["broad", "core"], default="broad",
                     help="broad = top-80 liquidez (honesto, default); core = 30 tickers del OOS")
-    ap.add_argument("--mode", choices=["grid", "neighborhood", "stress"], default="grid",
-                    help="grid = espacio amplio; neighborhood = vecindario+combos; stress = bear 2022 + barridos")
+    ap.add_argument("--mode", choices=["grid", "neighborhood", "stress", "ksweep"], default="grid",
+                    help="grid; neighborhood; stress = bear 2022 + barridos; ksweep = lever K sobre BASE")
     args = ap.parse_args()
 
     if args.universe == "broad":
@@ -477,6 +523,8 @@ def main():
 
     if args.mode == "stress":
         return stress(uni, args.universe)
+    if args.mode == "ksweep":
+        return ksweep(uni, args.universe)
     variants = VARIANTS if args.mode == "grid" else NEIGHBORHOOD
 
     print(f"\n{'#'*112}")
