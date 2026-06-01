@@ -116,7 +116,36 @@ diseño) + cartera 5/5 sin slot. En Noticias, llegó pero se filtró bien (2 art
 *(Aparte detectado: corre un cap global de 45 min que pisa la lógica source-aware de 90 min de Finnhub —
 podría matar noticias legítimas que laguean 60-90 min. Revisar.)*
 
+## 🔬 SESIÓN 2026-06-01 (CONTINUACIÓN) — ESTUDIO A: selección/rotación de Marea — VEREDICTO: NO CAMBIAR
+
+> **Origen:** Oscar quería saber EXACTAMENTE qué comprar/vender/mantener cada día; le hacía ruido
+> que Marea no tenga horizonte (PED sí) y no estaba convencido de que rotar al top fuera malo.
+> Pidió un plan exhaustivo "sin dejar cabos sueltos". Objetivo elegido: riesgo-ajustado (Sharpe/MaxDD).
+
+**Construido:** `research/backtest_marea_selection.py` — motor flexible sobre el arnés validado
+(universo top-80, fee $1/lado, open+1, macro QQQ, vol-sizing). 4 ejes: señal de ranking × regla de
+venta × cadencia × relleno. Modos `grid` / `neighborhood` / `stress`.
+
+**VEREDICTO: NO TOCAR MAREA. BASE (gate de breakout + chandelier 4×ATR) es el ganador riesgo-ajustado.**
+CAGR +35.8% / Sharpe 1.35 / MaxDD −23.8% — el mejor drawdown de todos.
+
+**La trampa que lo decidió (metodológica):** con datos desde 2022, los indicadores recién calientan
+a fin de año → **el bear 2022 nunca se opera** → sample sesgado al bull que FLATTEREA lo agresivo
+(quitar gate parecía Sharpe 1.48; horizonte 1.92; rank-band 1.70). El `--mode stress` (datos desde
+2020, 2022 = bear real operable) lo DA VUELTA:
+- NoGate (quitar gate): Sharpe 1.27 / MaxDD **−34%** → el gate de breakout es PROTECCIÓN de régimen.
+- BASE+horizonte 84: Sharpe 1.33 / MaxDD −33% (capar por tiempo empeora DD); horizonte 126 ≈ no-op.
+- NoGate+horiz sin stop: Sharpe 1.44 / MaxDD **−43%** → peligroso sin stop.
+- Rank-band 2K (= rotación): Sharpe **0.97** / MaxDD **−48%** → COLAPSA en el bear. Confirma+explica
+  el rechazo previo (`backtest_marea_rotation.py`): el DD se descontrola justo cuando importa.
+
+**Para la ansiedad "Marea sin horizonte":** el chandelier YA es la regla de venta definida (vende si
+el cierre diario rompe máx-desde-entrada − 4×ATR). No le falta deadline; dejar correr SIN fecha es el
+edge del trend-following. Único lever real = K (subir a 8-10 mejora Sharpe/DD pero choca con ~5
+manejables en eToro). Detalle en memoria [[study_marea_selection_rotation]].
+
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
+0. ✅ **HECHO — Estudio A (selección/rotación)** → NO CAMBIAR (ver sección arriba). El Estudio B sigue:
 1. **Backtest de "Breakouts frescos"** — ¿los breakouts recientes con fuerza 6m baja (estilo SNOW) son
    tradeables sistemáticamente o son solo radar? Hipótesis: probablemente NO robusto (los pops revierten;
    el edge del momentum vive en la persistencia de 6m, no en el pop de 2 días). Medir entrada en ruptura +
