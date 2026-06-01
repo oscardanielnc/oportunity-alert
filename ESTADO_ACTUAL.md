@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 — sesión: IA noticias (contexto+lenguaje simple) + Piloto (panel Top-10 líderes, rotación rechazada por backtest, breakouts nuevos, horizonte). PENDIENTE próxima sesión: backtest breakouts frescos + rediseño frontend
+# Última actualización: 2026-06-01 (CIERRE) — IA noticias (contexto+lenguaje simple) + Piloto (panel Top-10, rotación rechazada, breakouts nuevos) + 2 BUGS eToro resueltos (equity real + atribución/override). TODO DESPLEGADO Y EN VALIDACIÓN. PENDIENTE próxima sesión: backtest breakouts frescos + rediseño frontend. REGLA: commits sí, push NO (lo hace Oscar)
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
@@ -19,7 +19,7 @@
 >   posición, trae precio actual por id → valor + P&L reales, `total = cash + valor_actual_posiciones`.
 > - `equity_history` se autocorrige (idempotente por día): la fila mala de hoy se sobrescribe en el
 >   próximo ciclo del tracker tras el deploy.
-> - PENDIENTE: **desplegar a la VM** (`deploy.sh`) para que el tracker en vivo lo aplique.
+> - ✅ DESPLEGADO Y CONFIRMADO en la VM (2026-06-01): equity real correcto (~$5,656), las 5 posiciones visibles.
 >
 > **Bug #2 (mismo día, post-deploy del #1):** las 5 posiciones salían "Manual" (no auto-Marea) y el
 > override del dashboard **no persistía** (volvía a Manual al refrescar). Causas: (a) `/api/positions`
@@ -28,7 +28,22 @@
 > manual (ARM ni está en el top-80, vive en MEGA_CAP_PED). **Fix:** (a) `/api/positions` ahora resuelve
 > la estrategia SIEMPRE con `resolve_strategy` (tag-aware → override instantáneo; el estado de salida
 > sigue del cache); (b) `resolve_strategy` cae a **marea** si el ticker está en el alcance del Piloto
-> (universo top-80 ∪ MEGA_CAP_PED), origin "universe". Verificado: las 5 → marea, override persiste.
+> (universo top-80 ∪ MEGA_CAP_PED), origin "universe". ✅ DESPLEGADO Y CONFIRMADO (las 5 → marea, override persiste).
+
+## ✅ CIERRE SESIÓN 2026-06-01 — todo desplegado y en validación
+> Oscar confirmó "todo se ve bien". Sistema VIVO en la VM con: IA de noticias con contexto (Sonnet 4.6),
+> Piloto con panel **Top-10 líderes** + **Breakouts nuevos** (reemplaza "Mañana al abrir"), flags de
+> contexto/horizonte, y los **2 bugs de eToro resueltos** (equity real + atribución/override).
+>
+> **Catch-up de una vez tras el deploy (ya hecho):** el `pilot_dashboard.json` viejo no traía `leaders`
+> → el panel mostraba "Sin datos de líderes". Se resolvió corriendo **`venv/bin/python -m pilot.run_pilot
+> --no-alert`** en la VM (reescribe el JSON con `leaders`+`fresh_breakouts`). El cron diario ya lo genera solo.
+>
+> **MODO:** en validación — Oscar reporta lo que vea. **Regla nueva:** el asistente hace commits pero NO
+> pushea (GCM se cuelga); Oscar pushea (`!git push origin main`). Ver [[feedback_no_push]].
+>
+> **PRÓXIMA SESIÓN — pendientes (ver sección "🚀 PENDIENTES PRÓXIMA SESIÓN" abajo):**
+> (1) backtest de "Breakouts frescos" (¿tradeable o solo radar?), (2) rediseño completo del frontend.
 
 ## ⚡ SESIÓN 2026-06-01 — IA de noticias: contexto por código + análisis macro + lenguaje simple — ✅ DESPLEGADO Y VIVO EN SONNET 4.6 (commit `5e2ef5b`)
 
