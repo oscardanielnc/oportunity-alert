@@ -1,6 +1,33 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-02 (TARDE — caso MRVL RESUELTO; ver sección inmediata abajo)
+# Última actualización: 2026-06-02 (NOCHE — research + panel PED; ver abajo)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## 🌙 CIERRE 2026-06-02 (NOCHE) — research de estrategias nuevas + visibilidad PED (commits en `main`, SIN PUSH)
+
+> ⚠️ Estilo: Oscar quiere respuestas CONCISAS (ver memoria `feedback_concise_output`).
+
+### 🔬 4 ideas probadas — las 4 DESCARTADAS con datos (cero plata arriesgada):
+| Idea | Resultado | Por qué se cayó |
+|---|---|---|
+| Short del fade post-IPO | ❌ | Edge era artefacto de la burbuja 2021 (OOS 2015-19 no aguanta) |
+| Gap pre-market → ¿continúa? | ❌ | Se desinfla; MRVL/QBTS eran sesgo de selección |
+| Short-PED (espejo bajista) | ❌ | Cola de squeeze mata la media |
+| Cañonazo bajista intradía | ❌ | **Look-ahead** (filtró por cierre, entra en open). Por gap real = 53% win |
+
+Scripts en `research/ipo_*.py`, `gap_continuation.py`, `backtest_short_ped.py`, `backtest_earnings_intraday.py`, `backtest_cannon_stress.py`. Memorias: `study_ipo_postipo_fade`, `study_gap_continuation`, `study_cannon_lookahead`.
+**Lección permanente:** validar OOS en régimen calmo + condicionar SIEMPRE por info disponible en la ENTRADA. **Núcleo sigue siendo PED + Marea.**
+
+### ✅ Construido y desplegable: panel "Estrategias disponibles" (commit `48d6639`)
+PED era invisible (sin panel, sin slot, solo badge tras comprar). Ahora:
+- `run_pilot` expone TODOS los candidatos PED del día (`pending.ped_candidates`) + ⭐ si reacción ≥+10%.
+- Dashboard: sección **"📅 Estrategias disponibles"** (genérica para futuras), muestra 🎯 comprar (slot libre) vs 👁 señal (sin slot).
+- Cero lógica de trading tocada. Verificado: compila, pilot corre, json emite `strategy_signals`.
+
+### 🚀 PARA SUBIR A LA VM (pendiente de Oscar): push + `deploy.sh` + `venv/bin/python -m pilot.run_pilot`
+Esto despliega: lo de la MAÑANA (MRVL: 3 huecos + cross-arm + badges ✅/🆕 + histéresis régimen + K8 + vol-sizing) Y lo de la NOCHE (panel PED). Validar en VM: badges, panel PED, y que un gap/priceado real dispare SMS.
+
+---
+
 
 ## ✅ CIERRE SESIÓN 2026-06-02 (TARDE) — caso MRVL RESUELTO + UX de badges (commits en main, SIN PUSH)
 
