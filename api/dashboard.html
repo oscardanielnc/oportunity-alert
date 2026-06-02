@@ -721,7 +721,9 @@ function launch() {
   _timer = setInterval(refreshAll, 60000);
 }
 
-function today() { return new Date().toISOString().slice(0, 10); }
+// Fecha "hoy" SIEMPRE en hora Lima (UTC-5), sin importar la zona del navegador.
+// (en-CA formatea como YYYY-MM-DD). El backend ya usa Lima → frontend debe coincidir.
+function today() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); }
 
 // ── Refresh ───────────────────────────────────────────────────────────────────
 function refreshAll() {
@@ -733,7 +735,7 @@ function refreshAll() {
   ]).finally(() => {
     btn.innerHTML = '↻ Actualizar';
     document.getElementById('ts-lbl').textContent =
-      'Actualizado ' + new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+      'Actualizado ' + new Date().toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit'});
   });
 }
 
@@ -1418,7 +1420,9 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function minsAgo(ts) {
-  return (Date.now() - new Date(ts.replace(' ','T')).getTime()) / 60000;
+  // ts = hora Lima naive (el backend guarda en UTC-5). Anexar el offset -05:00 da el instante
+  // absoluto correcto en CUALQUIER navegador (antes se parseaba como hora local → 5h de error fuera de Lima).
+  return (Date.now() - new Date(ts.replace(' ','T') + '-05:00').getTime()) / 60000;
 }
 function timeAgo(ts) {
   const m = minsAgo(ts);
@@ -1445,11 +1449,11 @@ function catIcon(cat) {
 function _logDate() {
   const d = document.getElementById('f-date');
   if (d && d.value) return d.value;
-  return new Date().toISOString().slice(0, 10);
+  return today();
 }
 
 async function loadNoticiasFilterSummary() {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   try {
     const d = await api(`/api/logs/noticias?date=${date}`);
     const el = document.getElementById('n-filter-summary');
@@ -1493,7 +1497,7 @@ async function _downloadCsv(apiPath, filename) {
 }
 
 function downloadNoticiasLog() {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   _downloadCsv(`/api/logs/noticias/download?date=${date}`, `noticias_log_${date}.csv`);
 }
 
