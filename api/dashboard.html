@@ -434,11 +434,13 @@ body { font-size: 13.5px; -webkit-font-smoothing: antialiased; text-rendering: o
 
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .content-top {
-  height: 64px; background: #fff; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 14px; padding: 0 28px;
+  min-height: 64px; background: #fff; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 28px;
   position: sticky; top: 0; z-index: 50;
 }
-.main { max-width: 1200px; width: 100%; padding: 26px 28px 64px; }
+.content-top .session-pill { min-width: 0; }
+.content-top .topbar-right { flex-shrink: 0; }
+.main { max-width: 1200px; width: 100%; min-width: 0; padding: 26px 28px 64px; }
 
 /* Stats → tarjetas separadas blancas */
 .stats-strip { background: transparent; gap: 16px; border-radius: 0; overflow: visible; flex-wrap: wrap; margin-bottom: 22px; }
@@ -478,15 +480,36 @@ tbody tr:hover { background: #fafafb; }
 .field-label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
 .login-foot { margin-top: 22px; font-size: 11px; color: var(--text3); }
 
-/* Responsive: sidebar arriba en pantallas chicas */
+/* No-overflow horizontal: grids/tablas se adaptan, nunca desbordan */
+.pos-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.content { min-width: 0; }
+
+/* Responsive: sidebar pasa a barra superior < 880px */
 @media (max-width: 880px) {
   #app { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; flex-direction: row; align-items: center; padding: 10px 14px; position: static; overflow-x: auto; }
+  .sidebar {
+    width: 100%; height: auto; flex-direction: row; flex-wrap: wrap;
+    align-items: center; gap: 6px 8px; padding: 10px 14px; position: static;
+  }
   .sb-tag, .sb-foot { display: none; }
-  .sb-brand { margin-right: 14px; white-space: nowrap; }
-  .sb-nav { flex-direction: row; }
-  .content-top { padding: 0 16px; }
-  .main { padding: 18px 16px 40px; }
+  .sb-brand { margin: 0; font-size: 17px; white-space: nowrap; }
+  .sb-nav { flex-direction: row; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; }
+  .sb-nav .tab { width: auto; flex: 1 1 auto; justify-content: center; padding: 8px 12px; }
+  .content-top { padding: 9px 16px; }
+  .ts-text { display: none; }                 /* el botón ↻ ya comunica el refresh */
+  .main { padding: 18px 16px 44px; }
+}
+
+/* Móvil estrecho: comprimir la píldora y duplicar columnas de stats */
+@media (max-width: 560px) {
+  .session-feed, .session-sep { display: none; }
+  .session-pill { padding: 4px 11px; }
+  .btn-ghost { padding: 5px 9px; }
+  .stat-cell { flex: 1 1 calc(50% - 8px); min-width: 0; padding: 14px; }
+  .stat-value { font-size: 22px; }
+  .sb-brand { font-size: 16px; }
+  .sb-nav .tab::before { display: none; }              /* sin iconos: gana ancho para el texto */
+  .sb-nav .tab { flex: 1 1 calc(50% - 3px); padding: 8px 9px; font-size: 12.5px; }  /* 2 col → 2 filas, nunca desborda */
 }
 </style>
 <script src="/static/lw-charts.js"></script>
