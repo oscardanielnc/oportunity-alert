@@ -56,6 +56,53 @@ def _load_sector_macro(ticker: str) -> dict:
     return out
 
 
+def marea_leader_status(ticker: str) -> dict:
+    """
+    ¿El ticker es HOY un líder de Marea? Lee `leaders` del dashboard del piloto (lo
+    genera el cron diario). Cruza el brazo de NOTICIAS/GAP con la señal de PRECIO de
+    Marea: si un movimiento por catalizador cae sobre un ⭐ TOP en breakout y sector
+    favorable, NO es ruido — es la oportunidad que Marea ya rankeaba (caso MRVL 2-jun:
+    #7 ⭐ breakout, Semis/IA sector #1). Retorna {} si el ticker no es líder o no hay datos.
+    """
+    try:
+        d = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    for l in (d.get("leaders") or []):
+        if (l.get("ticker") or "").upper() == ticker.upper():
+            return {
+                "rank": l.get("rank"),
+                "is_top": bool(l.get("is_top")),
+                "is_breakout": bool(l.get("is_breakout")),
+                "held": bool(l.get("held")),
+                "sector_favor": bool(l.get("sector_favor")),
+                "sector_name": l.get("sector_name"),
+                "sector_rank": l.get("sector_rank"),
+                "sector_total": l.get("sector_total"),
+                "size_pct": l.get("size_pct"),
+            }
+    return {}
+
+
+def marea_leader_tag(ticker: str) -> str:
+    """Etiqueta corta para SMS/dashboard si el ticker es líder de Marea hoy. '' si no."""
+    s = marea_leader_status(ticker)
+    if not s or not (s.get("is_top") or s.get("is_breakout")):
+        return ""
+    bits = []
+    if s.get("is_top"):
+        bits.append("⭐ TOP")
+    if s.get("is_breakout"):
+        bits.append("breakout")
+    sect = ""
+    if s.get("sector_name") and s.get("sector_rank"):
+        sect = f", {s['sector_name']} #{s['sector_rank']}/{s.get('sector_total')}"
+    rank = f"#{s['rank']} " if s.get("rank") else ""
+    size = f", ~{s['size_pct']:.0f}% sug." if s.get("size_pct") else ""
+    held = " — YA EN CARTERA" if s.get("held") else ""
+    return f"🌊 LÍDER MAREA {rank}({' + '.join(bits)}{sect}{size}){held}"
+
+
 def _price_trajectory(price_data: dict, conviction: dict) -> dict:
     """Trayectoria técnica ya calculada por conviction_gates (no recalcula nada caro)."""
     price = price_data.get("current_price") or conviction.get("entry_price") or 0.0

@@ -53,6 +53,15 @@ TIER_1_KEYWORDS = [
     "PRICE TARGET INCREASED", "BOOSTS PRICE TARGET", "LIFTS PRICE TARGET",
     "UPGRADED TO BUY", "UPGRADED TO OVERWEIGHT", "RAISED TO BUY",
     "UPGRADES TO BUY", "UPGRADES TO OVERWEIGHT",
+    # Endorsement de peso / hito de capitalización — 1 sola basta. Caso MRVL 2-jun:
+    # Jensen Huang (CEO Nvidia) la llamó "next trillion-dollar company" en Computex y
+    # voló ~20-29%; el titular llegó en tiempo real (Benzinga age 0) pero con score 0
+    # porque el filtro no reconocía este lenguaje → se filtraba antes de la IA.
+    "TRILLION-DOLLAR COMPANY", "TRILLION DOLLAR COMPANY",
+    "TRILLION-DOLLAR GIANT", "TRILLION DOLLAR GIANT",
+    "NEXT TRILLION", "$1 TRILLION CLUB", "1 TRILLION CLUB",
+    "JOIN THE $1 TRILLION", "TRILLION-DOLLAR CLUB",
+    "ENDORSES", "ENDORSEMENT FROM", "CALLS IT THE NEXT",
 ]
 
 # ── Tier 2: necesita 2+ hits para pasar a Claude ──────────────────────────────

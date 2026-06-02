@@ -31,6 +31,9 @@
   },
   "claude_model": "claude-sonnet-4-6",
   "min_score_sms": 7,
+  "min_score_priced_sms": 5,
+  "gap_scan_seconds": 900,
+  "gap_alert_threshold_pct": 12,
   "sec_edgar": {
     "user_agent": "OportunityAlert oscar@pairus.ai",
     "feed_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&search_text=&output=atom"

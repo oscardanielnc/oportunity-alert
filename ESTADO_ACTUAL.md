@@ -1,6 +1,51 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-02 (SESIÓN DE INVESTIGACIÓN + AJUSTES — ver "CIERRE 2026-06-02" abajo)
+# Última actualización: 2026-06-02 (TARDE — caso MRVL RESUELTO; ver sección inmediata abajo)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## ✅ CIERRE SESIÓN 2026-06-02 (TARDE) — caso MRVL RESUELTO + UX de badges (commits en main, SIN PUSH)
+
+> **Origen:** la PRIORIDAD #1 (MRVL voló ~20-29% por endorsement de Jensen Huang en Computex y
+> NO llegó alerta). Analizado el log REAL de la VM (`data/noticias_log_2026-06-02 (1).csv`, descargado
+> por Oscar). Diagnóstico afinado: **NO fue que no se capturó** — el titular llegó fresco (Benzinga age 0)
+> Y llegó a la IA, pero murió por 3 huecos. Resueltos los 3 en esta sesión.
+
+**Los 3 huecos (RESUELTOS):**
+1. **Keyword filter ciego al endorsement** (`filters/keyword_filter.py`): los titulares "next trillion-dollar
+   company / endorses / crowns" daban **score 0** → filtrados antes de la IA. Agregados a **Tier-1**:
+   `TRILLION-DOLLAR COMPANY/GIANT`, `NEXT TRILLION`, `$1 TRILLION CLUB`, `ENDORSES`, `CALLS IT THE NEXT`.
+   Verificado: los 3 titulares de MRVL ahora puntúan 8-12 (pasaban con 0).
+2. **Supresión de priceados** (`main.py`): un catalizador FUERTE+fresco ya priceado iba SOLO al dashboard
+   (sin SMS). Ahora si es Tier-1/earnings/FDA + `score_ia>=min_score_priced_sms(5)` → **SMS de continuación**
+   con prefijo `[🔥 YA PRICEADO (+X%) — NO persigas el pop; evaluá para TENDENCIA]`, dedup 1/ticker/día.
+3. **Catalizador nocturno/Asia** (`main.py`, NUEVO thread `gap_scanner_loop`): señal **por PRECIO, no por
+   noticia**. Barre la watchlist cada 15 min **siempre que eToro esté abierto (24/5)** — cubre la madrugada
+   (la acción US ya se mueve en el quote 24/5 aunque el titular lague). Si |change%| supera el umbral de
+   "priceado" (piso 12%) y no hubo alerta de noticia/gap ese día → SMS `📈 GAP fuerte SIN alerta de noticia`.
+
+**Cross-arm Marea (el APRENDIZAJE de fondo):** los dos brazos operaban en silos. `utils/news_context.py` →
+`marea_leader_tag(ticker)` lee los `leaders` del dashboard; cableado en el SMS de priceado y en el de gap.
+Si el ticker ya es **líder top-K ⭐/breakout**, el SMS antepone `🌊 LÍDER MAREA #N (⭐ TOP + breakout, sector
+#k/n, ~X% sug.)`. (Solo dispara para top-K reales; un breakout de radar NO recibe el tag.)
+
+**UX de badges — colisión del 🆕 RESUELTA** (`api/dashboard.html`): el emoji 🆕 significaba DOS cosas opuestas:
+en una fila del **Top-10** = "gate de entrada abierto, COMPRA validada"; en el panel **"Breakouts nuevos"** =
+"radar de fuerza 6m baja, NO validado". Confundía (caso STX⭐🆕breakout vs MRVL🆕). Fix: badge del líder
+top-10 ahora **`✅ breakout` verde** (clase `.pl-badge.entry`) + tooltip; el panel mantiene `🆕 NEW` índigo
+pero con tooltip que lo marca RADAR. Cero cambio de lógica, solo presentación.
+
+**Marco de decisión (cómo leer "¿comprar?") — aclarado con Oscar:**
+- **Top-10 líder con `✅ breakout`** = compra Marea VALIDADA (entra al open, vol-size %, chandelier 4×ATR).
+- **Panel "Breakouts nuevos" 🆕 (aun con ⭐)** = RADAR, no validado (Estudio B: peor riesgo-ajustado, revierte
+  en bear). Discrecional: chico + stop 3×ATR. **MRVL cayó acá → baja prioridad, NO era compra Marea.**
+- **"Ya priceado"** es concepto del brazo de NOTICIAS (no persigas el pop de hoy), NO de Marea (la tendencia
+  sigue; el chandelier la gestiona). No descalifica una entrada de tendencia válida.
+
+**Config nueva** (`config.json`): `min_score_priced_sms:5`, `gap_scan_seconds:900`, `gap_alert_threshold_pct:12`.
+
+**Estado:** todo compila (py_compile OK), verificado con datos reales (keyword scoring, marea_leader_tag).
+Commits en `main` SIN push. **FALTA: Oscar pushea + `deploy.sh` + correr `venv/bin/python -m pilot.run_pilot`
+en la VM.** Validar en vivo: que un próximo gap/priceado fuerte dispare SMS y que los badges se vean bien.
+⚠️ OJO: el `pilot_dashboard.json` LOCAL puede no reflejar la VM (local = solo frontend). La vista en vivo manda.
 
 ## 🚨 CIERRE SESIÓN 2026-06-02 — investigación a fondo + cambios live (TODO EN main, SIN PUSH — Oscar pushea+deploya)
 

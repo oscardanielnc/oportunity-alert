@@ -27,7 +27,7 @@ from sources.reddit_monitor import fetch_reddit_mentions
 from sources.alpaca_news import stream_news as alpaca_stream_news
 from filters.keyword_filter import passes_filter, TIER_1_KEYWORDS
 from filters.claude_scorer import score_with_claude
-from utils.news_context import build_context
+from utils.news_context import build_context, marea_leader_tag
 from alerts.twilio_sms import send_sms, format_sms, send_raw_message as _send_twilio_raw
 from alerts.alert_logger import log_alert, log_claude_analysis, update_24h_prices, get_recent_alerts
 from utils.alpaca_price import get_realtime_price
@@ -519,9 +519,51 @@ def process_article(
 
     min_score_sms = config.get("min_score_sms", 7)
     sms_enviado = False
-    # Advertencias de continuación (movimiento ya priceado) = SOLO dashboard, sin SMS
-    # (decisión Oscar 2026-06-01: cero ruido en el teléfono para estos casos).
+    # Movimiento ya priceado (continuación) = por defecto SOLO dashboard, sin SMS
+    # (decisión Oscar 2026-06-01: cero ruido por drift). EXCEPCIÓN (Hueco 2, caso MRVL
+    # 2-jun): si el catalizador es FUERTE y fresco (Tier-1 / earnings / FDA) y la IA igual
+    # lo valoró, SÍ avisamos — un endorsement de CEO + nuevo máximo es tendencia montable
+    # (Marea/PED), no ruido. Se manda UN SMS informativo de continuación, dedup 1/ticker/día,
+    # con umbral propio (la convicción viene castigada por Gate1=0 → no exigir 7).
     is_warning = bool(conviction.get("momentum_continuation"))
+    min_score_priced = config.get("min_score_priced_sms", 5)
+    strong_priced = (
+        is_warning and fresh_catalyst and score_ia >= min_score_priced
+    )
+    if strong_priced:
+        is_warning = False   # deja de suprimirse: cae al flujo de SMS de abajo
+
+    # Catalizador fuerte ya priceado → SMS informativo de continuación (no señal de entrada:
+    # ya corrió). No usa el flujo de evento (watch + followup): no hay entrada que confirmar.
+    if strong_priced and not adverse_exit:
+        market_open   = is_market_open()
+        crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
+        day = datetime.now(LIMA).strftime("%Y%m%d")
+        flag_key = f"priced_{ticker}_{day}"
+        if (market_open or crypto_ticker) and not dedup.has_flag(flag_key):
+            chg = price_data.get("change_pct")
+            chg_txt = f"{chg:+.0f}% hoy" if chg is not None else "movimiento fuerte"
+            # Cruce con Marea: si el ticker ya es líder ⭐/breakout, el catalizador NO es
+            # ruido priceado — es la oportunidad que Marea rankeaba (caso MRVL).
+            leader_tag = marea_leader_tag(ticker)
+            lead_prefix = f"[{leader_tag}] " if leader_tag else ""
+            result["resumen_cataliz"] = (
+                lead_prefix
+                + f"[🔥 YA PRICEADO ({chg_txt}) — CONTINUACIÓN/MOMENTUM, NO persigas el pop; "
+                f"evaluá para TENDENCIA (Marea/PED), no scalp] "
+                + result.get("resumen_cataliz", "")
+            )
+            sms_enviado = send_sms(result, twilio_from, twilio_to)
+            if sms_enviado:
+                dedup.set_flag(flag_key, ttl_hours=20)
+                with _stats_lock:
+                    _stats["sms_sent"] += 1
+                logger.info(
+                    f"[PricedMomentum] {ticker} SMS de continuación enviado "
+                    f"(score_ia={score_ia}, change={chg}) — catalizador fuerte ya priceado"
+                )
+        adverse_exit = True   # no duplicar con el flujo normal de oportunidad de abajo
+
     if score_ia >= min_score_sms and not adverse_exit and not is_warning:
         market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
@@ -1164,6 +1206,93 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
 # (Pre-market Scanner ARCHIVADO 2026-05-30 -> _deprecated/ — sin edge validado)
 
+
+# ── Gap Scanner (Hueco 1): señal por PRECIO, no por noticia ────────────────────
+# El sistema es news-driven: un catalizador nocturno/Asia (caso MRVL 2-jun, endorsement
+# de Jensen Huang en Computex ~10pm Lima) llega a los feeds US HORAS después, ya priceado,
+# y no dispara nada a tiempo. El gap scanner cubre ese hueco: barre la watchlist en la
+# ventana pre-market→sesión y avisa de movimientos grandes AUNQUE no haya titular fresco.
+GAP_SCAN_DEFAULT_SECONDS = 900     # 15 min — barre la watchlist
+GAP_MIN_DEFAULT_PCT      = 12      # piso de gap; por ticker usa el umbral de "priceado"
+
+
+def _is_gap_scan_window() -> bool:
+    """Escanea siempre que eToro permita operar acciones US (sesión 24/5: pre-market,
+    regular, after-hours y la reapertura del domingo). Así cubre catalizadores de horario
+    ASIA/nocturnos (caso MRVL): la acción US ya se mueve en el quote 24/5 de eToro aunque
+    el titular llegue tarde, y el SMS queda esperando cuando Oscar despierta. El dedup
+    1/ticker/día + la cadencia de 15 min mantienen acotado el costo de API."""
+    return is_market_open()
+
+
+def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str) -> bool:
+    """Evalúa un ticker; si su |change_pct| supera el umbral de priceado y no hubo ya
+    una alerta hoy (ni de noticia ni de gap), manda UN SMS de gap. Dedup 1/ticker/día."""
+    from utils.conviction_gates import PRICED_THRESHOLDS, DEFAULT_THRESHOLD
+    day = datetime.now(LIMA).strftime("%Y%m%d")
+    gap_flag = f"gap_{ticker}_{day}"
+    if dedup.has_flag(gap_flag):
+        return False
+    # Si ya hubo alerta de noticia para este ticker hoy, el catalizador ya se cubrió.
+    if dedup.has_flag(f"priced_{ticker}_{day}"):
+        return False
+    if dedup.get_last_alert_on_ticker(ticker, hours=12):
+        return False
+
+    price_data = get_realtime_price(ticker)
+    change = price_data.get("change_pct")
+    if change is None:
+        return False
+    # Umbral por ticker = el mismo que define "ya priceado" en Gate1, con piso gap_min.
+    threshold = max(PRICED_THRESHOLDS.get(ticker, DEFAULT_THRESHOLD), gap_min)
+    if abs(change) < threshold:
+        return False
+
+    price = price_data.get("current_price")
+    price_txt = f" (${price:.2f})" if price else ""
+    arrow = "📈" if change > 0 else "📉"
+    leader_tag = marea_leader_tag(ticker)
+    lead_line = f"{leader_tag}\n" if leader_tag else ""
+    body = (
+        f"{arrow} GAP fuerte SIN alerta de noticia — {ticker} {change:+.0f}% hoy{price_txt}\n"
+        f"{lead_line}"
+        f"Movimiento grande detectado por PRECIO (posible catalizador nocturno/Asia que "
+        f"los feeds US reportan tarde).\n"
+        f"→ Revisá el catalizador. Si hay tendencia, evaluá Marea/PED — NO persigas el pop."
+    )
+    if _send_twilio_raw(body, twilio_to):
+        dedup.set_flag(gap_flag, ttl_hours=20)
+        with _stats_lock:
+            _stats["sms_sent"] += 1
+        logger.info(f"[GapScanner] {ticker} {change:+.1f}% — SMS de gap enviado (sin noticia)")
+        return True
+    return False
+
+
+def gap_scanner_loop(config, watchlist, dedup, **kwargs):
+    """Barre la watchlist cada N seg en la ventana pre-market→sesión buscando gaps grandes
+    sin noticia. Cubre catalizadores nocturnos/internacionales (Hueco 1, caso MRVL)."""
+    interval = config.get("gap_scan_seconds", GAP_SCAN_DEFAULT_SECONDS)
+    gap_min  = config.get("gap_alert_threshold_pct", GAP_MIN_DEFAULT_PCT)
+    twilio_to = kwargs.get("twilio_to")
+    while True:
+        try:
+            if _is_gap_scan_window() and twilio_to:
+                live_wl = get_live_watchlist() or watchlist
+                n_alerts = 0
+                for ticker in live_wl:
+                    try:
+                        if _check_gap(ticker, gap_min, dedup, twilio_to):
+                            n_alerts += 1
+                    except Exception as e:
+                        logger.debug(f"[GapScanner] {ticker}: {e}")
+                if n_alerts:
+                    logger.info(f"[GapScanner] ciclo: {n_alerts} gap(s) alertado(s) sobre {len(live_wl)} tickers")
+        except Exception as e:
+            logger.error(f"[GapScanner] Error en ciclo: {e}")
+        time.sleep(interval)
+
+
 # ── Comando status ────────────────────────────────────────────────────────────
 
 def show_status():
@@ -1288,9 +1417,10 @@ def main():
         ("Heartbeat",     heartbeat_loop,       (twilio_from, twilio_to),   {}),
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
+        ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
         ("Dashboard",        run_dashboard,            (),                            {}),
     ]
-    logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker (Reddit desactivado; PreMarket archivado)")
+    logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker, GapScanner (Reddit desactivado; PreMarket archivado)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(
