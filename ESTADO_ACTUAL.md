@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 (CIERRE 3) — REDISEÑO FRONTEND v1 + responsive (fintech claro, sidebar, Geist+Inter, basado en Stitch) PRESERVANDO toda la lógica JS; responsive 100% verificado (Edge headless, cero desborde). + Proyecto LIMPIO (briefs/ borrado, caches research des-trackeados+gitignore, logs server fuera). Antes: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. PENDIENTE: deploy del frontend a la VM (verlo con datos) + pulido. REGLA: commits sí, push NO (lo hace Oscar)
+# Última actualización: 2026-06-01 (CIERRE 4 = final del día) — REDISEÑO FRONTEND fintech claro + sidebar (Stitch): Noticias/Posiciones/Watchlist reskin global + PILOTO rehecho al brief 6 (header, stats, equity con degradado, grid Top-10 izq / Breakouts der, tablas como cards); responsive 100% verificado; _plBuyCard muerto eliminado. + Fix zona horaria Lima en frontend. + LOG DEL DÍA VALIDADO (todo OK, ver abajo). + Proyecto LIMPIO. Antes hoy: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. PENDIENTE ÚNICO: deploy del frontend a la VM. REGLA: commits sí, push NO (lo hace Oscar)
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
@@ -193,11 +193,22 @@ repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 n
 > Verificado (00:45 UTC = 19:45 Lima → fecha 2026-06-01, no -02). **Aplica al desplegar a la VM** (la VM corre
 > en UTC pero el código usa el offset Lima explícito, así que los timestamps salen en Lima sin tocar el SO).
 
+## ✅ VALIDACIÓN DEL LOG DEL DÍA — `data/noticias_log_2026-06-01.csv` (cierre 2026-06-01)
+> Revisado a pedido de Oscar. **Veredicto: el sistema va bien, funcionando como se diseñó.**
+- **Zona horaria CORRECTA (Lima):** el log abarca 00:03 → 19:35 del 2026-06-01 (día completo Lima), todos los ts en Lima.
+- **Embudo sano:** 1171 eventos → 1141 filtrados (97.4%: **590 por edad**, 551 por keywords/score) → 6 Gate1-bloqueado (priceado) → 22 a IA (15 baja + 7 media) → **2 SMS**.
+- **2 SMS legítimos, ambos del feed RT Alpaca-Benzinga (age 0 min):** **AMD** (Barclays PT→$665, ai=7 ALTA) y **TLN** (clearances regulatorias de adquisición, ai=7 ALTA).
+- **Cap de edad source-aware CONFIRMADO en vivo:** las razones de edad muestran `max=90` (antes 45) y **0 eventos con age>90 se colaron** → el deploy del fix tomó. Lo que llegó a IA era fresco (27/30 con 0-5 min, máx 34).
+- **Gate1 (compute-first) correcto:** bloqueó 6 priceados — p.ej. **4 alzas de PT de DELL** (ya +34% post-earnings) sin spamear un SMS por analista. Caso de "continuación priceada" funcionando.
+- **IA discrimina bien:** notas "Maintains/Raises PT" de bajo valor → ai_baja (1-3); sustantivas → ai_media (4-6); solo 2 catalizadores reales → ai=7 → SMS.
+- **Fuentes activas y diversas:** Finnhub/Yahoo 487, EDGAR 315, Alpaca-Benzinga 160 (RT), Finnhub-Benzinga 135, + SeekingAlpha/CNBC/Chartmill/Fintel.
+- Observación (no problema): mucho ruido de "Maintains/Raises PT" de analistas, bien filtrado por Gate1+IA (cero SMS falsos). Si algún día molesta, endurecer keyword filter para PT-raises — hoy no hace falta.
+
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
    se queda como vigilancia, no lista de compra.
-2. 🟢 **Rediseño del frontend — V1 + RESPONSIVE HECHO (commits `4c4332f`, `a1c7d9c`). FALTA: deploy + ver con datos.**
+2. 🟢 **Rediseño del frontend — HECHO (commits `4c4332f` reskin, `a1c7d9c` responsive, `6d5f567` Piloto brief6, `ee0b826` tz Lima). FALTA SOLO: `deploy.sh` a la VM.** Piloto rehecho al brief 6 de Stitch (header + stats + equity degradado + grid Top-10 izq/Breakouts der + tablas card), `_plBuyCard` muerto eliminado, verificado con datos reales locales. Detalle en [[project_frontend_redesign]].
    Reskin completo de `api/dashboard.html` al diseño de Stitch (fintech claro, sidebar, Geist+Inter, acento
    índigo) PRESERVANDO toda la lógica JS e IDs (cero cambio de comportamiento — se voltearon los tokens
    `:root` oscuro→claro; como el JS usa `var(--*)` casi todo se reskineó solo + bloque de overrides + shell
