@@ -188,7 +188,14 @@ repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 n
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
    se queda como vigilancia, no lista de compra.
-2. **Rediseño completo del frontend** — organizar mejor todo el dashboard (limpiar `_plBuyCard` muerto, etc.). ÚNICO PENDIENTE.
+2. 🟡 **Rediseño del frontend — V1 HECHA (commit `4c4332f`, falta verla con datos + deploy).** Reskin completo
+   de `api/dashboard.html` al diseño de Stitch que eligió Oscar (fintech claro, sidebar, Geist+Inter, acento
+   índigo) PRESERVANDO toda la lógica JS e IDs (cero cambio de comportamiento — se voltearon los tokens
+   `:root` oscuro→claro y como el JS usa `var(--*)` casi todo se reskineó solo + bloque de overrides + shell
+   a sidebar). Briefs/PNGs de Stitch en `briefs/` (untracked). Verificado con Edge headless en localhost:8081
+   (shell/sidebar/stat-cards/empty states OK). FALTA: verla con datos reales en la VM + feedback de Oscar +
+   pulir vistas pobladas (alertas/Top-10/posiciones/equity comparten componentes restyleados). Limpiar
+   `_plBuyCard` muerto queda para el pulido.
 3. ✅ **HECHO — plumbing del modelo Claude + cap de noticias** (2026-06-01, ver bloque abajo).
 
 ## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
