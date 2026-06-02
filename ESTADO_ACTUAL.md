@@ -1,6 +1,45 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 (CIERRE 4 = final del día) — REDISEÑO FRONTEND fintech claro + sidebar (Stitch): Noticias/Posiciones/Watchlist reskin global + PILOTO rehecho al brief 6 (header, stats, equity con degradado, grid Top-10 izq / Breakouts der, tablas como cards); responsive 100% verificado; _plBuyCard muerto eliminado. + Fix zona horaria Lima en frontend. + LOG DEL DÍA VALIDADO (todo OK, ver abajo). + Proyecto LIMPIO. Antes hoy: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. TODO DESPLEGADO EN LA VM (Oscar confirmó "todo bien"). Pendiente OPCIONAL a futuro: pulir Noticias/Posiciones/Watchlist al nivel del Piloto. REGLA: commits sí, push NO (lo hace Oscar)
+# Última actualización: 2026-06-02 (SESIÓN DE INVESTIGACIÓN + AJUSTES — ver "CIERRE 2026-06-02" abajo)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+## 🚨 CIERRE SESIÓN 2026-06-02 — investigación a fondo + cambios live (TODO EN main, SIN PUSH — Oscar pushea+deploya)
+
+### 🔴 PRIORIDAD #1 PRÓXIMA SESIÓN (resolver ANTES que nada, incluso antes de los 3 regímenes):
+**Caso MRVL — voló ~20% por endorsement de Jensen Huang (Computex) y NO llegó alerta.** Detalle completo
+en memoria [[issue_news_overnight_catalyst]]. Dos huecos: (a) catalizadores nocturnos/Asia (feeds US laguean
+→ cuando reportan, ya está priceado) y (b) supresión de SMS para movimientos priceados (decisión previa de
+Oscar → solo dashboard). A decidir: ¿detector de gap fuerte al open / cobertura overnight? ¿mandar SMS igual
+si es Tier-1 + movimiento grande aunque esté priceado? CONFIRMAR EN VM: `grep MRVL data/noticias_log_2026-06-02.csv`.
+
+### 🟡 PRIORIDAD #2: los 3 regímenes off (el "siguiente grande" del proyecto)
+Evaluar a fondo motores específicos para los 3 regímenes risk-off (con **SHORTS y materias primas**, que el
+long-only no captura). El régimen ya se identifica y muestra en el header (4 tipos). Ver [[study_marea_switch_regime]].
+
+### ✅ CAMBIOS LIVE ADOPTADOS ESTA SESIÓN (commits en main):
+1. **Histéresis ±3% en el régimen macro** (`1dbd2f0`) — anti-whipsaw, reemplaza el gate binario QQQ>SMA200.
+   Mejora todo (Sharpe 1.35→1.58, MaxDD −23.8→−20.7%, bear 2022 −17→−6%) con menos trades. [[study_marea_regime_layer]]
+2. **Header de régimen** (4 tipos: 🟢 ALCISTA / 🔵 deflacionario / 🟠 inflacionario / ⚪ lateral) en el dashboard
+   global (`c0888d2`) — informativo, no cambia qué tradea.
+3. **Tamaño sugerido (vol-sizing %) en las recomendaciones de Marea** (`c949926`) — antes no se mostraba CUÁNTO
+   comprar; ahora cada líder muestra "~X% del capital". [[study_marea_sizing]]
+4. **K=5 → K=8** (`9fe80a9`) — el mejor uso del cash = más nombres (MaxDD −15.8 vs −20.7%, misma vol). Frontend
+   "X/8" dinámico. [[study_marea_sizing]]
+5. **Quitar "Conv. X/7"** de las tarjetas de Noticias (`a912694`) — confundía con el 7/10 de la IA; la convicción
+   es un filtro interno que ya hizo su trabajo. Queda solo el 7/10.
+
+### 📊 ESTUDIOS MEDIDOS (research/, todos bear-inclusive, commits en main) — VEREDICTOS:
+- **C — Régimen (histéresis):** ✅ ADOPTADO (arriba). `backtest_marea_regime.py`
+- **C-Fase2 — Derisk (vender en bear):** ❌ no se gana la complejidad (+0.02 Sharpe, ventas ambiguas). `backtest_marea_derisk.py`
+- **D — Vol targeting de cartera (tope 1.0x):** ❌ dial de riesgo, no edge (sin leverage). `backtest_marea_voltarget.py`
+- **E — 2º motor descorrelacionado (trend multi-activo):** ⚠️ diversifica (corr +0.11) pero bajo retorno (~7%/año). `backtest_marea_2ndmotor.py`
+- **F — Conmutar motores por régimen (idea de Oscar):** ✅ conmutar > mezclar, PERO el 2º motor ganador = T-bills, no el sleeve; y BIL no sirve en eToro. `backtest_marea_switch.py` → derivó en el header de régimen + los 3 regímenes como prioridad.
+- **G — ¿Comprar la cima? (extensión+desaceleración):** ❌ NO existe señal que prediga el techo; estirado/sobrecomprado rinde IGUAL o MEJOR; el chandelier+vol-sizing ya gestionan. `backtest_marea_exhaustion.py`
+- **H — Sizing (equal vs vol-sizing, params, cash):** ✅ vol-sizing VT=0.03 bien calibrado; equal-weight = +riesgo mismo Sharpe; mejor uso del cash = K8. `backtest_marea_sizing.py`
+- **Trade-alrededor-del-core + timing de ejecución (MU/universo):** ❌ comprar dips/vender rips = NO (MU es momentum). Ejecución: comprar TEMPRANO (8:30-9:00 Lima, límite cerca del open), vender tarde (~13:30-14:30). Pre-market ≈ apertura (no descuento) y eToro lo da ilíquido. `intraday_*.py`, `premarket_top10.py`. [[study_trade_around_core]]
+
+### Resumen para el dueño: NADA de Marea cambió en su núcleo (selección validada intacta). Se ajustó el RÉGIMEN
+(histéresis), el SIZING (K8) y la PRESENTACIÓN (header régimen, tamaño %, sin Conv). Falta: Oscar pushea +
+`deploy.sh` + correr el pilot en la VM para repoblar el JSON con regime/size_pct/max_positions.
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
 
