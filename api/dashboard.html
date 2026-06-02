@@ -484,6 +484,58 @@ tbody tr:hover { background: #fafafb; }
 .pos-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
 .content { min-width: 0; }
 
+/* ── Piloto (diseño Stitch brief 6: header + grid Top-10/Breakouts + tablas) ── */
+.pl-pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.pl-h1 { font-family: var(--font-head); font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+.pl-sub { color: var(--text2); font-size: 14px; margin-top: 4px; }
+.pl-head-actions { display: flex; align-items: center; gap: 10px; }
+.pl-pill { display: inline-flex; align-items: center; gap: 7px; background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 13px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text2); white-space: nowrap; }
+.pl-pill .pl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.pl-btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 1px 2px rgba(55,48,163,.2); white-space: nowrap; }
+.pl-btn-primary:hover { opacity: .92; }
+
+.pl-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; align-items: start; margin-top: 4px; }
+.pl-section-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 14px; }
+.pl-section-head h3 { font-family: var(--font-head); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.pl-muted { color: var(--text3); font-weight: 400; font-size: 13px; }
+.pl-sub2 { color: var(--text2); font-size: 12px; margin: -6px 0 12px; }
+.pl-leader-list, .pl-breakout-list { display: flex; flex-direction: column; gap: 10px; }
+
+.pl-leader { background: #fff; border: 1px solid var(--border); border-left: 4px solid transparent; border-radius: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; transition: background .12s; }
+.pl-leader.held { border-left-color: var(--green); }
+.pl-leader.ped  { border-left-color: var(--accent); }
+.pl-leader:hover { background: var(--bg2); }
+.pl-leader-l { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pl-rank { font-family: var(--font-head); font-size: 22px; font-weight: 700; color: var(--text3); width: 34px; text-align: center; flex-shrink: 0; }
+.pl-namerow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.pl-name { font-family: var(--font-head); font-size: 17px; font-weight: 700; }
+.pl-meta { font-size: 12px; color: var(--text2); margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-dotsep { width: 4px; height: 4px; border-radius: 50%; background: var(--border2); display: inline-block; }
+.pl-leader-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.pl-badge { font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+.pl-badge.held { background: var(--green-d); color: var(--green); border: 1px solid rgba(5,150,105,.22); }
+.pl-badge.ped  { background: var(--accent-d); color: var(--accent); border: 1px solid rgba(55,48,163,.22); }
+.pl-badge.new  { background: var(--accent-d); color: var(--accent); border: 1px solid rgba(55,48,163,.22); }
+.pl-stoppill { background: var(--card2); border-radius: 6px; padding: 4px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pl-buy  { background: var(--green-d); color: var(--green); border: 1px solid rgba(5,150,105,.22); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: default; white-space: nowrap; }
+.pl-sell { background: var(--red-d); color: var(--red); border: 1px solid rgba(220,38,38,.22); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.pl-detalles { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; }
+.pl-adv { font-size: 11px; color: #92400e; background: rgba(217,119,6,.12); border-radius: 6px; padding: 4px 8px; margin-top: 6px; flex-basis: 100%; }
+.pl-detail { flex-basis: 100%; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.pl-chip { display: inline-block; font-size: 11px; background: var(--card2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; }
+
+.pl-breakout { background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); padding: 14px; }
+.pl-breakout:hover { border-color: rgba(55,48,163,.3); }
+.pl-breakout-head { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.pl-breakout-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); padding: 2px 0; }
+
+.pl-table-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); overflow: hidden; }
+.pl-table-head { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--bg2); font-family: var(--font-head); font-size: 16px; font-weight: 600; }
+.pl-table-card .pm-wrap { border: 0; border-radius: 0; }
+.pl-equity-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); padding: 18px; }
+
+@media (max-width: 980px) { .pl-grid { grid-template-columns: 1fr; } }
+
 /* Responsive: sidebar pasa a barra superior < 880px */
 @media (max-width: 880px) {
   #app { flex-direction: column; }
@@ -653,28 +705,60 @@ tbody tr:hover { background: #fafafb; }
 
     <!-- ===== PILOTO ===== -->
     <div id="p-piloto" class="panel">
-      <div class="stats-strip">
-        <div class="stat-cell"><div class="stat-label">Capital</div><div class="stat-value c-accent" id="pl-equity">—</div><div class="stat-sub" id="pl-init">paper trading</div></div>
-        <div class="stat-cell"><div class="stat-label">Retorno total</div><div class="stat-value" id="pl-ret">—</div><div class="stat-sub" id="pl-asof">—</div></div>
-        <div class="stat-cell"><div class="stat-label">Posiciones</div><div class="stat-value c-dim" id="pl-pos">—</div><div class="stat-sub">máx 5</div></div>
-        <div class="stat-cell"><div class="stat-label">Régimen mercado</div><div class="stat-value" id="pl-macro">—</div><div class="stat-sub">QQQ vs SMA200</div></div>
+      <!-- Header de página -->
+      <div class="pl-pagehead">
+        <div>
+          <h2 class="pl-h1">Piloto Dashboard</h2>
+          <p class="pl-sub">Estrategia de momentum — visión general y señales accionables · <span style="color:var(--text3)">tendencia (semanas–meses)</span></p>
+        </div>
+        <div class="pl-head-actions">
+          <span class="pl-pill"><span class="pl-dot" id="pl-regdot"></span> <span id="pl-macro">—</span></span>
+          <button class="pl-btn-primary" onclick="loadPilot()">↻ Actualizar datos</button>
+        </div>
       </div>
 
-      <div id="pl-note" style="margin:10px 0"></div>
-      <div id="pl-orders" style="margin:6px 0 16px"></div>
-      <div id="pl-equitychart" style="margin-bottom:16px"></div>
+      <div id="pl-note" style="margin-bottom:18px"></div>
 
-      <h3 style="font-size:13px;color:var(--text2);margin:0 0 8px">Posiciones abiertas</h3>
-      <div class="pm-wrap"><table>
-        <thead><tr><th>Ticker</th><th>Fuente</th><th>Días</th><th>Entrada</th><th>Precio</th><th>Stop 4×ATR</th><th>P&L %</th></tr></thead>
-        <tbody id="pl-holdings"></tbody>
-      </table></div>
+      <!-- Stats grid -->
+      <div class="stats-strip" style="margin-bottom:18px">
+        <div class="stat-cell"><div class="stat-label">Capital</div><div class="stat-value c-accent" id="pl-equity">—</div><div class="stat-sub" id="pl-init">paper trading</div></div>
+        <div class="stat-cell"><div class="stat-label">Retorno total</div><div class="stat-value" id="pl-ret">—</div><div class="stat-sub" id="pl-asof">—</div></div>
+        <div class="stat-cell"><div class="stat-label">Posiciones</div><div class="stat-value c-dim" id="pl-pos">—</div><div class="stat-sub">máx 5 permitidas</div></div>
+        <div class="stat-cell"><div class="stat-label">Régimen mercado</div><div class="stat-value" id="pl-macro2">—</div><div class="stat-sub">QQQ vs SMA200</div></div>
+      </div>
 
-      <h3 style="font-size:13px;color:var(--text2);margin:16px 0 8px">Trades cerrados recientes</h3>
-      <div class="pm-wrap"><table>
-        <thead><tr><th>Ticker</th><th>Entrada→Salida</th><th>Precio</th><th>P&L %</th><th>P&L $</th></tr></thead>
-        <tbody id="pl-closed"></tbody>
-      </table></div>
+      <!-- Curva de capital -->
+      <div id="pl-equitychart" style="margin-bottom:18px"></div>
+
+      <!-- Grid: Top-10 (2/3) + Breakouts (1/3) -->
+      <div class="pl-grid">
+        <div>
+          <div class="pl-section-head"><h3>🏆 Top-10 líderes <span class="pl-muted">(momentum 6m)</span></h3></div>
+          <div id="pl-leaders" class="pl-leader-list"></div>
+        </div>
+        <div>
+          <div class="pl-section-head"><h3>Breakouts nuevos 🆕</h3></div>
+          <p class="pl-sub2">Radar, no lista de compra directa.</p>
+          <div id="pl-breakouts" class="pl-breakout-list"></div>
+        </div>
+      </div>
+
+      <!-- Tablas -->
+      <div class="pl-table-card" style="margin-top:26px">
+        <div class="pl-table-head">Posiciones abiertas</div>
+        <div class="pm-wrap"><table>
+          <thead><tr><th>Ticker</th><th>Fuente</th><th>Días</th><th>Entrada</th><th>Precio actual</th><th>Stop 4×ATR</th><th style="text-align:right">P&L %</th></tr></thead>
+          <tbody id="pl-holdings"></tbody>
+        </table></div>
+      </div>
+
+      <div class="pl-table-card" style="margin-top:18px">
+        <div class="pl-table-head">Trades cerrados recientes</div>
+        <div class="pm-wrap"><table>
+          <thead><tr><th>Ticker</th><th>Entrada → Salida</th><th>Precio salida</th><th style="text-align:right">P&L %</th><th style="text-align:right">P&L $</th></tr></thead>
+          <tbody id="pl-closed"></tbody>
+        </table></div>
+      </div>
     </div><!-- /p-piloto -->
 
   </div><!-- /main -->
@@ -818,110 +902,28 @@ async function api(path, method = 'GET', body = null) {
 
 // ── Tab: Piloto (momentum swing, paper) ────────────────────────────────────────
 function _plSpark(hist) {
-  if (!hist || hist.length < 2) return '';
+  if (!hist || hist.length < 2)
+    return '<div class="pl-equity-card"><div class="pl-section-head" style="border:0;padding:0;margin:0"><h3>Curva de capital</h3></div>'
+         + '<div style="color:var(--text3);font-size:12px;margin-top:8px">Historial insuficiente — la curva se construye con cada corrida del pilot.</div></div>';
   const vals = hist.map(h => h.equity);
-  const min = Math.min(...vals), max = Math.max(...vals), W = 760, H = 90;
-  const pts = vals.map((v, i) =>
-    `${(i / (vals.length - 1) * W).toFixed(1)},${(H - (v - min) / (max - min || 1) * H).toFixed(1)}`).join(' ');
+  const min = Math.min(...vals), max = Math.max(...vals), W = 1000, H = 150, rng = (max - min) || 1;
+  const xy = vals.map((v, i) => [i / (vals.length - 1) * W, H - (v - min) / rng * H]);
+  const line = xy.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `0,${H} ` + line + ` ${W},${H}`;
   const up = vals[vals.length - 1] >= vals[0];
   const col = up ? 'var(--green)' : 'var(--red)';
-  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
-    <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Curva de capital (${hist.length} días) —
-      $${vals[0].toLocaleString()} → $${vals[vals.length-1].toLocaleString()}</div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none">
-      <polyline fill="none" stroke="${col}" stroke-width="2" points="${pts}"/>
+  return `<div class="pl-equity-card">
+    <div class="pl-section-head" style="border:0;padding:0;margin:0 0 12px">
+      <h3>Curva de capital</h3>
+      <span class="pl-muted">${hist.length} días · $${vals[0].toLocaleString()} → $${vals[vals.length-1].toLocaleString()}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block">
+      <defs><linearGradient id="plgrad" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="${col}" stop-opacity="0.16"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/>
+      </linearGradient></defs>
+      <polygon points="${area}" fill="url(#plgrad)"/>
+      <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
     </svg></div>`;
-}
-
-// Card de COMPRA para "mañana al abrir" — protagonista. Regla validada: entrada al OPEN,
-// salida = stop 4×ATR (Marea, trailing) o por tiempo ~Day+7 (PED), sin target fijo.
-// Dos referencias DISCRECIONALES (no reglas): pullback opcional (orden límite, sin SL) e
-// invalidación (soporte 10d). lvl = entry_levels[ticker] | undefined.
-function _plBuyCard(tk, source, isTop, lvl, ctx) {
-  const isPed = source === 'ped';
-  const srcBadge = isPed
-    ? '<span style="font-size:11px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:4px;padding:2px 9px">🟣 PED</span>'
-    : '<span style="font-size:11px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:4px;padding:2px 9px">🟢 Marea</span>';
-  const star = isTop ? ' <span title="Setup TOP — alta convicción (validado)" style="color:#f5c518;font-size:20px">⭐</span>' : '';
-  const edge = isPed ? '#7c6ff7' : 'var(--green)';
-
-  // Horizonte / salida — distinto por estrategia.
-  const horizon = isPed
-    ? `<div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px">
-         <span style="font-size:16px">⏱️</span>
-         <div>Salida por tiempo <b>≈ Day+7</b><div style="font-size:11px;color:var(--text3)">compra ≈ Day+2 · 6 días hábiles · sin target</div></div>
-       </div>`
-    : `<div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px">
-         <span style="font-size:16px">📈</span>
-         <div>Trend — <b>sin target fijo</b><div style="font-size:11px;color:var(--text3)">sales cuando cierra bajo el stop (sube contigo)</div></div>
-       </div>`;
-
-  // Bloque de stop (la única salida en Marea). Si no hay niveles aún → aviso de correr el pilot.
-  let stopBlock;
-  if (lvl && lvl.stop != null) {
-    stopBlock = `<div style="margin-top:10px;background:rgba(248,81,73,.10);border-radius:8px;padding:9px 12px">
-        <div style="font-size:11px;color:var(--text2);letter-spacing:.3px">🛑 STOP 4×ATR (chandelier) — la salida</div>
-        <div class="c-red" style="font-size:24px;font-weight:800;line-height:1.1;margin-top:2px">$${lvl.stop}</div>
-        ${lvl.ref != null ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">ref. cierre $${lvl.ref}</div>` : ''}
-      </div>`;
-  } else {
-    stopBlock = `<div style="margin-top:10px;font-size:12px;color:var(--text3)">Niveles no disponibles (correr el pilot)</div>`;
-  }
-
-  // Pullback opcional (DISCRECIONAL): niveles por debajo del cierre para una orden límite y
-  // entrar más barato. SIN SL — el chandelier 4×ATR es la única salida (stop fijo en soporte
-  // ya se midió: no baja DD + churn). Si no llena, compras al open igual. Soporte 10d se
-  // reserva como invalidación, no como entrada.
-  let pullback = '';
-  const chips = (lvl && lvl.levels) ? lvl.levels.filter(x => x[0] !== 'Soporte 10d') : [];
-  if (chips.length) {
-    const c = chips.map(x =>
-      `<span style="font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;margin:3px 3px 0 0;display:inline-block">${x[0]} <b>$${x[1]}</b></span>`).join('');
-    pullback = `<div style="margin-top:10px">
-        <div style="font-size:11px;color:var(--text2)">🟢 Pullback opcional <span style="color:var(--text3)">(orden límite, sin SL · si no llena, al open)</span></div>
-        <div>${c}</div>
-      </div>`;
-  }
-
-  // Invalidación DISCRECIONAL: piso de 10 días. Si cae por debajo, evaluar tesis rota con
-  // criterio + investigación. NO es regla ni SL: el backtest mostró que el breakout/soporte
-  // perdido NO predice fracaso de forma fiable (raro ~9%, desenlace mixto). Solo bandera.
-  let inval = '';
-  const sup = (lvl && lvl.levels) ? lvl.levels.find(x => x[0] === 'Soporte 10d') : null;
-  if (sup) {
-    inval = `<div style="margin-top:8px;font-size:11px;color:var(--text3);border-top:1px dashed var(--border);padding-top:7px">
-        🔎 Invalidación (soporte 10d) <b>$${sup[1]}</b> — si cae por debajo, evaluar posible <b>tesis rota</b> <span style="opacity:.8">(raro · desenlace histórico mixto · criterio, no SL)</span></div>`;
-  }
-
-  // Contexto INFORMATIVO (decisión Oscar 2026-06-01): los OJOS del brazo de noticias.
-  // Estado del sector + noticia adversa reciente. NO veta — la señal sigue siendo la matemática.
-  let ctxBlock = '';
-  if (ctx) {
-    let bits = [];
-    if (ctx.sector_name && ctx.sector_mom_pct != null) {
-      const fav = ctx.sector_favor;
-      bits.push(`<div style="font-size:11px;color:var(--text2)">📊 Sector ${ctx.sector_name}: <b style="color:${fav?'var(--green)':'var(--red)'}">${ctx.sector_mom_pct>=0?'+':''}${ctx.sector_mom_pct}%</b>${ctx.sector_rank?` · ranking ${ctx.sector_rank}/${ctx.sector_total}`:''} <span style="color:var(--text3)">(${fav?'a favor':'en contra'})</span></div>`);
-    }
-    if (ctx.adverse_news) {
-      bits.push(`<div style="font-size:11px;color:#ffd591;background:rgba(124,74,3,.25);border-radius:6px;padding:5px 8px;margin-top:4px">⚠ Noticia adversa reciente: ${esc(ctx.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>`);
-    }
-    if (bits.length) ctxBlock = `<div style="margin-top:9px;border-top:1px dashed var(--border);padding-top:8px">${bits.join('')}</div>`;
-  }
-
-  return `<div style="background:var(--card);border:1px solid var(--border);border-left:4px solid ${edge};border-radius:12px;padding:16px 18px;min-width:240px;flex:1 1 300px;box-shadow:0 1px 3px rgba(0,0,0,.25)">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div style="font-size:24px;font-weight:800">${tk}${star}</div>
-      ${srcBadge}
-    </div>
-    <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px">
-      <span style="font-size:16px">🎯</span><div>Comprar al <b>OPEN</b> de mañana</div>
-    </div>
-    ${pullback}
-    ${stopBlock}
-    ${inval}
-    ${horizon}
-    ${ctxBlock}
-  </div>`;
 }
 
 // ── 🏆 Top-10 líderes (panel discrecional, reemplaza "Mañana al abrir") ─────────
@@ -931,90 +933,84 @@ function _toggleLeader(tk) {
   if (!e) return;
   const open = e.style.display === 'none';
   e.style.display = open ? 'block' : 'none';
-  if (a) a.textContent = open ? '▾ ocultar' : '▸ detalles';
+  if (a) a.innerHTML = open ? 'Ocultar ▴' : 'Detalles ▾';
 }
 
 function _leaderRow(r) {
   const held = r.held, isPed = r.source === 'ped';
-  const top3 = r.rank != null && r.rank <= 3;
-  const rankPill = r.rank != null
-    ? `<div style="min-width:40px;text-align:center;font-size:20px;font-weight:800;color:${top3 ? 'var(--accent)' : 'var(--text2)'}">#${r.rank}</div>`
-    : held
-      ? `<div style="min-width:40px;text-align:center;font-size:15px;color:var(--text3)" title="En cartera, fuera del top-10 — candidato a rotar">⬇</div>`
-      : `<div style="min-width:40px;text-align:center;font-size:15px" title="Breakout nuevo — fuera del top-10 por fuerza 6m">🆕</div>`;
+  const cls = held ? (isPed ? 'pl-leader ped' : 'pl-leader held') : 'pl-leader';
+  let rank;
+  if (r.rank != null) rank = '#' + r.rank;
+  else if (held) rank = '<span title="En cartera, fuera del top-10 — candidato a rotar">⬇</span>';
+  else rank = '<span title="Breakout nuevo (fuerza 6m baja)">🆕</span>';
 
   let badges = '';
-  if (r.is_top) badges += ' <span title="Setup TOP (validado)" style="color:#f5c518">⭐</span>';
-  if (held) badges += isPed
-    ? ' <span style="font-size:10px;font-weight:700;background:rgba(124,111,247,.18);color:#a99cff;border-radius:3px;padding:1px 6px">🟣 PED</span>'
-    : ' <span style="font-size:10px;font-weight:700;background:rgba(34,197,94,.15);color:#4ade80;border-radius:3px;padding:1px 6px">🟢 en cartera</span>';
-  if (!held && r.is_breakout) badges += ' <span style="font-size:10px;background:var(--card2);border:1px solid var(--border);border-radius:3px;padding:1px 6px;color:var(--text2)">🆕 breakout</span>';
+  if (r.is_top) badges += ' <span title="Setup TOP (validado)" style="color:#f5b301">⭐</span>';
+  if (held) badges += isPed ? ' <span class="pl-badge ped">PED</span>' : ' <span class="pl-badge held">EN CARTERA</span>';
+  else if (r.is_breakout) badges += ' <span class="pl-badge new">🆕 breakout</span>';
+
+  const meta = [];
+  if (r.momentum_pct != null) meta.push(`Fuerza 6m <b class="${r.momentum_pct >= 0 ? 'c-green' : 'c-red'}">${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</b>`);
+  if (r.sector_name) meta.push(`${r.sector_name} <b class="${r.sector_favor ? 'c-green' : 'c-red'}">${r.sector_mom_pct >= 0 ? '+' : ''}${r.sector_mom_pct}%</b>`);
+  if (held && r.pnl_pct != null) meta.push(`<b class="${r.pnl_pct >= 0 ? 'c-green' : 'c-red'}">${r.pnl_pct >= 0 ? '+' : ''}${r.pnl_pct}%</b>${r.days_held != null ? ' · D+' + r.days_held : ''}`);
+  if (r.recent_pct != null) meta.push(`<b class="c-green">↑ +${r.recent_pct}% 10d</b>`);
+  const metaHtml = meta.map((m, i) => (i ? '<span class="pl-dotsep"></span>' : '') + `<span>${m}</span>`).join(' ');
 
   let action = '';
-  if (r.action === 'buy')  action = `<span style="font-size:11px;font-weight:700;background:rgba(34,197,94,.18);color:#4ade80;border-radius:5px;padding:3px 9px">🎯 COMPRAR al open</span>`;
-  if (r.action === 'sell') action = `<span style="font-size:11px;font-weight:700;background:rgba(248,81,73,.15);color:var(--red);border-radius:5px;padding:3px 9px">🛑 VENDER al open — stop roto</span>`;
-
-  let inline = '';
-  if (held) {
-    inline += `<span class="${r.pnl_pct >= 0 ? 'c-green' : 'c-red'}" style="font-weight:700">${r.pnl_pct >= 0 ? '+' : ''}${r.pnl_pct}%</span>`;
-    if (r.days_held != null) inline += ` <span style="color:var(--text3)">· D+${r.days_held}</span>`;
-    if (r.stop_4atr != null) inline += ` <span style="color:var(--text3)">· stop $${r.stop_4atr}</span>`;
-  }
-  const recent = r.recent_pct != null ? `<span class="c-green" style="font-weight:700">↑ +${r.recent_pct}% 10d</span>` : '';
-  const mom = r.momentum_pct != null ? `<span style="color:var(--text2)">fuerza 6m ${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</span>` : '';
-  const sec = r.sector_name ? `<span style="color:var(--text3)">· ${r.sector_name} <b style="color:${r.sector_favor ? 'var(--green)' : 'var(--red)'}">${r.sector_mom_pct >= 0 ? '+' : ''}${r.sector_mom_pct}%</b></span>` : '';
-  const adv = r.adverse_news ? `<div style="font-size:11px;color:#ffd591;background:rgba(124,74,3,.25);border-radius:6px;padding:4px 8px;margin-top:5px">⚠ Noticia adversa reciente: ${esc(r.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>` : '';
+  if (r.action === 'buy') action = '<span class="pl-buy">🎯 Comprar al abrir</span>';
+  else if (r.action === 'sell') action = '<span class="pl-sell">🛑 Vender al open — stop roto</span>';
+  else if (r.entry && r.entry.stop != null) action = `<span class="pl-stoppill">Stop 4×ATR $${r.entry.stop}</span>`;
+  else if (r.stop_4atr != null) action = `<span class="pl-stoppill">Stop 4×ATR $${r.stop_4atr}</span>`;
 
   const e = r.entry || {}, lv = e.levels || [];
   let detail = '', toggle = '';
   if (lv.length || e.stop != null || r.sector_rank) {
-    let bits = [];
+    const bits = [];
     if (e.stop != null) bits.push(`🛑 Stop 4×ATR estim. <b>$${e.stop}</b>`);
     lv.forEach(x => bits.push(`${x[0] === 'Soporte 10d' ? '🔎 ' : '🟢 '}${x[0]} <b>$${x[1]}</b>`));
     if (r.sector_rank) bits.push(`Sector ranking <b>${r.sector_rank}/${r.sector_total}</b>`);
-    detail = `<div id="ld-${r.ticker}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
-        ${bits.map(b => `<span style="display:inline-block;font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;margin:2px 4px 2px 0">${b}</span>`).join('')}
-        <div style="font-size:10px;color:var(--text3);margin-top:5px">🟢 Pullback opcional (orden límite, sin SL · si no llena, al open) · 🔎 Invalidación = soporte 10d (criterio, no SL)</div>
-      </div>`;
-    toggle = `<span id="lda-${r.ticker}" onclick="_toggleLeader('${r.ticker}')" style="cursor:pointer;font-size:11px;color:var(--accent)">▸ detalles</span>`;
+    detail = `<div id="ld-${r.ticker}" class="pl-detail" style="display:none">${bits.map(b => `<span class="pl-chip">${b}</span>`).join('')}<div style="font-size:10px;color:var(--text3);margin-top:5px">🟢 Pullback opcional (límite, sin SL) · 🔎 Invalidación = soporte 10d (criterio, no SL)</div></div>`;
+    toggle = `<button id="lda-${r.ticker}" class="pl-detalles" onclick="_toggleLeader('${r.ticker}')">Detalles ▾</button>`;
   }
+  const adv = r.adverse_news ? `<div class="pl-adv">⚠ Noticia adversa: ${esc(r.adverse_news)} <span style="opacity:.7">— informativo, no anula la señal</span></div>` : '';
 
-  const edge = held ? (isPed ? '#7c6ff7' : 'var(--green)') : 'var(--border)';
-  return `<div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${edge};border-radius:10px;padding:11px 14px;margin-bottom:7px">
-    <div style="display:flex;align-items:center;gap:12px">
-      ${rankPill}
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:17px;font-weight:800">${r.ticker}</span>${badges} ${action}</div>
-        <div style="font-size:12px;margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;align-items:center">${inline} ${recent} ${mom} ${sec} ${toggle}</div>
+  return `<div class="${cls}">
+    <div class="pl-leader-l">
+      <div class="pl-rank">${rank}</div>
+      <div style="min-width:0">
+        <div class="pl-namerow"><span class="pl-name">${r.ticker}</span>${badges}</div>
+        <div class="pl-meta">${metaHtml}</div>
       </div>
     </div>
-    ${adv}
-    ${detail}
+    <div class="pl-leader-r">${action}${toggle}</div>
+    ${adv}${detail}
+  </div>`;
+}
+
+function _breakoutCard(r) {
+  const rows = [];
+  if (r.sector_name) rows.push(`<div class="pl-breakout-row"><span>${r.sector_name}</span><b class="${r.sector_favor ? 'c-green' : 'c-red'}">${r.sector_mom_pct >= 0 ? '+' : ''}${r.sector_mom_pct}%</b></div>`);
+  if (r.recent_pct != null) rows.push(`<div class="pl-breakout-row"><span>Ruptura (10d)</span><b class="c-green">+${r.recent_pct}%</b></div>`);
+  if (r.momentum_pct != null) rows.push(`<div class="pl-breakout-row"><span>Fuerza 6m</span><b>${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</b></div>`);
+  const star = r.is_top ? ' <span style="color:#f5b301">⭐</span>' : '';
+  return `<div class="pl-breakout">
+    <div class="pl-breakout-head"><span class="pl-name">${r.ticker}</span>${star}<span class="pl-badge new">NEW</span></div>
+    ${rows.join('')}
   </div>`;
 }
 
 function renderLeaders(d) {
   const L = d.leaders || [];
   if (!L.length)
-    return '<div class="acard" style="padding:14px;color:var(--text2)">Sin datos de líderes — correr el pilot.' +
-           (d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.') + '</div>';
-  let h = '<div class="acard alta" style="padding:16px">';
-  h += '<div style="font-size:15px;font-weight:700">🏆 Top-10 líderes — fuerza relativa (momentum 6m)</div>';
-  h += '<div style="font-size:11px;color:var(--text3);margin:3px 0 12px">📈 Horizonte: <b>TENDENCIA</b> (semanas–meses) · distinto a Noticias (corto plazo / evento). El sistema sostiene con chandelier; vos rotás con criterio. 🎯/🛑 = acción al open de mañana.</div>';
-  h += L.map(_leaderRow).join('');
+    return `<div class="pl-leader" style="border-left-color:transparent;justify-content:flex-start;color:var(--text2)">Sin datos de líderes — correr el pilot.${d.macro_bullish ? '' : ' Mercado bajo SMA200: sin nuevas entradas.'}</div>`;
+  return L.map(_leaderRow).join('');
+}
 
-  // 🆕 Breakouts nuevos: rupturas frescas que aún no rankean en el top-10 por fuerza 6m (caso SNOW)
+function renderBreakouts(d) {
   const fb = d.fresh_breakouts || [];
-  if (fb.length) {
-    h += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">';
-    h += '<div style="font-size:13px;font-weight:700">🆕 Breakouts nuevos <span style="font-weight:400;color:var(--text3);font-size:11px">— rompieron máximo pero su fuerza de 6m aún es baja (despiertan ahora). Candidatos si se libera un slot.</span></div>';
-    h += '<div style="margin-top:8px">' + fb.map(_leaderRow).join('') + '</div>';
-    h += '</div>';
-  }
-
-  h += '<div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">⭐ TOP validado · 🆕 breakout nuevo (fuerza 6m baja) · ⬇ en cartera fuera del top-10 (candidato a rotar — tu criterio) · 🛑 stop 4×ATR = única salida Marea · PED sale ≈Day+7. La rotación automática se midió (empeora drawdown/Sharpe) → este panel es <b>discrecional</b>.</div>';
-  h += '</div>';
-  return h;
+  if (!fb.length)
+    return '<div style="color:var(--text3);font-size:12px;padding:6px 2px">Sin breakouts nuevos hoy.</div>';
+  return fb.map(_breakoutCard).join('');
 }
 
 async function loadPilot() {
@@ -1023,8 +1019,8 @@ async function loadPilot() {
   try { d = await api('/api/pilot'); }
   catch (e) { setT('pl-equity', 'error'); return; }
   if (!d || !d.available) {
-    document.getElementById('pl-orders').innerHTML =
-      '<div class="acard" style="padding:16px">El piloto aún no ha corrido. Ejecuta <code>python -m pilot.run_pilot</code> en la VM.</div>';
+    document.getElementById('pl-leaders').innerHTML =
+      '<div class="pl-leader" style="border-left-color:transparent;justify-content:flex-start;color:var(--text2)">El piloto aún no ha corrido. Ejecuta <code>python -m pilot.run_pilot</code> en la VM.</div>';
     return;
   }
   setT('pl-equity', '$' + Math.round(d.equity).toLocaleString());
@@ -1034,9 +1030,11 @@ async function loadPilot() {
   ret.className = 'stat-value ' + (d.total_return_pct >= 0 ? 'c-green' : 'c-red');
   setT('pl-asof', 'al ' + (d.as_of || '—') + (d.qqq_return_pct != null ? ' · QQQ ' + (d.qqq_return_pct >= 0 ? '+' : '') + d.qqq_return_pct + '%' : ''));
   setT('pl-pos', (d.positions ? d.positions.length : 0) + '/5');
-  const macro = document.getElementById('pl-macro');
-  macro.textContent = d.macro_bullish ? 'ALCISTA' : 'BAJISTA';
-  macro.className = 'stat-value ' + (d.macro_bullish ? 'c-green' : 'c-red');
+  const bull = d.macro_bullish;
+  setT('pl-macro', bull ? 'ALCISTA' : 'DEFENSIVO');                       // píldora del header
+  const rdot = document.getElementById('pl-regdot'); if (rdot) rdot.style.background = bull ? 'var(--green)' : 'var(--red)';
+  const macro2 = document.getElementById('pl-macro2');                    // stat card
+  if (macro2) { macro2.textContent = bull ? 'ALCISTA' : 'DEFENSIVO'; macro2.className = 'stat-value ' + (bull ? 'c-green' : 'c-red'); }
 
   // Banner honesto: la curva incluye backfill seed (in-sample), NO es performance live
   const note = document.getElementById('pl-note');
@@ -1048,20 +1046,10 @@ async function loadPilot() {
     note.innerHTML = `<div class="acard" style="padding:12px;border-left:3px solid var(--yellow)">⚠️ La curva incluye un <b>backfill seed</b> (replay in-sample) — el retorno total NO es performance live.${parts.length ? '<br>' + parts.join(' · ') : ''}</div>`;
   }
 
-  // 🏆 TOP-10 LÍDERES — reemplaza "Mañana al abrir" (panel discrecional, decisión Oscar 2026-06-01).
-  // Conserva lo accionable (🎯 comprar / 🛑 vender al open, stop 4×ATR, niveles desplegables, sector, noticia).
-  let oh = renderLeaders(d);
-  // Fuerza por sector (momentum 6m del ETF) — qué sectores trendean ahora
-  const sec = d.sector_strength || [];
-  if (sec.length) {
-    const chips = sec.map((s, i) => {
-      const col = s.mom_pct >= 0 ? 'var(--green)' : 'var(--red)';
-      const brd = i < 2 ? 'border:1px solid var(--accent);' : 'border:1px solid var(--border);';
-      return `<span style="font-size:11px;background:var(--card2);${brd}border-radius:6px;padding:3px 8px;margin:2px;display:inline-block">${s.name}: <b style="color:${col}">${s.mom_pct >= 0 ? '+' : ''}${s.mom_pct}%</b></span>`;
-    }).join('');
-    oh += `<div style="margin-top:10px"><div style="font-size:11px;color:var(--text2);margin-bottom:4px">📊 Fuerza por sector (momentum 6m) — borde violeta = lideran:</div>${chips}</div>`;
-  }
-  document.getElementById('pl-orders').innerHTML = oh;
+  // 🏆 Top-10 líderes (col. izq, 2/3) + 🆕 Breakouts nuevos (col. der, 1/3) — diseño Stitch brief 6.
+  // Cada fila conserva lo accionable (🎯 comprar / 🛑 vender al open, stop 4×ATR, niveles desplegables, sector, noticia).
+  document.getElementById('pl-leaders').innerHTML = renderLeaders(d);
+  document.getElementById('pl-breakouts').innerHTML = renderBreakouts(d);
   document.getElementById('pl-equitychart').innerHTML = _plSpark(d.equity_history);
 
   // Posiciones abiertas
