@@ -1189,7 +1189,6 @@ function renderAlert(a) {
   const pct  = a.pct_estimado ? `~+${a.pct_estimado.toFixed(0)}% obj.` : '';
   const age  = timeAgo(a.ts);
   const src  = fmtSrc(a.source || '');
-  const conv = a.conviction_score ?? '—';
   const en   = a.entrada_rango  || (a.entry_price  ? `$${a.entry_price.toFixed(2)}`  : 'N/A');
   const st   = a.stop           || (a.stop_code    ? `$${a.stop_code.toFixed(2)}`    : 'N/A');
   const tg   = a.target         || (a.target_code  ? `$${a.target_code.toFixed(2)}`  : 'N/A');
@@ -1221,8 +1220,7 @@ function renderAlert(a) {
     ${hori ? `<span>· ${hori}</span>` : ''}
     ${tim  ? `<span>· ${esc(tim)}</span>` : ''}
     ${urlL ? `<span>· ${urlL}</span>` : ''}
-    <span>· Conv. <strong>${conv}/7</strong></span>
-    <span style="font-family:monospace;letter-spacing:0;color:${scoreColor(score)}">${bar}</span>
+    <span style="font-family:monospace;letter-spacing:0;color:${scoreColor(score)}" title="Puntaje IA ${score}/10">${bar}</span>
   </div>
   <div class="acard-nums">
     <div class="num-cell"><div class="nl">Entrada</div><div class="nv">${en}</div></div>
