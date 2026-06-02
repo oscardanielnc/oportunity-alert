@@ -24,7 +24,7 @@ PED era invisible (sin panel, sin slot, solo badge tras comprar). Ahora:
 - Cero lógica de trading tocada. Verificado: compila, pilot corre, json emite `strategy_signals`.
 
 ### 🚀 PARA SUBIR A LA VM (pendiente de Oscar): push + `deploy.sh` + `venv/bin/python -m pilot.run_pilot`
-Esto despliega: lo de la MAÑANA (MRVL: 3 huecos + cross-arm + badges ✅/🆕 + histéresis régimen + K8 + vol-sizing) Y lo de la NOCHE (panel PED). Validar en VM: badges, panel PED, y que un gap/priceado real dispare SMS.
+La mañana (MRVL: 3 huecos + cross-arm + badges) ya está en origin/deployada. **Pendiente = solo los 3 commits de la NOCHE** (panel PED + research + este doc). Tras deploy, correr el pilot repobla el JSON con `strategy_signals`. Validar en VM: panel "Estrategias disponibles" + que un gap/priceado real dispare SMS.
 
 ---
 
