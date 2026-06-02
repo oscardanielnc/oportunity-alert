@@ -516,6 +516,7 @@ tbody tr:hover { background: #fafafb; }
 .pl-badge.held { background: var(--green-d); color: var(--green); border: 1px solid rgba(5,150,105,.22); }
 .pl-badge.ped  { background: var(--accent-d); color: var(--accent); border: 1px solid rgba(55,48,163,.22); }
 .pl-badge.new  { background: var(--accent-d); color: var(--accent); border: 1px solid rgba(55,48,163,.22); }
+.pl-badge.entry { background: var(--green-d); color: var(--green); border: 1px solid rgba(5,150,105,.22); }
 .pl-stoppill { background: var(--card2); border-radius: 6px; padding: 4px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pl-buy  { background: var(--green-d); color: var(--green); border: 1px solid rgba(5,150,105,.22); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: default; white-space: nowrap; }
 .pl-sell { background: var(--red-d); color: var(--red); border: 1px solid rgba(220,38,38,.22); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -972,7 +973,7 @@ function _leaderRow(r) {
   let badges = '';
   if (r.is_top) badges += ' <span title="Setup TOP (validado)" style="color:#f5b301">⭐</span>';
   if (held) badges += isPed ? ' <span class="pl-badge ped">PED</span>' : ' <span class="pl-badge held">EN CARTERA</span>';
-  else if (r.is_breakout) badges += ' <span class="pl-badge new">🆕 breakout</span>';
+  else if (r.is_breakout) badges += ' <span class="pl-badge entry" title="Gate de entrada ABIERTO: este líder top-10 rompió máximos y no lo tenés — candidato de COMPRA Marea. (Distinto del panel Breakouts nuevos 🆕, que es radar de fuerza 6m baja.)">✅ breakout</span>';
 
   const meta = [];
   if (r.momentum_pct != null) meta.push(`Fuerza 6m <b class="${r.momentum_pct >= 0 ? 'c-green' : 'c-red'}">${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</b>`);
@@ -1025,7 +1026,7 @@ function _breakoutCard(r) {
   if (r.momentum_pct != null) rows.push(`<div class="pl-breakout-row"><span>Fuerza 6m</span><b>${r.momentum_pct >= 0 ? '+' : ''}${r.momentum_pct}%</b></div>`);
   const star = r.is_top ? ' <span style="color:#f5b301">⭐</span>' : '';
   return `<div class="pl-breakout">
-    <div class="pl-breakout-head"><span class="pl-name">${r.ticker}</span>${star}<span class="pl-badge new">NEW</span></div>
+    <div class="pl-breakout-head"><span class="pl-name">${r.ticker}</span>${star}<span class="pl-badge new" title="RADAR — rompió máximos recientes pero su fuerza de 6m no alcanza el top-10. NO es compra validada (sleeve de breakouts frescos rinde peor riesgo-ajustado que Marea). Vigilancia/discrecional, no señal sistemática.">NEW</span></div>
     ${rows.join('')}
   </div>`;
 }
