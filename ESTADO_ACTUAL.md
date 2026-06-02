@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 (CIERRE 4 = final del día) — REDISEÑO FRONTEND fintech claro + sidebar (Stitch): Noticias/Posiciones/Watchlist reskin global + PILOTO rehecho al brief 6 (header, stats, equity con degradado, grid Top-10 izq / Breakouts der, tablas como cards); responsive 100% verificado; _plBuyCard muerto eliminado. + Fix zona horaria Lima en frontend. + LOG DEL DÍA VALIDADO (todo OK, ver abajo). + Proyecto LIMPIO. Antes hoy: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. PENDIENTE ÚNICO: deploy del frontend a la VM. REGLA: commits sí, push NO (lo hace Oscar)
+# Última actualización: 2026-06-01 (CIERRE 4 = final del día) — REDISEÑO FRONTEND fintech claro + sidebar (Stitch): Noticias/Posiciones/Watchlist reskin global + PILOTO rehecho al brief 6 (header, stats, equity con degradado, grid Top-10 izq / Breakouts der, tablas como cards); responsive 100% verificado; _plBuyCard muerto eliminado. + Fix zona horaria Lima en frontend. + LOG DEL DÍA VALIDADO (todo OK, ver abajo). + Proyecto LIMPIO. Antes hoy: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. TODO DESPLEGADO EN LA VM (Oscar confirmó "todo bien"). Pendiente OPCIONAL a futuro: pulir Noticias/Posiciones/Watchlist al nivel del Piloto. REGLA: commits sí, push NO (lo hace Oscar)
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
@@ -208,7 +208,7 @@ repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 n
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
    se queda como vigilancia, no lista de compra.
-2. 🟢 **Rediseño del frontend — HECHO (commits `4c4332f` reskin, `a1c7d9c` responsive, `6d5f567` Piloto brief6, `ee0b826` tz Lima). FALTA SOLO: `deploy.sh` a la VM.** Piloto rehecho al brief 6 de Stitch (header + stats + equity degradado + grid Top-10 izq/Breakouts der + tablas card), `_plBuyCard` muerto eliminado, verificado con datos reales locales. Detalle en [[project_frontend_redesign]].
+2. ✅ **Rediseño del frontend — HECHO Y DESPLEGADO EN LA VM (2026-06-01, Oscar confirmó "todo bien").** Commits `4c4332f` reskin, `a1c7d9c` responsive, `6d5f567` Piloto brief6, `ee0b826` tz Lima. Piloto rehecho al brief 6 de Stitch (header + stats + equity degradado + grid Top-10 izq/Breakouts der + tablas card), `_plBuyCard` muerto eliminado, verificado con datos reales locales. Detalle en [[project_frontend_redesign]].
    Reskin completo de `api/dashboard.html` al diseño de Stitch (fintech claro, sidebar, Geist+Inter, acento
    índigo) PRESERVANDO toda la lógica JS e IDs (cero cambio de comportamiento — se voltearon los tokens
    `:root` oscuro→claro; como el JS usa `var(--*)` casi todo se reskineó solo + bloque de overrides + shell
