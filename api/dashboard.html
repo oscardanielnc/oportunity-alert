@@ -1060,7 +1060,7 @@ async function loadPilot() {
   ret.textContent = (d.total_return_pct >= 0 ? '+' : '') + d.total_return_pct.toFixed(1) + '%';
   ret.className = 'stat-value ' + (d.total_return_pct >= 0 ? 'c-green' : 'c-red');
   setT('pl-asof', 'al ' + (d.as_of || '—') + (d.qqq_return_pct != null ? ' · QQQ ' + (d.qqq_return_pct >= 0 ? '+' : '') + d.qqq_return_pct + '%' : ''));
-  setT('pl-pos', (d.positions ? d.positions.length : 0) + '/5');
+  setT('pl-pos', (d.positions ? d.positions.length : 0) + '/' + (d.max_positions || 8));
   const bull = d.macro_bullish;
   setT('pl-macro', bull ? 'ALCISTA' : 'DEFENSIVO');                       // píldora del header
   const rdot = document.getElementById('pl-regdot'); if (rdot) rdot.style.background = bull ? 'var(--green)' : 'var(--red)';

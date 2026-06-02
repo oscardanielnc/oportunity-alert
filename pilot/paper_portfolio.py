@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 DATA_DIR   = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 STATE_PATH = os.path.join(DATA_DIR, "pilot_state.json")
 
-K          = 5        # maximo de posiciones simultaneas
+K          = 8        # maximo de posiciones simultaneas (Estudio H 2026-06-02: K8 mejor DD/retorno
+                      # que K5 a igual vol — usar el cash en MÁS nombres, no posiciones más grandes)
 VOL_TARGET = 0.03     # objetivo de volatilidad (ATR%) para sizing
 FEE_SIDE   = 1.0      # $ por lado (abrir/cerrar)
 CAP_INIT   = float(os.environ.get("PILOT_CAPITAL", "10000"))

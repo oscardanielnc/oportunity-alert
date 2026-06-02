@@ -493,6 +493,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "live_start_date": live_start,
         "live_return_pct": live_ret,
         "cash": round(pp.cash, 2),
+        "max_positions": K,                                 # nº máximo de posiciones (K) — para el "X/K" del frontend
         "macro_bullish": (regime["state"] == "risk_on") if regime else macro,
         "regime": regime,                                   # 4-régimen para el header (informativo)
         "positions": [
