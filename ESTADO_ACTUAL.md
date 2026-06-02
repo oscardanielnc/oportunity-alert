@@ -184,6 +184,15 @@ repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 n
 
 ✅ **DESPLEGADO en la VM (2026-06-01).** Los 3 fixes en producción. Commits en main; Oscar pushea.
 
+## 🕐 FIX 2026-06-01 — zona horaria Lima en el frontend (commit `ee0b826`)
+> Oscar descargó "el log de hoy" y le bajó el del **02-jun**. Causa: el **backend ya estaba 100% en
+> Lima** (`datetime.now(LIMA)`=UTC-5 en app.py + metrics_store), pero el **frontend** calculaba "hoy" con
+> `new Date().toISOString()` = **UTC** → de noche en Lima ya es el día siguiente en UTC. Fix en
+> `dashboard.html`: `today()` usa `America/Lima`; reloj "Actualizado" forzado a Lima; `minsAgo()` interpreta
+> el `ts` (Lima naive) como Lima absoluto (`+'-05:00'`) → "hace X min" correcto en cualquier navegador.
+> Verificado (00:45 UTC = 19:45 Lima → fecha 2026-06-01, no -02). **Aplica al desplegar a la VM** (la VM corre
+> en UTC pero el código usa el offset Lima explícito, así que los timestamps salen en Lima sin tocar el SO).
+
 ## 🚀 PENDIENTES PRÓXIMA SESIÓN (acordado 2026-06-01)
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
