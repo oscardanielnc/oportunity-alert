@@ -186,15 +186,52 @@ def _last_bar_maps(data, ref_date):
     return opn, hi, cl
 
 
+# ETFs para clasificar el SUB-régimen cuando el mercado está risk-off (no para tradear).
+# DBC = materias primas, TLT = bonos largos. Distinguen bear inflacionario vs deflacionario vs chop.
+REGIME_ETFS = ["DBC", "TLT"]
+
+
+def _classify_regime(qqq, regime_bars):
+    """
+    Clasifica el régimen de mercado en 4 tipos (validado en research/backtest_marea_*.py).
+    El estado risk-on/off sale de la histéresis ±3% de QQQ vs SMA200 (la misma que filtra Marea).
+    En risk-off, DBC/TLT distinguen el sub-tipo. Informativo para el header; NO cambia qué tradea
+    el sistema (Marea/PED siguen operando solo en risk-on; los shorts/commodities son futuro).
+    """
+    risk_on = macro_ok(qqq)
+    if risk_on:
+        return {"state": "risk_on", "key": "alcista", "emoji": "🟢", "color": "green",
+                "label": "ALCISTA", "use": "Marea + PED",
+                "legend": "Tech sobre su media de 200 días (con histéresis). Operá Marea y PED."}
+    dbc = indicators(regime_bars.get("DBC", [])) or {}
+    tlt = indicators(regime_bars.get("TLT", [])) or {}
+    if tlt.get("above_sma"):
+        return {"state": "risk_off", "key": "deflacionario", "emoji": "🔵", "color": "blue",
+                "label": "DEFENSIVO · FUGA A CALIDAD", "use": "Marea en pausa",
+                "legend": "Acciones bajo su media de 200 y bonos al alza (fuga a calidad). Marea no "
+                          "abre nuevas; mantené lo abierto. Oportunidad futura: bonos/oro/shorts."}
+    if dbc.get("above_sma"):
+        return {"state": "risk_off", "key": "inflacionario", "emoji": "🟠", "color": "orange",
+                "label": "DEFENSIVO · INFLACIONARIO", "use": "Marea en pausa",
+                "legend": "Acciones bajo su media de 200 y materias primas al alza. Marea no abre "
+                          "nuevas; mantené lo abierto. Oportunidad futura: materias primas/energía/shorts."}
+    return {"state": "risk_off", "key": "lateral", "emoji": "⚪", "color": "gray",
+            "label": "DEFENSIVO · LATERAL", "use": "Esperar (cash)",
+            "legend": "Acciones bajo su media de 200 y sin tendencia clara en bonos/commodities "
+                      "(chop). Marea no abre nuevas; el cash es el rey."}
+
+
 def run(send_alert=True):
     uni = load_universe()
     fetch_list = sorted(set(uni) | MEGA_CAP_PED)   # incluir mega-caps PED en el fetch
-    data = fetch_daily_batch(fetch_list + ["QQQ"] + SECTOR_ETFS)
+    data = fetch_daily_batch(fetch_list + ["QQQ"] + SECTOR_ETFS + REGIME_ETFS)
     qqq = data.pop("QQQ", [])
     sector_bars = {e: data.pop(e, []) for e in SECTOR_ETFS}   # ETFs de sector fuera del trading
+    regime_bars = {e: data.pop(e, []) for e in REGIME_ETFS}   # ETFs solo para clasificar régimen
     if not qqq:
         print("[pilot] sin datos de QQQ — abortando"); return
     ref_date = qqq[-1]["t"]
+    regime = _classify_regime(qqq, regime_bars)
 
     inds = {tk: indicators(b) for tk, b in data.items()}
     inds = {k: v for k, v in inds.items() if v}
@@ -220,7 +257,8 @@ def run(send_alert=True):
     if pp.s["last_run_date"] == ref_date:
         print(f"[pilot] ya corrido para {ref_date} — nada que hacer")
         return _emit_dashboard(pp, inds, cl, qqq, ref_date, [], top_set=top_set,
-                               sector_mom=sector_mom, send_alert=False, held_days=held_days)
+                               sector_mom=sector_mom, send_alert=False, held_days=held_days,
+                               regime=regime)
 
     actions = []   # fills de hoy (ordenes que estaban pendientes)
     earnings_map = fetch_earnings_map([t for t in MEGA_CAP_PED if t in data])
@@ -301,7 +339,8 @@ def run(send_alert=True):
     return _emit_dashboard(pp, inds, cl, qqq, ref_date, actions,
                            new_buys=new_buys, new_sells=new_sells, new_ped_buys=new_ped_buys,
                            top_set=top_set, sector_mom=sector_mom, macro=macro,
-                           buy_levels=buy_levels, send_alert=send_alert, held_days=held_days)
+                           buy_levels=buy_levels, send_alert=send_alert, held_days=held_days,
+                           regime=regime)
 
 
 # ── salida: consola, dashboard json, alerta whatsapp ───────────────────────────
@@ -394,7 +433,7 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_le
 
 def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=None,
                     new_ped_buys=None, top_set=None, sector_mom=None, macro=True,
-                    buy_levels=None, send_alert=True, held_days=None):
+                    buy_levels=None, send_alert=True, held_days=None, regime=None):
     top_set = top_set or set()
     held_days = held_days or {}
     # Niveles de entrada sugeridos. En el camino "ya corrido" no se recomputan compras,
@@ -437,7 +476,8 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "live_start_date": live_start,
         "live_return_pct": live_ret,
         "cash": round(pp.cash, 2),
-        "macro_bullish": macro,
+        "macro_bullish": (regime["state"] == "risk_on") if regime else macro,
+        "regime": regime,                                   # 4-régimen para el header (informativo)
         "positions": [
             {"ticker": tk, "pnl_pct": pnl, "entry": ent, "price": px,
              "source": pp.positions.get(tk, {}).get("source", "marea"),

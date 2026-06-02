@@ -610,6 +610,12 @@ tbody tr:hover { background: #fafafb; }
         <span class="session-warn" id="swarn" style="display:none"></span>
       </div>
       <span id="hb-badge" class="badge badge-alta" style="display:none"></span>
+      <span id="regime-pill" class="session-pill" style="display:none" title="">
+        <span class="session-dot" id="rg-dot"></span>
+        <span class="session-name" id="rg-label">—</span>
+        <span class="session-sep">→</span>
+        <span class="session-feed" id="rg-use">—</span>
+      </span>
       <div class="topbar-right" style="margin-left:auto">
         <span id="ts-lbl" class="ts-text">—</span>
         <button class="btn-ghost" id="refresh-btn" onclick="refreshAll()">↻ Actualizar</button>
@@ -815,12 +821,31 @@ function refreshAll() {
   btn.innerHTML = '<span class="spin">↻</span> Cargando…';
   Promise.all([
     updateTopbar(),
+    updateRegime(),
     reloadActive(),
   ]).finally(() => {
     btn.innerHTML = '↻ Actualizar';
     document.getElementById('ts-lbl').textContent =
       'Actualizado ' + new Date().toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit'});
   });
+}
+
+// ── Régimen de mercado (header global, siempre visible) ──────────────────────
+// 4 regímenes (validado en research/backtest_marea_*.py): risk-on = ALCISTA (Marea+PED);
+// risk-off se sub-clasifica por bonos/commodities (deflacionario/inflacionario/lateral).
+// Informativo: NO cambia qué tradea el sistema. Sale de pilot_dashboard.json (regime).
+async function updateRegime() {
+  let d; try { d = await api('/api/pilot'); } catch (e) { return; }
+  const r = d && d.regime;
+  const pill = document.getElementById('regime-pill');
+  if (!pill) return;
+  if (!r) { pill.style.display = 'none'; return; }
+  const COLORS = { green: 'var(--green)', blue: 'var(--blue)', orange: 'var(--yellow)', gray: 'var(--text3)' };
+  document.getElementById('rg-dot').style.background = COLORS[r.color] || 'var(--text3)';
+  setT('rg-label', r.label || '—');
+  setT('rg-use', r.use || '—');
+  pill.title = r.legend || '';
+  pill.style.display = '';
 }
 
 // ── Session info (indicador de sesión de mercado) ────────────────────────────
