@@ -20,6 +20,10 @@ research/_*.json
 # Assets de diseño temporales (briefs de Stitch ya integrados en dashboard.html)
 briefs/
 
+# Salida capturada del servidor API (logs de corrida, no codigo)
+_api_out.txt
+_api_err.txt
+
 # Python
 __pycache__/
 *.py[cod]
