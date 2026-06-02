@@ -107,12 +107,38 @@ def chandelier_stop(highest_high, atr, mult=MULT):
     return highest_high - mult * atr
 
 
-def macro_ok(qqq_bars):
-    """True si QQQ esta sobre su SMA200 (regimen alcista de mercado)."""
+# Régimen macro con HISTÉRESIS (anti-whipsaw). Validado en research/backtest_marea_regime.py
+# (2026-06-02): el gate binario crudo (close>SMA200) hace whipsaw en la línea de los 200 — apaga
+# el riesgo apenas QQQ la toca por debajo y lo re-enciende apenas la toca por arriba. Exigir un
+# cushion del 3% antes de CAMBIAR de régimen mata esos flip-flops falsos. Mejora todo a la vez
+# (CAGR +35.8→+40%, Sharpe 1.35→1.58, MaxDD −23.8→−20.7%, bear 2022 −17→−6%) con MENOS trades, y
+# es robusto (meseta plana ±2-4%, gana ambas mitades OOS). El derisk (vender en bear) se midió y
+# se descartó (research/backtest_marea_derisk.py): no se gana su complejidad.
+REGIME_HYSTERESIS = 0.03   # ±3% alrededor de la SMA200
+
+
+def macro_ok(qqq_bars, band=REGIME_HYSTERESIS):
+    """
+    True si el régimen de mercado es alcista (riesgo encendido), con histéresis anti-whipsaw.
+
+    Stateless: recalcula la ruta pegajosa del régimen recorriendo TODO el histórico de QQQ y
+    devuelve el estado final (determinístico desde el histórico, igual que el backtest). El estado
+    solo cambia a risk-on cuando QQQ cierra por encima de SMA200·(1+band), y a risk-off cuando
+    cierra por debajo de SMA200·(1-band); en la banda intermedia se mantiene el estado previo.
+    """
     if not qqq_bars or len(qqq_bars) < REGIME + 1:
         return True                          # sin datos -> no bloquear
     closes = [b["c"] for b in qqq_bars]
-    return closes[-1] > _sma(closes, REGIME)
+    state = True                             # arranca risk-on (como el binario sin datos)
+    for i in range(REGIME - 1, len(closes)):
+        sma = sum(closes[i - REGIME + 1:i + 1]) / REGIME
+        px = closes[i]
+        if px > sma * (1 + band):
+            state = True
+        elif px < sma * (1 - band):
+            state = False
+        # dentro de la banda: conserva 'state' (histéresis)
+    return state
 
 
 def entry_candidates(indicators_by_ticker):
