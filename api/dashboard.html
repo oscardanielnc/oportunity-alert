@@ -750,6 +750,13 @@ tbody tr:hover { background: #fafafb; }
         </div>
       </div>
 
+      <!-- Estrategias disponibles (setups de evento puntuales: PED, y futuras) -->
+      <div style="margin-top:18px">
+        <div class="pl-section-head"><h3>📅 Estrategias disponibles <span class="pl-muted">(señales de evento)</span></h3></div>
+        <p class="pl-sub2">Setups por catalizador (earnings, etc.). Aparecen el día que se cumplen sus condiciones — son poco frecuentes.</p>
+        <div id="pl-strategies" class="pl-breakout-list"></div>
+      </div>
+
       <!-- Tablas -->
       <div class="pl-table-card" style="margin-top:26px">
         <div class="pl-table-head">Posiciones abiertas</div>
@@ -1045,6 +1052,27 @@ function renderBreakouts(d) {
   return fb.map(_breakoutCard).join('');
 }
 
+function renderStrategies(d) {
+  const ss = d.strategy_signals || [];
+  if (!ss.length)
+    return '<div style="color:var(--text3);font-size:12px;padding:6px 2px">Sin señales de estrategia hoy. (PED y futuras aparecen aquí cuando se cumplen las condiciones.)</div>';
+  return ss.map(s => {
+    const star = s.star ? ' <span title="Alta convicción (beat fuerte)" style="color:#f5b301">⭐</span>' : '';
+    const badge = s.strategy === 'PED'
+      ? '<span class="pl-badge ped" title="Post-Earnings Drift: beat genuino de mega-cap, drift al alza D+2→D+7">🟣 PED</span>'
+      : `<span class="pl-badge new">${s.strategy}</span>`;
+    const act = s.buying
+      ? '<span class="pl-buy" title="Hay slot libre — entra en la próxima apertura">🎯 Comprar (Day+2 open)</span>'
+      : '<span class="pl-badge" style="background:var(--bg2);color:var(--text2)" title="Setup válido pero sin slot libre (Marea ocupó el cupo) — vigilar/discrecional">👁 Señal (sin slot)</span>';
+    return `<div class="pl-breakout">
+      <div class="pl-breakout-head"><span class="pl-name">${s.ticker}</span>${star} ${badge}</div>
+      <div class="pl-breakout-row"><span>Reacción al earnings</span><b class="c-green">+${s.conviction}%</b></div>
+      <div class="pl-breakout-row"><span>Horizonte</span><b>${s.note || ''}</b></div>
+      <div style="margin-top:8px">${act}</div>
+    </div>`;
+  }).join('');
+}
+
 async function loadPilot() {
   const setT = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
   let d;
@@ -1082,6 +1110,8 @@ async function loadPilot() {
   // Cada fila conserva lo accionable (🎯 comprar / 🛑 vender al open, stop 4×ATR, niveles desplegables, sector, noticia).
   document.getElementById('pl-leaders').innerHTML = renderLeaders(d);
   document.getElementById('pl-breakouts').innerHTML = renderBreakouts(d);
+  const _strat = document.getElementById('pl-strategies');
+  if (_strat) _strat.innerHTML = renderStrategies(d);
   document.getElementById('pl-equitychart').innerHTML = _plSpark(d.equity_history);
 
   // Posiciones abiertas

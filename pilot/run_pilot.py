@@ -330,6 +330,9 @@ def run(send_alert=True):
     held = set(pp.positions)
     slots_next = K - (len(held) - len(new_sells))
     new_buys, new_ped_buys = [], []
+    # Candidatos PED del día (TODOS — se muestran en "Estrategias disponibles" aunque no haya slot libre)
+    ped_cands_full = [[tk, round(rx, 1)] for tk, rx in ped_entry_candidates(data, earnings_map, ref_date)
+                      if tk not in held and tk in cl]
     if slots_next > 0:
         if macro:   # Marea solo en régimen alcista (QQQ > SMA200)
             cands = [tk for tk in entry_candidates(inds) if tk not in held and tk in cl]
@@ -337,11 +340,11 @@ def run(send_alert=True):
         # PED usa los slots que Marea no tomó (earnings es idiosincrático, no depende del macro)
         slots_ped = slots_next - len(new_buys)
         if slots_ped > 0:
-            ped_cands = [tk for tk, _ in ped_entry_candidates(data, earnings_map, ref_date)
-                         if tk not in held and tk not in new_buys and tk in cl]
+            ped_cands = [tk for tk, _ in ped_cands_full if tk not in new_buys]
             new_ped_buys = ped_cands[:slots_ped]
 
-    pp.s["pending"] = {"buys": new_buys, "sells": new_sells, "ped_buys": new_ped_buys}
+    pp.s["pending"] = {"buys": new_buys, "sells": new_sells, "ped_buys": new_ped_buys,
+                       "ped_candidates": ped_cands_full}
 
     # ── 4) marcar equity al cierre + persistir ──────────────────────────────────
     eq = pp.record_equity(ref_date, cl)
@@ -481,6 +484,15 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
     if live_start and eh:
         base = next((e["equity"] for e in eh if e["date"] >= live_start), None)
         if base: live_ret = round((eq/base - 1)*100, 1)
+    # Señales de estrategia de evento (PED hoy; futuras estrategias se agregan aquí) →
+    # panel "Estrategias disponibles". Se muestran AUNQUE no haya slot (señal != compra).
+    ped_buy_set = set(pp.pending.get("ped_buys") or [])
+    strategy_signals = [
+        {"strategy": "PED", "ticker": tk, "conviction": rx,
+         "star": rx >= 10.0, "buying": tk in ped_buy_set,
+         "note": "Compra Day+2 open, sale ~Day+7"}
+        for tk, rx in (pp.pending.get("ped_candidates") or [])
+    ]
     dash = {
         "updated": datetime.now(timezone.utc).isoformat(),
         "as_of": date,
@@ -511,6 +523,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "buy_context": buy_context,                         # contexto informativo (sector + noticia adversa)
         "leaders": leaders,                                 # top-10 ranking fuerza relativa (panel discrecional)
         "fresh_breakouts": fresh_breakouts,                 # breakouts nuevos invisibles en el top-10 (caso SNOW)
+        "strategy_signals": strategy_signals,               # panel "Estrategias disponibles" (PED + futuras)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,
