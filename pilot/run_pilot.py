@@ -20,7 +20,7 @@ from pilot.momentum_signals import (
     fetch_daily_batch, indicators, entry_candidates, chandelier_stop, macro_ok, MULT,
     entry_levels,
 )
-from pilot.paper_portfolio import PaperPortfolio, K, DATA_DIR
+from pilot.paper_portfolio import PaperPortfolio, K, VOL_TARGET, DATA_DIR
 from pilot.ped_signals import (
     ped_entry_candidates, ped_should_exit, fetch_earnings_map, MEGA_CAP_PED,
     days_held, PED_HOLD_DAYS,
@@ -92,6 +92,22 @@ def _buy_context(pend_buys, sector_mom):
     return out
 
 
+def _size_pct(ind):
+    """
+    % del capital sugerido para una COMPRA (vol-sizing). MISMO cálculo que
+    paper_portfolio.open_position: base = equity/K (20%), escalado por min(1, VOL_TARGET/atr%)
+    → los nombres más volátiles entran más chicos (riesgo parejo por posición), tope 20% (sin
+    apalancar). Se expone para que Oscar replique el tamaño en eToro (antes solo se calculaba
+    internamente y no se mostraba). % agnóstico al equity: multiplicarlo por el capital real.
+    """
+    if not ind or not ind.get("atr") or not ind.get("price"):
+        return None
+    atr_pct = ind["atr"] / ind["price"]
+    if atr_pct <= 0:
+        return None
+    return round(min(1.0, VOL_TARGET / atr_pct) * 100.0 / K, 1)
+
+
 def _leaders(pp, inds, cl, top_set, sector_mom, held_days, pending, n=10):
     """
     Top-N líderes por fuerza relativa (momentum 126d, en tendencia QQB>SMA200), con la
@@ -131,6 +147,7 @@ def _leaders(pp, inds, cl, top_set, sector_mom, held_days, pending, n=10):
             "is_top": tk in top_set,
             "is_breakout": bool(ind.get("is_breakout")),
             "action": "buy" if tk in buys else ("sell" if tk in sells else None),
+            "size_pct": _size_pct(ind),                 # % del capital sugerido (vol-sizing)
             "entry": entry_levels(ind) or {},
         }
         row.update(ctx.get(tk) or {})

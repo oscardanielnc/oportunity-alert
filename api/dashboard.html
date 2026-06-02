@@ -981,8 +981,14 @@ function _leaderRow(r) {
   if (r.recent_pct != null) meta.push(`<b class="c-green">↑ +${r.recent_pct}% 10d</b>`);
   const metaHtml = meta.map((m, i) => (i ? '<span class="pl-dotsep"></span>' : '') + `<span>${m}</span>`).join(' ');
 
+  // Tamaño sugerido (vol-sizing): % del capital. En las compras va destacado en el pill 🎯;
+  // en los demás líderes no-comprados (candidatos a rotar) va como dato en la meta.
+  const szTitle = 'Tamaño por volatilidad: 20% base ÷ ajustado por ATR — los más volátiles entran más chicos (tope 20%, sin apalancar). Multiplicá el % por tu capital de eToro.';
+  if (!held && r.action !== 'buy' && r.size_pct != null)
+    meta.push(`<span title="${szTitle}">Tamaño ~<b>${r.size_pct}%</b></span>`);
+
   let action = '';
-  if (r.action === 'buy') action = '<span class="pl-buy">🎯 Comprar al abrir</span>';
+  if (r.action === 'buy') action = `<span class="pl-buy" title="${szTitle}">🎯 Comprar al abrir${r.size_pct != null ? ` · ~${r.size_pct}% del capital` : ''}</span>`;
   else if (r.action === 'sell') action = '<span class="pl-sell">🛑 Vender al open — stop roto</span>';
   else if (r.entry && r.entry.stop != null) action = `<span class="pl-stoppill">Stop 4×ATR $${r.entry.stop}</span>`;
   else if (r.stop_4atr != null) action = `<span class="pl-stoppill">Stop 4×ATR $${r.stop_4atr}</span>`;
