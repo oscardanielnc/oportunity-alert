@@ -1,5 +1,5 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-01 (CIERRE 2) — Estudios A (selección/rotación), B (breakouts frescos) y lever K: VEREDICTO Marea NO se toca (todo medido bear-inclusive; los "ascensos" eran trampa de muestra-bull). + Pulidos: modelo Claude endurecido (config.json=verdad) + cap de noticias source-aware (Finnhub 90/EDGAR 240) + dedup 120min. TODO DESPLEGADO EN LA VM. ÚNICO PENDIENTE: rediseño del frontend. REGLA: commits sí, push NO (lo hace Oscar)
+# Última actualización: 2026-06-01 (CIERRE 3) — REDISEÑO FRONTEND v1 + responsive (fintech claro, sidebar, Geist+Inter, basado en Stitch) PRESERVANDO toda la lógica JS; responsive 100% verificado (Edge headless, cero desborde). + Proyecto LIMPIO (briefs/ borrado, caches research des-trackeados+gitignore, logs server fuera). Antes: Estudios A/B/K (Marea NO se toca) + pulidos modelo/noticias DESPLEGADOS. PENDIENTE: deploy del frontend a la VM (verlo con datos) + pulido. REGLA: commits sí, push NO (lo hace Oscar)
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ## 🐛 BUG CRÍTICO eToro RESUELTO (2026-06-01) — equity falso −90% + "Sin posiciones"
@@ -188,14 +188,15 @@ repetir). Validado: Finnhub 70min ya NO muere por edad; EDGAR 200min pasa, 260 n
 0. ✅ **HECHO — Estudios A (selección/rotación), B (breakouts frescos) y lever K** → Marea NO se toca.
 1. ✅ **HECHO — Backtest de "Breakouts frescos"** → RADAR confirmado (ver bloque B arriba). El panel 🆕
    se queda como vigilancia, no lista de compra.
-2. 🟡 **Rediseño del frontend — V1 HECHA (commit `4c4332f`, falta verla con datos + deploy).** Reskin completo
-   de `api/dashboard.html` al diseño de Stitch que eligió Oscar (fintech claro, sidebar, Geist+Inter, acento
+2. 🟢 **Rediseño del frontend — V1 + RESPONSIVE HECHO (commits `4c4332f`, `a1c7d9c`). FALTA: deploy + ver con datos.**
+   Reskin completo de `api/dashboard.html` al diseño de Stitch (fintech claro, sidebar, Geist+Inter, acento
    índigo) PRESERVANDO toda la lógica JS e IDs (cero cambio de comportamiento — se voltearon los tokens
-   `:root` oscuro→claro y como el JS usa `var(--*)` casi todo se reskineó solo + bloque de overrides + shell
-   a sidebar). Briefs/PNGs de Stitch en `briefs/` (untracked). Verificado con Edge headless en localhost:8081
-   (shell/sidebar/stat-cards/empty states OK). FALTA: verla con datos reales en la VM + feedback de Oscar +
-   pulir vistas pobladas (alertas/Top-10/posiciones/equity comparten componentes restyleados). Limpiar
-   `_plBuyCard` muerto queda para el pulido.
+   `:root` oscuro→claro; como el JS usa `var(--*)` casi todo se reskineó solo + bloque de overrides + shell
+   a sidebar). **Responsive 100% verificado** con Edge headless: `scrollWidth==clientWidth` (cero desborde)
+   en vw 470/870/1270, las 4 pestañas cambian sin errores JS, content-top ahora envuelve (era `height:64px`
+   fijo → `min-height`+`flex-wrap`), nav 2-col y stats 2-col en móvil ≤560. Detalle de diseño en
+   [[project_frontend_redesign]]. FALTA: `deploy.sh` a la VM para verla con datos reales + pulir vistas
+   pobladas (alertas/Top-10/posiciones/equity usan los mismos componentes) + limpiar `_plBuyCard` muerto.
 3. ✅ **HECHO — plumbing del modelo Claude + cap de noticias** (2026-06-01, ver bloque abajo).
 
 ## ⚡ SESIÓN 2026-05-31 (NOCHE) — tarjetas Piloto + stop vivo + filtro invalidación medido — COMMITEADO+PUSH; Oscar despliega
