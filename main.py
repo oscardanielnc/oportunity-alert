@@ -185,6 +185,32 @@ def get_env_or_die(env_var: str) -> str:
     return val
 
 
+# ── Watchdog de threads (2026-06-10) ─────────────────────────────────────────
+# El supervisor reinicia threads MUERTOS, pero uno COLGADO (ej. socket half-open)
+# quedaba vivo y nadie lo detectaba. Cada loop reporta su último ciclo OK con
+# _beat(); el heartbeat diario denuncia a los que llevan >3× su intervalo sin latir.
+_thread_health: dict = {}     # {name: (last_ok_epoch, expected_interval_s)}
+_thread_health_lock = threading.Lock()
+
+
+def _beat(name: str, interval_s: float):
+    """Marca 'ciclo OK' de un loop. Llamar al final de cada iteración exitosa."""
+    with _thread_health_lock:
+        _thread_health[name] = (time.time(), interval_s)
+
+
+def _stale_threads() -> list:
+    """Threads cuyo último ciclo OK fue hace > max(3×intervalo, 30 min)."""
+    now = time.time()
+    stale = []
+    with _thread_health_lock:
+        for name, (last_ok, interval) in _thread_health.items():
+            limit = max(3 * interval, 1800)
+            if now - last_ok > limit:
+                stale.append(f"{name} ({(now - last_ok) / 3600:.1f}h)")
+    return stale
+
+
 # ── Supervisor de threads ─────────────────────────────────────────────────────
 
 def is_market_open() -> bool:
@@ -220,6 +246,7 @@ def _supervised_thread(name: str, target_fn, *args, **kwargs):
     """
     delay = 15
     while True:
+        started = time.time()
         try:
             logger.info(f"[{name}] Thread iniciado")
             target_fn(*args, **kwargs)
@@ -227,6 +254,10 @@ def _supervised_thread(name: str, target_fn, *args, **kwargs):
             logger.warning(f"[{name}] Loop terminó inesperadamente. Reiniciando en {delay}s")
         except Exception as exc:
             logger.error(f"[{name}] Caida inesperada: {exc}. Reiniciando en {delay}s")
+        # Si corrió estable >10 min antes de caer, resetear el backoff (antes quedaba
+        # en 60s para siempre tras 3 fallos históricos).
+        if time.time() - started > 600:
+            delay = 15
         time.sleep(delay)
         delay = min(delay * 2, 60)
 
@@ -249,6 +280,26 @@ def _guess_direction(article: dict) -> str:
     if any(kw in text for kw in _BEARISH_KEYWORDS):
         return "SHORT"
     return "LONG"
+
+
+_summary_last_refresh = 0.0
+_summary_lock = threading.Lock()
+
+
+def _refresh_summary_throttled(min_interval_s: float = 300):
+    """refresh_daily_summary corría por CADA artículo IA (varios SQL agregados en el
+    camino caliente del pipeline). Throttle a 1 vez/5 min — el resumen es informativo,
+    no necesita estar al segundo (2026-06-10)."""
+    global _summary_last_refresh
+    with _summary_lock:
+        if time.time() - _summary_last_refresh < min_interval_s:
+            return
+        _summary_last_refresh = time.time()
+    try:
+        if _metrics:
+            _metrics.refresh_daily_summary()
+    except Exception as e:
+        logger.debug(f"[Metrics] refresh throttled: {e}")
 
 
 def _portfolio_gate(ticker: str) -> dict:
@@ -626,7 +677,7 @@ def process_article(
         log_alert(result, sms_enviado=sms_enviado, _skip_analysis_log=True)
         if _metrics:
             _metrics.log_alert(result, conviction=conviction, sms_enviado=sms_enviado)
-            _metrics.refresh_daily_summary()
+            _refresh_summary_throttled()
             # Log final del pipeline para todos los que pasaron IA
             _metrics.log_article_filter({
                 "ticker": ticker, "source": source,
@@ -667,6 +718,7 @@ def edgar_loop(config, watchlist, dedup, **kwargs):
                     f"EDGAR ciclo: {len(articles)} filings | "
                     f"{n_dedup} ya vistos | {n_filtered} sin keywords | {n_claude} → Claude"
                 )
+            _beat("EDGAR", interval)
         except Exception as e:
             logger.error(f"Error en EDGAR poll: {e}")
         time.sleep(interval)
@@ -714,6 +766,7 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
                 f"({progress}/{len(live_wl)} tickers) | {fetched} obtenidos | "
                 f"{n_dedup} vistos | {n_filtered} sin keywords | {n_claude} → Claude"
             )
+            _beat("Finnhub", interval)
         except Exception as e:
             logger.error(f"Error en Finnhub poll: {e}")
         time.sleep(interval)
@@ -836,10 +889,10 @@ def weekend_digest_loop(twilio_from: str, twilio_to: str):
         )
         time.sleep(wait_secs)
 
+        # 2026-06-10: la cola NO se vacía hasta confirmar el envío — antes se limpiaba
+        # ANTES de mandar: si Twilio fallaba, toda la acumulación de la semana se perdía.
         with _weekend_lock:
             items = list(_weekend_queue)
-            _weekend_queue.clear()
-            _save_weekend_queue()   # cola vaciada → persistir el estado vacío
 
         if not items:
             logger.info("[WeekendDigest] Sin oportunidades acumuladas este fin de semana.")
@@ -885,12 +938,17 @@ def weekend_digest_loop(twilio_from: str, twilio_to: str):
 
         sent = _send_twilio_raw(msg_body, twilio_to)
         if sent:
+            with _weekend_lock:
+                _weekend_queue.clear()
+                _save_weekend_queue()   # vaciar SOLO tras envío confirmado
             logger.info(
                 f"[WeekendDigest] Digest enviado: {len(top)} oportunidades "
                 f"({n_alta} ALTA, {n_media} MEDIA)"
             )
         else:
-            logger.error("[WeekendDigest] Error enviando digest")
+            # La cola queda intacta (persistida): se incluirá en el próximo digest
+            # o sobrevive un reinicio. send_raw_message ya reintentó 3 veces.
+            logger.error("[WeekendDigest] Error enviando digest — cola conservada para reintento")
 
 
 def _startup_ping(twilio_to: str):
@@ -961,6 +1019,11 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 else f"eToro: OK (${pf.get('available_cash', 0):.0f} cash)"
             )
 
+            # Watchdog (2026-06-10): denunciar loops que llevan horas sin un ciclo OK
+            # — un thread COLGADO (no muerto) era invisible para el supervisor.
+            stale = _stale_threads()
+            stale_line = f"⚠️ Threads sin actividad: {', '.join(stale)}" if stale else ""
+
             msg_body = (
                 f"OportunityAlert activo — {fecha}\n"
                 f"Analizadas: {analyzed} | SMS enviados: {sms_sent}\n"
@@ -969,6 +1032,8 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 f"{market_line}\n"
                 f"{etoro_line}"
             )
+            if stale_line:
+                msg_body += f"\n{stale_line}"
             sent = _send_twilio_raw(msg_body, twilio_to)
             if sent:
                 logger.info(f"Heartbeat enviado: {msg_body.replace(chr(10), ' | ')}")
@@ -980,6 +1045,16 @@ def heartbeat_loop(twilio_from: str, twilio_to: str):
                 )
         except Exception as e:
             logger.error(f"Error en heartbeat: {e}")
+
+        # Mantenimiento diario (2026-06-10): purga de SQLite. Antes los DELETE solo
+        # corrían al ARRANCAR el proceso — semanas de uptime = crecimiento sin límite
+        # (position_snapshots 144 filas/día/posición, article_filter_log ~300/día).
+        try:
+            DedupStore("data/seen_ids.db").cleanup()
+            if _metrics:
+                _metrics.cleanup()
+        except Exception as e:
+            logger.error(f"[Heartbeat] Error en mantenimiento diario: {e}")
 
 
 # ── Position Tracker ─────────────────────────────────────────────────────────
@@ -1046,6 +1121,7 @@ def _explain_large_moves(
     prev_snapshot: dict,
     metrics: "MetricsStore",
     twilio_to: str,
+    dedup: DedupStore = None,
 ):
     """
     Compara posiciones actuales con el snapshot anterior.
@@ -1067,9 +1143,10 @@ def _explain_large_moves(
         if abs(move_pct) < MOVE_EXPLAIN_THRESHOLD:
             continue
 
-        # Dedup: no spamear el mismo ticker en menos de 60 min
-        from utils.dedup_store import DedupStore
-        dedup_exp = DedupStore("data/seen_ids.db")
+        # Dedup: no spamear el mismo ticker en menos de 60 min.
+        # 2026-06-10: reusa el DedupStore del tracker — antes instanciaba uno NUEVO
+        # por posición por ciclo (con _init_db completo cada vez).
+        dedup_exp = dedup or DedupStore("data/seen_ids.db")
         flag_key  = f"explain_{ticker}_{int(pos.get('open_rate', 0) * 100)}"
         if dedup_exp.has_flag(flag_key):
             continue
@@ -1143,6 +1220,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
     dedup   = DedupStore("data/seen_ids.db")
     metrics = MetricsStore()
+    empty_streak = 0   # ciclos consecutivos con positions=[] (guard anti-cierres fantasma)
 
     while True:
         try:
@@ -1150,19 +1228,45 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
             if etoro_data.get("error"):
                 logger.debug(f"[PositionTracker] eToro no disponible: {etoro_data['error']}")
+                _beat("PositionTracker", POLL_INTERVAL)   # el loop está vivo; es eToro el caído
                 time.sleep(POLL_INTERVAL)
                 continue
 
             positions = etoro_data.get("positions", [])
+
+            # GUARD anti-cierres fantasma (2026-06-10): un 200 de eToro con positions=[]
+            # transitorio (glitch parcial de la API) registraba TODAS las posiciones como
+            # trades cerrados y vaciaba el watchlist de posiciones. Exigir 2 ciclos
+            # consecutivos vacíos antes de creer que el portafolio realmente quedó flat.
+            prev_tickers = metrics.get_open_tickers_last_snapshot()
+            if not positions and prev_tickers:
+                empty_streak += 1
+                if empty_streak < 2:
+                    logger.warning(
+                        "[PositionTracker] eToro devolvió 0 posiciones (había "
+                        f"{len(prev_tickers)}) — esperando confirmación en el próximo ciclo"
+                    )
+                    _beat("PositionTracker", POLL_INTERVAL)
+                    time.sleep(POLL_INTERVAL)
+                    continue
+            else:
+                empty_streak = 0
 
             # Auto-incluir posiciones abiertas en el universo de noticias (y retirar cerradas)
             _sync_position_watchlist(metrics, {p["ticker"] for p in positions})
 
             # Snapshot ANTERIOR (capturado antes de escribir el actual) — se usa tanto
             # para detectar cierres como para explicar movimientos bruscos.
-            prev_tickers = metrics.get_open_tickers_last_snapshot()
             if prev_tickers and positions is not None:
                 current_keys = {p["ticker"] for p in positions}
+                # Evaluaciones del ciclo anterior (account_cache): traen estrategia y la
+                # última razón de salida conocida → la tabla trades queda auditable por
+                # estrategia ("¿Marea/PED/manual gana dinero?").
+                try:
+                    from utils.position_strategy import read_account_cache
+                    last_evals = read_account_cache().get("evals", {}) or {}
+                except Exception:
+                    last_evals = {}
                 for ticker_closed, snap in prev_tickers.items():
                     if ticker_closed not in current_keys:
                         # Posición desapareció → cerrada. close_rate via get_realtime_price,
@@ -1177,7 +1281,21 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                             close_rate = snap.get("current_rate", 0)
                         from datetime import datetime as _dt
                         close_ts = _dt.now(LIMA).strftime("%Y-%m-%dT%H:%M:%S")
-                        metrics.record_closed_trade(ticker_closed, snap, close_rate, close_ts)
+                        ev_prev = last_evals.get(ticker_closed, {})
+                        strategy = ev_prev.get("strategy", "")
+                        if not strategy:
+                            try:
+                                from utils.position_strategy import resolve_strategy
+                                strategy = resolve_strategy(ticker_closed)["strategy"]
+                            except Exception:
+                                strategy = ""
+                        # reason del último ciclo: "chandelier"/"ped_time" = salida con señal;
+                        # "chandelier_ok"/"ped_hold" = Oscar cerró SIN señal (discrecional).
+                        exit_reason = ev_prev.get("reason", "") or "sin_eval"
+                        metrics.record_closed_trade(
+                            ticker_closed, snap, close_rate, close_ts,
+                            strategy=strategy, exit_reason=exit_reason,
+                        )
                         metrics.refresh_daily_summary()
 
             # Guardar snapshot actual (aunque sea lista vacía, marca el estado)
@@ -1199,6 +1317,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 # positions=[] explícito → el Gate 5 de noticias sabe que el portafolio
                 # está flat sin tener que llamar a eToro en vivo.
                 write_account_cache(cash, total, {}, positions=[])
+                _beat("PositionTracker", POLL_INTERVAL)
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -1208,7 +1327,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
             # Detectar movimientos bruscos y explicarlos. Usa prev_tickers (snapshot
             # ANTERIOR, capturado antes de escribir el actual) — antes leía el snapshot
             # recién escrito y comparaba current-vs-current (siempre 0 → nunca disparaba).
-            _explain_large_moves(positions, prev_tickers, metrics, twilio_to)
+            _explain_large_moves(positions, prev_tickers, metrics, twilio_to, dedup=dedup)
 
             # Salida POR ESTRATEGIA (Marea=chandelier, PED=tiempo, manual=solo contexto).
             # Reemplaza las heurísticas viejas (T1+8%/breakeven/retroceso) que cortaban
@@ -1294,6 +1413,7 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                 f"{len(positions)} posiciones, {len(alerts_to_send)} alertas enviadas"
             )
 
+            _beat("PositionTracker", POLL_INTERVAL)
         except Exception as e:
             logger.error(f"[PositionTracker] Error en ciclo: {e}")
 
@@ -1385,6 +1505,14 @@ def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str,
             _stats["sms_sent"] += 1
         logger.info(f"[GapScanner] {ticker} {change:+.1f}% — SMS de gap enviado "
                     f"({'posición' if held_drop else 'sin noticia'})")
+        # Auditoría (2026-06-10): los SMS de gap eran invisibles para metrics.db
+        if _metrics:
+            _metrics.log_article_filter({
+                "ticker": ticker, "source": "GAP_SCANNER",
+                "title": f"Gap {change:+.1f}% detectado por precio",
+                "stage": "gap_position_sms" if held_drop else "gap_sms",
+                "reason": body[:200], "sms_sent": True,
+            })
         return True
     return False
 
@@ -1411,6 +1539,7 @@ def gap_scanner_loop(config, watchlist, dedup, **kwargs):
                         logger.debug(f"[GapScanner] {ticker}: {e}")
                 if n_alerts:
                     logger.info(f"[GapScanner] ciclo: {n_alerts} gap(s) alertado(s) sobre {len(live_wl)} tickers")
+            _beat("GapScanner", interval)
         except Exception as e:
             logger.error(f"[GapScanner] Error en ciclo: {e}")
         time.sleep(interval)
@@ -1504,6 +1633,15 @@ def market_sentinel_loop(config, twilio_to: str):
                             with _stats_lock:
                                 _stats["sms_sent"] += 1
                             logger.info(f"[Sentinel] ALERTA MACRO enviada: {risk['triggers']}")
+                            if _metrics:
+                                _metrics.log_article_filter({
+                                    "ticker": "MARKET", "source": "MACRO_SENTINEL",
+                                    "title": " · ".join(risk["triggers"])[:200],
+                                    "stage": "macro_alert_sms",
+                                    "reason": ", ".join(risk["at_risk"])[:200] or "sin posiciones en riesgo",
+                                    "sms_sent": True,
+                                })
+            _beat("MacroSentinel", interval)
         except Exception as e:
             logger.error(f"[Sentinel] Error en ciclo: {e}")
         time.sleep(interval)
@@ -1572,6 +1710,12 @@ def main():
         logger.warning("ALPACA_API_KEY no configurada — sin precios real-time")
     if not os.environ.get(api_keys.get("twilio_sid_env", "TWILIO_ACCOUNT_SID")):
         logger.warning("TWILIO no configurado — sin SMS")
+    if not os.environ.get("DASHBOARD_PASS"):
+        logger.warning(
+            "DASHBOARD_PASS vacia — el dashboard queda ABIERTO en 0.0.0.0:8081 "
+            "(portfolio real + endpoints de escritura expuestos si el firewall de "
+            "Oracle no bloquea el puerto). Configurar DASHBOARD_PASS en .env."
+        )
 
     twilio_from = api_keys.get("twilio_from", "")
     twilio_to = api_keys.get("twilio_to", "")

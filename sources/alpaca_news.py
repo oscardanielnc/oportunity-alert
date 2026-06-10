@@ -29,6 +29,11 @@ _RECONNECT_MIN = 1
 _RECONNECT_MAX = 60
 # Timeout de recv: si no llega nada en este tiempo, se reintenta el recv (keepalive)
 _RECV_TIMEOUT = 60
+# 2026-06-10: tras cada timeout se manda un ping (si la conexion esta half-open —
+# NAT/firewall mato el TCP sin RST — el ping falla y fuerza la reconexion; antes el
+# thread quedaba vivo pero SORDO indefinidamente). Tope de timeouts consecutivos como
+# segunda red: 30 min sin NADA de un feed mundial "*" en dias habiles es anomalo.
+_MAX_SILENT_TIMEOUTS = 30
 # Cada cuanto refrescar la watchlist viva (la suscripcion WS es a "*", asi que el
 # filtro por watchlist es local; no hay que re-suscribir cuando cambia).
 _WATCHLIST_REFRESH_S = 60
@@ -155,6 +160,7 @@ def stream_news(watchlist, on_article, stop_event=None) -> None:
             logger.info("[AlpacaNews] WebSocket conectado y suscrito (fuente: Benzinga)")
             backoff = _RECONNECT_MIN
             ws.settimeout(_RECV_TIMEOUT)
+            silent_timeouts = 0
 
             while not (stop_event and stop_event.is_set()):
                 # Refrescar la watchlist viva cada _WATCHLIST_REFRESH_S (antes y después
@@ -168,7 +174,20 @@ def stream_news(watchlist, on_article, stop_event=None) -> None:
 
                 try:
                     messages = _recv_json(ws)
+                    silent_timeouts = 0
                 except websocket.WebSocketTimeoutException:
+                    silent_timeouts += 1
+                    if silent_timeouts >= _MAX_SILENT_TIMEOUTS:
+                        logger.warning(
+                            f"[AlpacaNews] {silent_timeouts} min sin mensajes — "
+                            "reconexion preventiva"
+                        )
+                        break
+                    try:
+                        ws.ping()   # half-open detection: si el TCP murio, esto lanza
+                    except Exception as ping_e:
+                        logger.warning(f"[AlpacaNews] ping fallo ({ping_e}) — reconectando")
+                        break
                     continue  # sin noticias en la ventana; seguimos escuchando
                 if not messages:
                     break  # conexion cerrada por el server -> reconectar

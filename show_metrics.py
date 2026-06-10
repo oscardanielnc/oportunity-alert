@@ -111,6 +111,29 @@ def main():
     else:
         print("  Sin trades cerrados con alertas matching todavía")
 
+    # ── P&L por estrategia (2026-06-10) ───────────────────────────────────────
+    print(f"\n[ESTRATEGIA] P&L POR ESTRATEGIA — últimos {args.days} días")
+    try:
+        strat_rows = m.get_pnl_by_strategy(days=args.days)
+    except Exception:
+        strat_rows = []
+    if strat_rows:
+        print(f"  {'Estrategia':<12} {'Trades':>7} {'Wins':>6} {'Win%':>7} {'P&L USD':>10} {'Avg%':>7} {'Hold(d)':>8}")
+        print(f"  {'-'*62}")
+        for r in strat_rows:
+            total = r["trades"] or 0
+            wins = r["wins"] or 0
+            wr = round(100 * wins / total, 1) if total else 0
+            print(
+                f"  {r['strategy']:<12} {total:>7} {wins:>6} {wr:>6.1f}% "
+                f"${(r['pnl_usd'] or 0):>+9.2f} {(r['avg_pct'] or 0):>+6.1f}% "
+                f"{(r['avg_hold_days'] or 0):>7.1f}"
+            )
+        print("  (trades anteriores al 2026-06-10 aparecen como 'desconocida' — la")
+        print("   columna strategy se llena desde el deploy de esa fecha)")
+    else:
+        print("  Sin trades con estrategia registrada todavía")
+
     # ── Últimos trades ────────────────────────────────────────────────────────
     print("\n[TRADES] ÚLTIMOS 10 TRADES")
     trades = m.get_recent_trades(limit=10)

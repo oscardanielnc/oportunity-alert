@@ -4,6 +4,7 @@ Canales soportados: SMS y WhatsApp (configurable en config.json → notification
 WhatsApp es más confiable para números internacionales (ej: Peru).
 """
 import os
+import time
 import logging
 
 logging.getLogger("twilio").setLevel(logging.WARNING)
@@ -12,6 +13,30 @@ logger = logging.getLogger(__name__)
 
 # Número sandbox de WhatsApp de Twilio (siempre este para cuentas trial/sandbox)
 WHATSAPP_SANDBOX_FROM = "whatsapp:+14155238886"
+
+# Retry (2026-06-10): antes un fallo transitorio de Twilio = alerta PERDIDA para
+# siempre (cero reintentos en todo el sistema). 3 intentos con backoff corto cubre
+# blips de red/API sin retrasar demasiado una alerta urgente.
+_RETRY_ATTEMPTS = 3
+_RETRY_DELAYS   = (2, 5)   # segundos entre intentos
+
+
+def _create_with_retry(create_fn, context: str) -> bool:
+    """Ejecuta create_fn() (llamada a Twilio) con reintentos. True si algún intento salió."""
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            msg = create_fn()
+            if attempt > 0:
+                logger.info(f"[Twilio] {context}: enviado al intento {attempt + 1}")
+            return msg
+        except Exception as e:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                delay = _RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)]
+                logger.warning(f"[Twilio] {context}: intento {attempt + 1} falló ({e}) — retry en {delay}s")
+                time.sleep(delay)
+            else:
+                logger.error(f"[Twilio] {context}: agotados {_RETRY_ATTEMPTS} intentos ({e})")
+    return None
 
 
 def _get_twilio_client():
@@ -116,22 +141,24 @@ def send_raw_message(body: str, to_number: str) -> bool:
 
     to_wa = f"whatsapp:{to_number}" if not to_number.startswith("whatsapp:") else to_number
 
-    try:
-        if channel == "whatsapp":
-            msg = client.messages.create(
-                body=body, from_=WHATSAPP_SANDBOX_FROM, to=to_wa,
-            )
-        else:
-            from_ = os.environ.get("TWILIO_FROM", "")
-            if not from_:
-                logger.error("[Twilio] TWILIO_FROM no configurado para canal SMS")
-                return False
-            msg = client.messages.create(body=body, from_=from_, to=to_number)
+    if channel == "whatsapp":
+        msg = _create_with_retry(
+            lambda: client.messages.create(body=body, from_=WHATSAPP_SANDBOX_FROM, to=to_wa),
+            "send_raw_message/whatsapp",
+        )
+    else:
+        from_ = os.environ.get("TWILIO_FROM", "")
+        if not from_:
+            logger.error("[Twilio] TWILIO_FROM no configurado para canal SMS")
+            return False
+        msg = _create_with_retry(
+            lambda: client.messages.create(body=body, from_=from_, to=to_number),
+            "send_raw_message/sms",
+        )
+    if msg:
         logger.info(f"[Twilio] Mensaje enviado — SID: {msg.sid} ({len(body)} chars)")
         return True
-    except Exception as e:
-        logger.error(f"[Twilio] Error en send_raw_message: {e}")
-        return False
+    return False
 
 
 def send_sms(result: dict, from_number: str, to_number: str) -> bool:
@@ -168,21 +195,18 @@ def _send_whatsapp(result: dict, to_number: str) -> bool:
     # Formato WhatsApp: whatsapp:+51929178606
     to_wa = f"whatsapp:{to_number}" if not to_number.startswith("whatsapp:") else to_number
 
-    try:
-        msg_body = format_sms(result)
-        message = client.messages.create(
-            body=msg_body,
-            from_=WHATSAPP_SANDBOX_FROM,
-            to=to_wa,
-        )
+    msg_body = format_sms(result)
+    message = _create_with_retry(
+        lambda: client.messages.create(body=msg_body, from_=WHATSAPP_SANDBOX_FROM, to=to_wa),
+        f"alerta/{result.get('ticker')}",
+    )
+    if message:
         logger.info(
             f"WhatsApp enviado: {result.get('ticker')} {result.get('prioridad')} "
             f"— SID: {message.sid}"
         )
         return True
-    except Exception as e:
-        logger.error(f"Error enviando WhatsApp: {e}")
-        return False
+    return False
 
 
 def _send_sms_direct(result: dict, from_number: str, to_number: str) -> bool:
@@ -191,18 +215,15 @@ def _send_sms_direct(result: dict, from_number: str, to_number: str) -> bool:
     if not client:
         return False
 
-    try:
-        msg_body = format_sms(result)
-        message = client.messages.create(
-            body=msg_body,
-            from_=from_number,
-            to=to_number,
-        )
+    msg_body = format_sms(result)
+    message = _create_with_retry(
+        lambda: client.messages.create(body=msg_body, from_=from_number, to=to_number),
+        f"alerta-sms/{result.get('ticker')}",
+    )
+    if message:
         logger.info(
             f"SMS enviado: {result.get('ticker')} {result.get('prioridad')} "
             f"— SID: {message.sid}"
         )
         return True
-    except Exception as e:
-        logger.error(f"Error enviando SMS: {e}")
-        return False
+    return False

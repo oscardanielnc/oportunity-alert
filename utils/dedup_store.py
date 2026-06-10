@@ -67,13 +67,22 @@ class DedupStore:
                 )
             """)
 
-            # Limpiar registros viejos (>7 días)
-            conn.execute("DELETE FROM seen_items WHERE seen_at < datetime('now', '-7 days')")
-            conn.execute("DELETE FROM ticker_events WHERE created_at < datetime('now', '-7 days')")
-            # Limpiar flags expirados
-            import time as _time
-            conn.execute("DELETE FROM tracker_flags WHERE expires_at < ?", (_time.time(),))
             conn.commit()
+        # Purga al arrancar (antes vivía inline; ahora también corre a diario vía heartbeat
+        # — un proceso 24/7 que corre semanas acumulaba sin límite).
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """Borra registros viejos. Llamar 1 vez/día (heartbeat) además del arranque."""
+        try:
+            import time as _time
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM seen_items WHERE seen_at < datetime('now', '-7 days')")
+                conn.execute("DELETE FROM ticker_events WHERE created_at < datetime('now', '-7 days')")
+                conn.execute("DELETE FROM tracker_flags WHERE expires_at < ?", (_time.time(),))
+                conn.commit()
+        except Exception as e:
+            logger.error(f"[Dedup] Error en cleanup: {e}")
 
     # ── Nivel 1: dedup por ID ──────────────────────────────────────────────
 

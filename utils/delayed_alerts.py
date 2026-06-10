@@ -41,21 +41,25 @@ def _worker():
         except queue.Empty:
             continue
 
-        ticker      = item["ticker"]
-        fire_at     = item["fire_at"]
-        article     = item["article"]
-        conviction  = item["conviction"]
-        result      = item["result"]
-        event_type  = item["event_type"]
-        original_price = item["original_price"]
-        twilio_to   = item["twilio_to"]
-
-        # Esperar hasta el momento de disparo
-        now = time.time()
-        if fire_at > now:
-            time.sleep(fire_at - now)
-
+        # 2026-06-10: TODO el procesamiento del item va dentro del try — antes el
+        # desempaque y el sleep estaban fuera: una excepción ahí mataba el ÚNICO worker
+        # para siempre (_worker_started quedaba True y nadie lo reiniciaba).
+        ticker = "?"
         try:
+            ticker      = item["ticker"]
+            fire_at     = item["fire_at"]
+            article     = item["article"]
+            conviction  = item["conviction"]
+            result      = item["result"]
+            event_type  = item["event_type"]
+            original_price = item["original_price"]
+            twilio_to   = item["twilio_to"]
+
+            # Esperar hasta el momento de disparo
+            now = time.time()
+            if fire_at > now:
+                time.sleep(min(fire_at - now, 3600))   # tope sanity: nunca dormir >1h
+
             _process_followup(
                 ticker, article, conviction, result,
                 event_type, original_price, twilio_to,

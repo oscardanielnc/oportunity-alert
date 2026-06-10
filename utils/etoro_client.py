@@ -27,7 +27,11 @@ CIRCUIT_PAUSE_MINUTES  = 30     # minutos de pausa cuando el circuito está abie
 
 _cb_failures   = 0              # contador de fallos consecutivos
 _cb_open_until = 0.0            # timestamp hasta el que el circuito está abierto
-_token_alert_sent = False       # evitar spam de SMS por token expirado
+# 2026-06-10: era un bool one-shot — si Oscar dormía el SMS, el sistema quedaba sin
+# monitoreo de posiciones por DÍAS sin re-aviso. Ahora: re-aviso cada 24h mientras
+# el 401/403 persista.
+_token_alert_last_ts = 0.0      # último SMS de token expirado (epoch)
+_TOKEN_REALERT_HOURS = 24
 
 SECTOR_MAP = {
     "NVDA": "semiconductores", "AMD": "semiconductores", "ASML": "semiconductores",
@@ -72,16 +76,16 @@ def _on_success():
 
 def _on_failure(status_code: int = 0) -> str:
     """Registra el fallo y abre el circuito si supera el umbral. Retorna motivo."""
-    global _cb_failures, _cb_open_until, _token_alert_sent
+    global _cb_failures, _cb_open_until, _token_alert_last_ts
 
     _cb_failures += 1
     logger.warning(f"[eToro] Fallo #{_cb_failures} (HTTP {status_code})")
 
     if status_code in (401, 403):
         msg = "token_expired"
-        if not _token_alert_sent:
+        if time.time() - _token_alert_last_ts > _TOKEN_REALERT_HOURS * 3600:
             _notify_token_expired()
-            _token_alert_sent = True
+            _token_alert_last_ts = time.time()
     else:
         msg = f"http_{status_code}" if status_code else "network_error"
 
@@ -129,8 +133,8 @@ def _notify_token_expired():
 
 def reset_token_alert():
     """Llamar después de actualizar etoro_config.json con nuevo token."""
-    global _token_alert_sent, _cb_failures, _cb_open_until
-    _token_alert_sent = False
+    global _token_alert_last_ts, _cb_failures, _cb_open_until
+    _token_alert_last_ts = 0.0
     _cb_failures      = 0
     _cb_open_until    = 0.0
     logger.info("[eToro] Circuit breaker y alerta de token reseteados")

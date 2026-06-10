@@ -98,7 +98,8 @@ class MetricsStore:
                     units       REAL,
                     invested    REAL,
                     net_profit  REAL,
-                    net_profit_pct REAL
+                    net_profit_pct REAL,
+                    open_datetime TEXT DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS trades (
@@ -119,6 +120,8 @@ class MetricsStore:
                     matched_conviction   INTEGER,
                     matched_pct_estimado REAL,
                     outcome              TEXT,
+                    strategy             TEXT DEFAULT '',
+                    exit_reason          TEXT DEFAULT '',
                     UNIQUE(ticker, open_rate, open_ts)
                 );
 
@@ -226,6 +229,22 @@ class MetricsStore:
                 CREATE INDEX IF NOT EXISTS idx_pmfl_date      ON premarket_filter_log(date_lima);
             """)
             c.commit()
+            # Migración 2026-06-10 (DBs existentes en la VM): columnas nuevas para que
+            # la tabla trades sea AUDITABLE (P&L por estrategia + razón de salida + open real).
+            self._add_column_if_missing(c, "position_snapshots", "open_datetime", "TEXT DEFAULT ''")
+            self._add_column_if_missing(c, "trades", "strategy", "TEXT DEFAULT ''")
+            self._add_column_if_missing(c, "trades", "exit_reason", "TEXT DEFAULT ''")
+
+    @staticmethod
+    def _add_column_if_missing(c, table: str, column: str, decl: str):
+        try:
+            cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
+            if column not in cols:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+                c.commit()
+                logger.info(f"[Metrics] Migración: {table}.{column} añadida")
+        except Exception as e:
+            logger.error(f"[Metrics] Migración {table}.{column}: {e}")
 
     # ── Alerts ────────────────────────────────────────────────────────────────
 
@@ -343,6 +362,7 @@ class MetricsStore:
                 p.get("invested_amount"),
                 p.get("net_profit"),
                 p.get("net_profit_pct"),
+                p.get("open_datetime", ""),
             )
             for p in positions
         ]
@@ -351,8 +371,8 @@ class MetricsStore:
                 c.executemany("""
                     INSERT INTO position_snapshots
                     (ts, ticker, direction, open_rate, current_rate,
-                     units, invested, net_profit, net_profit_pct)
-                    VALUES (?,?,?,?,?,?,?,?,?)
+                     units, invested, net_profit, net_profit_pct, open_datetime)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                 """, rows)
                 c.commit()
         except Exception as e:
@@ -363,7 +383,7 @@ class MetricsStore:
         with _conn(self.db_path) as c:
             rows = c.execute("""
                 SELECT ticker, open_rate, current_rate, direction, units,
-                       invested, net_profit_pct, ts
+                       invested, net_profit_pct, ts, open_datetime
                 FROM position_snapshots
                 WHERE ts = (SELECT MAX(ts) FROM position_snapshots)
             """).fetchall()
@@ -371,10 +391,17 @@ class MetricsStore:
 
     # ── Trades (detectados de snapshots) ──────────────────────────────────────
 
-    def record_closed_trade(self, ticker: str, open_snap: dict, close_rate: float, close_ts: str):
-        """Registra un trade cerrado. Busca alerta matching por ticker + timing."""
+    def record_closed_trade(self, ticker: str, open_snap: dict, close_rate: float, close_ts: str,
+                            strategy: str = "", exit_reason: str = ""):
+        """Registra un trade cerrado. Busca alerta matching por ticker + timing.
+
+        2026-06-10: open_ts ahora usa el openDateTime REAL de eToro (persistido en el
+        snapshot) — antes usaba el ts del ÚLTIMO snapshot (10 min antes del cierre), por
+        lo que hold_hours daba ~0.2h siempre y el matching de alertas buscaba en la
+        ventana equivocada. + columnas strategy/exit_reason → P&L por estrategia."""
         open_rate   = open_snap.get("open_rate", 0)
-        open_ts     = open_snap.get("ts", "")
+        # openDateTime real de eToro > ts del snapshot (fallback para datos viejos)
+        open_ts     = open_snap.get("open_datetime") or open_snap.get("ts", "")
         direction   = open_snap.get("direction", "BUY")
         units       = open_snap.get("units", 0)
         invested    = open_snap.get("invested", 0)
@@ -386,8 +413,14 @@ class MetricsStore:
 
         try:
             from datetime import datetime
-            dt_open  = datetime.fromisoformat(open_ts)
+            # eToro entrega openDateTime con sufijo Z / offset; normalizar para fromisoformat
+            _open_iso  = open_ts.replace("Z", "+00:00")
+            dt_open  = datetime.fromisoformat(_open_iso)
             dt_close = datetime.fromisoformat(close_ts)
+            if dt_open.tzinfo is not None and dt_close.tzinfo is None:
+                dt_close = dt_close.replace(tzinfo=LIMA)
+            elif dt_open.tzinfo is None and dt_close.tzinfo is not None:
+                dt_close = dt_close.replace(tzinfo=None)
             hold_h   = round((dt_close - dt_open).total_seconds() / 3600, 1)
         except Exception:
             hold_h = 0
@@ -425,22 +458,42 @@ class MetricsStore:
                         invested, net_profit, net_profit_pct,
                         open_ts, close_ts, hold_hours,
                         matched_alert_id, matched_prioridad,
-                        matched_conviction, matched_pct_estimado, outcome
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        matched_conviction, matched_pct_estimado, outcome,
+                        strategy, exit_reason
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
                     ticker, direction, open_rate, close_rate, units,
                     invested, net_profit, pnl_pct,
                     open_ts, close_ts, hold_h,
                     matched_id, matched_prio, matched_conv, matched_pct, outcome,
+                    strategy, exit_reason,
                 ))
                 c.commit()
                 logger.info(
                     f"[Metrics] Trade cerrado: {ticker} {direction} "
                     f"{pnl_pct:+.1f}% ${net_profit:+.0f} | "
+                    f"estrategia: {strategy or '?'} | salida: {exit_reason or '?'} | "
                     f"alerta: {matched_prio or 'no matched'}"
                 )
         except Exception as e:
             logger.error(f"[Metrics] Error record_closed_trade: {e}")
+
+    def get_pnl_by_strategy(self, days: int = 90) -> list:
+        """P&L agregado por estrategia (la pregunta '¿qué brazo gana dinero?')."""
+        cutoff = (datetime.now(LIMA) - timedelta(days=days)).strftime("%Y-%m-%d")
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT COALESCE(NULLIF(strategy, ''), 'desconocida') AS strategy,
+                       COUNT(*) AS trades,
+                       SUM(outcome='WIN') AS wins,
+                       ROUND(SUM(net_profit), 2) AS pnl_usd,
+                       ROUND(AVG(net_profit_pct), 2) AS avg_pct,
+                       ROUND(AVG(hold_hours) / 24.0, 1) AS avg_hold_days
+                FROM trades
+                WHERE date(close_ts) >= ?
+                GROUP BY 1 ORDER BY pnl_usd DESC
+            """, (cutoff,)).fetchall()
+        return [dict(r) for r in rows]
 
     # ── Daily summary ─────────────────────────────────────────────────────────
 
@@ -566,6 +619,30 @@ class MetricsStore:
                 ORDER BY ts DESC LIMIT 3
             """, (ticker, cutoff)).fetchall()
         return [dict(r) for r in rows]
+
+    def cleanup(self, snapshot_days: int = 90, filter_log_days: int = 90,
+                gate_events_days: int = 180) -> dict:
+        """Purga periódica (2026-06-10): position_snapshots crece 144 filas/día/posición
+        y article_filter_log ~300/día — sin purga degradan disco y queries con los meses.
+        alerts/trades/daily_summary se conservan SIEMPRE (son el historial auditable).
+        Llamar 1 vez/día (lo hace el heartbeat)."""
+        deleted = {}
+        try:
+            with _conn(self.db_path) as c:
+                for table, col, days in (
+                    ("position_snapshots", "ts", snapshot_days),
+                    ("article_filter_log", "ts", filter_log_days),
+                    ("gate_events", "ts", gate_events_days),
+                ):
+                    cutoff = (datetime.now(LIMA) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+                    cur = c.execute(f"DELETE FROM {table} WHERE {col} < ?", (cutoff,))
+                    deleted[table] = cur.rowcount
+                c.commit()
+            if any(deleted.values()):
+                logger.info(f"[Metrics] Purga: {deleted}")
+        except Exception as e:
+            logger.error(f"[Metrics] Error en cleanup: {e}")
+        return deleted
 
     def get_recent_trades(self, limit: int = 20) -> list:
         with _conn(self.db_path) as c:
