@@ -552,6 +552,21 @@ class MetricsStore:
             """, (ticker, cutoff)).fetchall()
         return [dict(r) for r in rows]
 
+    def get_recent_filtered_headlines(self, ticker: str, minutes: int = 90) -> list:
+        """Titulares que el FILTRO descartó recientemente para un ticker (2026-06-10).
+        El explain-move solo miraba `alerts` (lo que pasó a IA) → en el crash 06-04/06-10
+        decía "sin catalizador identificado" teniendo "Why Is MU Falling" descartado en
+        article_filter_log. Titulares filtrados = contexto válido para explicar un move."""
+        cutoff = (datetime.now(LIMA) - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+        with _conn(self.db_path) as c:
+            rows = c.execute("""
+                SELECT ts, title, stage, reason
+                FROM article_filter_log
+                WHERE ticker = ? AND ts >= ? AND title != ''
+                ORDER BY ts DESC LIMIT 3
+            """, (ticker, cutoff)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_recent_trades(self, limit: int = 20) -> list:
         with _conn(self.db_path) as c:
             rows = c.execute("""

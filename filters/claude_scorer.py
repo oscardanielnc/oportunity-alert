@@ -252,6 +252,23 @@ def score_with_claude(
         entry  = conviction.get("entry_price", 0)
         stop   = conviction.get("stop_code", 0)
         target = conviction.get("target_code", 0)
+        # BUG FIX 2026-06-10: conviction calcula stop/target con la dirección HEURÍSTICA
+        # inicial; si la IA devolvió la dirección opuesta, quedaban invertidos (stop de
+        # LONG debajo de la entrada en una señal SHORT). Detectar y recalcular.
+        _dir = result.get("direccion", "")
+        _atr = conviction.get("atr14", 0)
+        _inverted = entry > 0 and stop > 0 and (
+            (_dir == "LONG" and stop > entry) or (_dir == "SHORT" and stop < entry)
+        )
+        if _inverted and _atr > 0:
+            from utils.conviction_gates import SECTOR_FOR_ATR, ATR_MULT
+            _stop_m, _target_m = ATR_MULT[SECTOR_FOR_ATR.get(ticker, "DEFAULT")]
+            if _dir == "LONG":
+                stop, target = entry - _stop_m * _atr, entry + _target_m * _atr
+            else:
+                stop, target = entry + _stop_m * _atr, entry - _target_m * _atr
+            stop, target = round(stop, 2), round(target, 2)
+            logger.info(f"[Scorer] {ticker}: IA cambió dirección a {_dir} — stop/target recalculados")
         result["entrada_rango"]     = f"${entry:.2f}" if entry  > 0 else "N/A"
         result["stop"]              = f"${stop:.2f}"   if stop   > 0 else "N/A"
         result["target"]            = f"${target:.2f}" if target > 0 else "N/A"
@@ -284,7 +301,7 @@ def score_with_claude(
     result["age_minutes"]        = article.get("age_minutes", 0)
     result["precio_al_alerta"]   = price_data.get("current_price")
     result["precio_24h_despues"] = None
-    result["timestamp"]          = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S-05:00")
+    result["timestamp"]          = datetime.now(timezone(timedelta(hours=-5))).strftime("%Y-%m-%dT%H:%M:%S-05:00")
     result["ai_engine"]          = ai_engine
 
     return result
@@ -324,7 +341,7 @@ def _error_result(article: dict, ticker: str, error_msg: str) -> dict:
         "age_minutes":         article.get("age_minutes", 0),
         "precio_al_alerta":    None,
         "precio_24h_despues":  None,
-        "timestamp":           datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+        "timestamp":           datetime.now(timezone(timedelta(hours=-5))).strftime("%Y-%m-%dT%H:%M:%S-05:00"),
         "ai_engine":           os.environ.get("AI_ENGINE", "gemini"),
         "error":               error_msg,
     }

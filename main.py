@@ -234,14 +234,10 @@ def _supervised_thread(name: str, target_fn, *args, **kwargs):
 # ── Lógica central ────────────────────────────────────────────────────────────
 
 
-_BEARISH_KEYWORDS = {
-    "MISSES ESTIMATES", "MISSES EXPECTATIONS", "FALLS SHORT", "BELOW ESTIMATES",
-    "BELOW CONSENSUS", "BELOW EXPECTATIONS", "DISAPPOINTS", "MISSED ESTIMATES",
-    "EARNINGS MISS", "REVENUE MISS", "LOWERS GUIDANCE", "CUTS GUIDANCE",
-    "GUIDANCE CUT", "WARNS ON", "PROFIT WARNING", "ISSUES WARNING",
-    "FDA REJECTED", "FDA REJECTION", "CLINICAL HOLD", "DOWNGRADE",
-    "LOWERED TO SELL", "SHORT SQUEEZE",  # squeeze puede ser bajista en el subyacente
-}
+# 2026-06-10: el vocabulario bajista vive ahora en keyword_filter (donde el FILTRO
+# también lo usa — antes solo se reconocía lo bajista DESPUÉS de que el filtro alcista
+# ya lo había matado). Acá solo se reusa para la heurística de dirección.
+from filters.keyword_filter import ALL_BEARISH_KEYWORDS as _BEARISH_KEYWORDS
 
 
 def _guess_direction(article: dict) -> str:
@@ -303,6 +299,9 @@ def process_article(
         # None → usa la lógica source-aware en passes_filter (SEC_EDGAR=4h, Finnhub=90min).
         # Si config.json define "max_article_age_minutes", ese valor overridea todo.
         max_age_minutes=config.get("max_article_age_minutes"),
+        # Bypass de posición: noticias bajistas sobre tickers EN CARTERA pasan aunque
+        # el keyword score sea bajo (hueco confirmado en el crash 06-04/06-10).
+        held_tickers=_held_tickers(),
     )
     if not passes:
         with _stats_lock:
@@ -383,6 +382,17 @@ def process_article(
         logger.info(
             f"[EVENT-MODE] {ticker} tipo={event_type} | "
             f"gate2 tecnico reemplazado por estabilizacion ({old_total}→{conviction['conviction_score']}/7)"
+        )
+
+    # Bypass de posición (2026-06-10): una noticia BAJISTA sobre una posición abierta
+    # llega SIEMPRE a la IA aunque los gates digan skip (Gate1=0 = "ya priceado" es
+    # exactamente el caso de un crash en curso — cuando más importa avisar). El costo
+    # es ≤ unas pocas llamadas extra en días rojos; el riesgo de callar es perder plata.
+    if conviction["skip_ai"] and article.get("held_bypass"):
+        conviction["skip_ai"] = False
+        conviction["reasoning"] = (
+            (conviction.get("reasoning") or "")
+            + " | held_bypass: noticia bajista sobre posición abierta → IA"
         )
 
     if conviction["skip_ai"]:
@@ -578,6 +588,7 @@ def process_article(
                 if sms_enviado:
                     with _stats_lock:
                         _stats["sms_sent"] += 1
+                    dedup.set_flag(f"smssent_{ticker}_{datetime.now(LIMA).strftime('%Y%m%d')}", ttl_hours=20)
                     queue_followup(
                         ticker, article, conviction, result,
                         event_type, twilio_to,
@@ -589,6 +600,7 @@ def process_article(
                 if sms_enviado:
                     with _stats_lock:
                         _stats["sms_sent"] += 1
+                    dedup.set_flag(f"smssent_{ticker}_{datetime.now(LIMA).strftime('%Y%m%d')}", ttl_hours=20)
         else:
             # Mercado cerrado: acumular para el digest del domingo 7pm Lima
             with _weekend_lock:
@@ -707,15 +719,63 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
         time.sleep(interval)
 
 
+_alpaca_news_queue = None      # cola compartida WS → worker (se crea una sola vez)
+_alpaca_news_worker_started = False
+
+
 def alpaca_news_loop(config, watchlist, dedup, **kwargs):
     """
     Stream de noticias en tiempo real de Alpaca (fuente Benzinga) via WebSocket.
     alpaca_stream_news() ya reconecta solo con backoff; este wrapper es la red de
     seguridad por si el stream lanza una excepcion no controlada.
+
+    BUG FIX 2026-06-10: antes process_article corría SINCRÓNICO en el thread del WS
+    (fetch Alpaca 8s + IA + Twilio = el recv() quedaba bloqueado). En días de ráfaga
+    (selloff = decenas de titulares) los mensajes se encolaban en el server y, si el
+    stall superaba el keepalive, Alpaca desconectaba SIN replay → noticias perdidas.
+    Ahora el WS solo encola; un worker dedicado procesa.
     """
+    import queue as _queue
+    global _alpaca_news_queue, _alpaca_news_worker_started
+
+    if _alpaca_news_queue is None:
+        _alpaca_news_queue = _queue.Queue(maxsize=500)
+
+    def _news_worker():
+        while True:
+            article = _alpaca_news_queue.get()
+            try:
+                live_wl = get_live_watchlist() or watchlist
+                process_article(article, live_wl, dedup, config, **kwargs)
+            except Exception as e:
+                logger.error(f"[AlpacaNews] error procesando noticia (worker): {e}")
+            finally:
+                _alpaca_news_queue.task_done()
+
+    # Un solo worker (mantiene el orden y no agrava la race de dedup cross-source).
+    # Flag global: si el supervisor reinicia este loop, NO duplicar el worker.
+    if not _alpaca_news_worker_started:
+        threading.Thread(target=_news_worker, name="AlpacaNewsWorker", daemon=True).start()
+        _alpaca_news_worker_started = True
+
     def on_article(article):
-        live_wl = get_live_watchlist() or watchlist
-        process_article(article, live_wl, dedup, config, **kwargs)
+        try:
+            _alpaca_news_queue.put_nowait(article)
+        except _queue.Full:
+            # Backpressure: descartar lo MÁS VIEJO de la cola, no lo recién llegado
+            try:
+                dropped = _alpaca_news_queue.get_nowait()
+                _alpaca_news_queue.task_done()
+                logger.warning(
+                    f"[AlpacaNews] cola llena — descartada noticia vieja: "
+                    f"{dropped.get('title', '')[:60]}"
+                )
+            except _queue.Empty:
+                pass
+            try:
+                _alpaca_news_queue.put_nowait(article)
+            except _queue.Full:
+                logger.warning("[AlpacaNews] cola llena — noticia descartada")
 
     # Getter de watchlist viva: el stream refresca su filtro periódicamente, así los
     # tickers añadidos por el dashboard entran sin reiniciar (fallback al snapshot inicial).
@@ -1025,8 +1085,15 @@ def _explain_large_moves(
             news_line = f"Noticia detectada ({prio}): {cataliz}"
             advice = "Revisar si el catalizador sigue vigente." if against else "Catalizador alineado con tu posicion."
         else:
-            news_line = "Sin catalizador identificado en los ultimos 90 min."
-            advice    = "Volatilidad normal del mercado." if abs(move_pct) < 6 else "Movimiento fuerte sin noticia — verificar manualmente."
+            # 2026-06-10: mirar también los titulares que el FILTRO descartó — antes
+            # decía "sin catalizador" mientras "Why Is MU Falling" dormía en el filter log.
+            filtered = metrics.get_recent_filtered_headlines(ticker, minutes=90)
+            if filtered:
+                news_line = f"Titular reciente (filtrado, sin analisis IA): {filtered[0].get('title', '')[:120]}"
+                advice = "Revisar el titular — puede explicar el movimiento."
+            else:
+                news_line = "Sin catalizador identificado en los ultimos 90 min."
+                advice    = "Volatilidad normal del mercado." if abs(move_pct) < 6 else "Movimiento fuerte sin noticia — verificar manualmente."
 
         direction_tag = "CONTRA tu posicion" if against else "A FAVOR de tu posicion"
         body = (
@@ -1159,6 +1226,31 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
 
                 evals[ticker] = ev   # para el dashboard (estado de salida en vivo)
 
+                # AVISO INTRADÍA informativo (2026-06-10): el precio eToro EN VIVO ya
+                # perforó el chandelier aunque el cierre previo siga arriba. La regla
+                # validada confirma al CIERRE — esto solo informa (la vigilancia intradía
+                # como regla de ejecución se midió y rechazó). Sin esto, el dashboard
+                # decía "dejar correr" todo el día mientras la posición se hundía.
+                if ev.get("intraday_breach") and not ev["exit"]:
+                    day = datetime.now(LIMA).strftime("%Y%m%d")
+                    flag_key = f"intraday_stop_{ticker}_{day}"
+                    if not dedup.has_flag(flag_key):
+                        alerts_to_send.append({
+                            "level": "ATENCION",
+                            "ticker": ticker,
+                            "pnl_pct": pnl_pct,
+                            "message": (
+                                f"[{ev['strategy'].upper()}] Precio INTRADÍA ${current:.2f} "
+                                f"cruzó el chandelier ${ev['stop_price']:.2f}. "
+                                f"La regla confirma al CIERRE."
+                            ),
+                            "action": (
+                                "Vigilar de cerca. Si cierra abajo, mañana llega la señal "
+                                "de VENDER — eToro 24/5 te deja salir YA si decidís no esperar."
+                            ),
+                        })
+                        dedup.set_flag(flag_key, ttl_hours=20)
+
                 if not ev["exit"]:
                     continue  # manual / mantener / sin datos → no dispara SMS de salida
 
@@ -1172,6 +1264,10 @@ def position_tracker_loop(twilio_from: str, twilio_to: str):
                     level, action = "URGENTE", "VENDER al próximo open (eToro). Chandelier roto."
                 else:  # ped
                     level, action = "INFO", "Cerrar al próximo open (eToro). Hold PED cumplido."
+                # Viernes/sábado: el "próximo open" operable es el DOMINGO ~19:00 Lima
+                # (eToro 24/5) — sin este recordatorio la salida esperaba hasta el lunes.
+                if datetime.now(LIMA).weekday() >= 4:
+                    action += " Ojo: eToro reabre el DOMINGO ~19:00 Lima — no esperes al lunes."
 
                 alerts_to_send.append({
                     "level": level,
@@ -1225,27 +1321,40 @@ def _is_gap_scan_window() -> bool:
     return is_market_open()
 
 
-def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str) -> bool:
+GAP_POSITION_DEFAULT_PCT = 4.0   # caída intradía de una POSICIÓN que merece SMS
+
+
+def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str,
+               held: set = None, gap_pos_min: float = GAP_POSITION_DEFAULT_PCT) -> bool:
     """Evalúa un ticker; si su |change_pct| supera el umbral de priceado y no hubo ya
-    una alerta hoy (ni de noticia ni de gap), manda UN SMS de gap. Dedup 1/ticker/día."""
+    una alerta hoy (ni de noticia ni de gap), manda UN SMS de gap. Dedup 1/ticker/día.
+
+    2026-06-10: para tickers EN CARTERA el umbral de caída es gap_pos_min (default −4%):
+    el umbral de oportunidad (12-30%) era para descubrir catalizadores, no para avisarte
+    que TU posición se desangra. Además el mute ahora exige SMS REAL enviado hoy — antes
+    cualquier análisis IA (aunque alcista y sin SMS) silenciaba 12h la alarma del crash."""
     from utils.conviction_gates import PRICED_THRESHOLDS, DEFAULT_THRESHOLD
     day = datetime.now(LIMA).strftime("%Y%m%d")
+    is_held = bool(held) and ticker.upper() in held
     gap_flag = f"gap_{ticker}_{day}"
     if dedup.has_flag(gap_flag):
         return False
-    # Si ya hubo alerta de noticia para este ticker hoy, el catalizador ya se cubrió.
-    if dedup.has_flag(f"priced_{ticker}_{day}"):
-        return False
-    if dedup.get_last_alert_on_ticker(ticker, hours=12):
-        return False
+    # Mute solo si hoy YA salió un SMS de noticia para este ticker. Las posiciones no
+    # se mutean por noticias de oportunidad (un PT raised a la mañana no debe apagar
+    # la alarma de caída de la tarde).
+    if not is_held:
+        if dedup.has_flag(f"priced_{ticker}_{day}") or dedup.has_flag(f"smssent_{ticker}_{day}"):
+            return False
 
     price_data = get_realtime_price(ticker)
     change = price_data.get("change_pct")
     if change is None:
         return False
-    # Umbral por ticker = el mismo que define "ya priceado" en Gate1, con piso gap_min.
+
+    # Umbral por ticker = el de "ya priceado" en Gate1 (descubrimiento de oportunidad).
     threshold = max(PRICED_THRESHOLDS.get(ticker, DEFAULT_THRESHOLD), gap_min)
-    if abs(change) < threshold:
+    held_drop = is_held and change <= -abs(gap_pos_min)   # caída de una posición
+    if not held_drop and abs(change) < threshold:
         return False
 
     price = price_data.get("current_price")
@@ -1253,18 +1362,29 @@ def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str) -> bool:
     arrow = "📈" if change > 0 else "📉"
     leader_tag = marea_leader_tag(ticker)
     lead_line = f"{leader_tag}\n" if leader_tag else ""
-    body = (
-        f"{arrow} GAP fuerte SIN alerta de noticia — {ticker} {change:+.0f}% hoy{price_txt}\n"
-        f"{lead_line}"
-        f"Movimiento grande detectado por PRECIO (posible catalizador nocturno/Asia que "
-        f"los feeds US reportan tarde).\n"
-        f"→ Revisá el catalizador. Si hay tendencia, evaluá Marea/PED — NO persigas el pop."
-    )
+    if held_drop and abs(change) < threshold:
+        body = (
+            f"📉 TU POSICIÓN {ticker} cae {change:+.1f}% hoy{price_txt}\n"
+            f"{lead_line}"
+            f"Detectado por PRECIO (sin titular fresco en los feeds).\n"
+            f"→ Revisá el contexto: ¿es sistémico (todo el sector cae) o específico? "
+            f"La salida Marea decide al CIERRE vs chandelier — no vendas en pánico, "
+            f"pero mirá la card de la posición en el dashboard."
+        )
+    else:
+        body = (
+            f"{arrow} GAP fuerte SIN alerta de noticia — {ticker} {change:+.0f}% hoy{price_txt}\n"
+            f"{lead_line}"
+            f"Movimiento grande detectado por PRECIO (posible catalizador nocturno/Asia que "
+            f"los feeds US reportan tarde).\n"
+            f"→ Revisá el catalizador. Si hay tendencia, evaluá Marea/PED — NO persigas el pop."
+        )
     if _send_twilio_raw(body, twilio_to):
         dedup.set_flag(gap_flag, ttl_hours=20)
         with _stats_lock:
             _stats["sms_sent"] += 1
-        logger.info(f"[GapScanner] {ticker} {change:+.1f}% — SMS de gap enviado (sin noticia)")
+        logger.info(f"[GapScanner] {ticker} {change:+.1f}% — SMS de gap enviado "
+                    f"({'posición' if held_drop else 'sin noticia'})")
         return True
     return False
 
@@ -1274,15 +1394,18 @@ def gap_scanner_loop(config, watchlist, dedup, **kwargs):
     sin noticia. Cubre catalizadores nocturnos/internacionales (Hueco 1, caso MRVL)."""
     interval = config.get("gap_scan_seconds", GAP_SCAN_DEFAULT_SECONDS)
     gap_min  = config.get("gap_alert_threshold_pct", GAP_MIN_DEFAULT_PCT)
+    gap_pos  = config.get("gap_position_threshold_pct", GAP_POSITION_DEFAULT_PCT)
     twilio_to = kwargs.get("twilio_to")
     while True:
         try:
             if _is_gap_scan_window() and twilio_to:
                 live_wl = get_live_watchlist() or watchlist
+                held = _held_tickers()
                 n_alerts = 0
                 for ticker in live_wl:
                     try:
-                        if _check_gap(ticker, gap_min, dedup, twilio_to):
+                        if _check_gap(ticker, gap_min, dedup, twilio_to,
+                                      held=held, gap_pos_min=gap_pos):
                             n_alerts += 1
                     except Exception as e:
                         logger.debug(f"[GapScanner] {ticker}: {e}")
@@ -1290,6 +1413,99 @@ def gap_scanner_loop(config, watchlist, dedup, **kwargs):
                     logger.info(f"[GapScanner] ciclo: {n_alerts} gap(s) alertado(s) sobre {len(live_wl)} tickers")
         except Exception as e:
             logger.error(f"[GapScanner] Error en ciclo: {e}")
+        time.sleep(interval)
+
+
+# ── Macro Sentinel (2026-06-10): "super alerta" de caída de mercado ───────────────
+# El crash de jun-2026 pasó sin UN solo SMS: el pipeline entero era per-ticker y
+# alcista. Este loop mira el MERCADO por PRECIO (QQQ/SPY intradía, velocidad 5d,
+# breadth del universo Marea) y avisa 1 vez/día cuando hay señal de riesgo sistémico.
+# También avisa cuando el RÉGIMEN macro de Marea (SMA200 ±3%) cambia de estado —
+# antes el flip solo se veía leyendo el mensaje diario de las 17:00.
+MACRO_SENTINEL_DEFAULT_SECONDS = 900   # 15 min, como el gap scanner
+
+
+def _held_with_stops() -> list:
+    """Posiciones reales + su chandelier (del account_cache) + precio en vivo.
+    Para que la alerta macro diga QUÉ posiciones están cerca de su stop."""
+    out = []
+    try:
+        from utils.position_strategy import read_account_cache
+        cache = read_account_cache()
+        evals = cache.get("evals", {}) or {}
+        for p in cache.get("positions", []) or []:
+            tk = p.get("ticker")
+            if not tk:
+                continue
+            stop = (evals.get(tk) or {}).get("stop_price")
+            if not stop:
+                continue
+            pd = get_realtime_price(tk)
+            cur = pd.get("current_price")
+            if cur:
+                out.append({"ticker": tk, "current": cur, "stop": stop})
+    except Exception as e:
+        logger.debug(f"[Sentinel] held stops: {e}")
+    return out
+
+
+def market_sentinel_loop(config, twilio_to: str):
+    """Cada 15 min: (1) ¿cambió el régimen macro? → SMS; (2) ¿señales de caída
+    de mercado? → 1 SMS de riesgo por día. Solo informa — no cambia reglas."""
+    from utils.market_sentinel import check_market_risk, regime_change
+
+    interval   = config.get("macro_sentinel_seconds", MACRO_SENTINEL_DEFAULT_SECONDS)
+    thresholds = config.get("macro_sentinel", {})
+    dedup = DedupStore("data/seen_ids.db")
+
+    while True:
+        try:
+            if is_market_open() and twilio_to:
+                # 1) Cambio de régimen (barato: barras QQQ cacheadas 1/día)
+                chg = regime_change()
+                if chg:
+                    _, cur = chg
+                    if cur:
+                        body = (
+                            "🟢 CAMBIO DE RÉGIMEN MACRO — vuelve ALCISTA\n"
+                            "QQQ recuperó la SMA200 +3% (histéresis). "
+                            "Marea reabre compras nuevas."
+                        )
+                    else:
+                        body = (
+                            "🔴 CAMBIO DE RÉGIMEN MACRO — risk-OFF\n"
+                            "QQQ cerró bajo la SMA200 −3% (histéresis). Marea NO abre "
+                            "compras nuevas. Las posiciones abiertas siguen con su "
+                            "chandelier individual (no vender en pánico)."
+                        )
+                    if _send_twilio_raw(body, twilio_to):
+                        with _stats_lock:
+                            _stats["sms_sent"] += 1
+
+                # 2) Riesgo de mercado — 1 SMS/día máximo
+                day = datetime.now(LIMA).strftime("%Y%m%d")
+                if not dedup.has_flag(f"macro_alert_{day}"):
+                    risk = check_market_risk(_held_with_stops(), thresholds)
+                    if risk:
+                        lines = [
+                            "🚨 ALERTA MACRO — riesgo de caída de mercado",
+                            "Señales: " + " · ".join(risk["triggers"]),
+                        ]
+                        if risk["at_risk"]:
+                            lines.append("Posiciones cerca del stop: " + ", ".join(risk["at_risk"]))
+                        lines.append(
+                            "→ Riesgo SISTÉMICO (no específico de tus empresas). "
+                            "No abrir compras nuevas hoy. La regla Marea decide al "
+                            "CIERRE vs chandelier, pero eToro 24/5 te deja reducir "
+                            "YA si lo ves necesario."
+                        )
+                        if _send_twilio_raw("\n".join(lines), twilio_to):
+                            dedup.set_flag(f"macro_alert_{day}", ttl_hours=20)
+                            with _stats_lock:
+                                _stats["sms_sent"] += 1
+                            logger.info(f"[Sentinel] ALERTA MACRO enviada: {risk['triggers']}")
+        except Exception as e:
+            logger.error(f"[Sentinel] Error en ciclo: {e}")
         time.sleep(interval)
 
 
@@ -1418,9 +1634,10 @@ def main():
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
+        ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("Dashboard",        run_dashboard,            (),                            {}),
     ]
-    logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker, GapScanner (Reddit desactivado; PreMarket archivado)")
+    logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker, GapScanner, MacroSentinel (Reddit desactivado; PreMarket archivado)")
 
     for name, fn, args, kwargs in threads_cfg:
         t = threading.Thread(

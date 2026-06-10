@@ -252,7 +252,8 @@ def evaluate_exit(ticker: str, strategy: str, entry_date: str,
     """
     from pilot.momentum_signals import _atr, chandelier_stop, MULT, ATR_N
 
-    base = {"exit": False, "reason": "", "detail": "", "stop_price": None, "days_held": None}
+    base = {"exit": False, "reason": "", "detail": "", "stop_price": None,
+            "days_held": None, "intraday_breach": False}
 
     if strategy == "manual":
         base["reason"] = "manual"
@@ -290,7 +291,12 @@ def evaluate_exit(ticker: str, strategy: str, entry_date: str,
 
     hh = max((b["h"] for b in bars if not entry_date or b["t"] >= entry_date), default=None)
     if hh is None:
-        hh = max(b["h"] for b in bars)
+        # Posición abierta HOY (o entrada 24/5 cuya fecha UTC es posterior a la última
+        # barra): todavía no existe barra diaria >= entry_date. Usar el precio actual /
+        # último cierre como hh provisional. NUNCA caer al máximo de todo el histórico
+        # (520d): si el ticker venía lejos de su máximo de 52 semanas, eso disparaba un
+        # "Chandelier roto" falso el día 0 de la posición.
+        hh = max(current_price or 0, bars[-1]["c"])
     stop = chandelier_stop(hh, atr)
     last_close = bars[-1]["c"]
     base["stop_price"] = round(stop, 2)
@@ -309,6 +315,18 @@ def evaluate_exit(ticker: str, strategy: str, entry_date: str,
             f"Marea OK — cierre ${last_close:.2f}, stop ${stop:.2f} "
             f"(margen {margin:.1f}%). Dejar correr."
         )
+        # AVISO INTRADÍA (informativo, 2026-06-10): la regla validada decide al CIERRE,
+        # pero el tracker tiene el precio eToro en vivo cada 10 min. Si el precio ACTUAL
+        # ya perforó el chandelier, marcarlo — main.py manda un SMS informativo ("la regla
+        # confirma al cierre; eToro 24/5 te deja salir ya si decidís"). NO cambia exit:
+        # la vigilancia intradía como REGLA se midió y rechazó; esto solo informa.
+        if current_price and current_price < stop:
+            base["intraday_breach"] = True
+            base["detail"] = (
+                f"⚠️ Precio ACTUAL ${current_price:.2f} bajo el stop ${stop:.2f} "
+                f"(cierre previo ${last_close:.2f} aún arriba). La regla confirma al "
+                f"CIERRE — vigilar."
+            )
     return base
 
 

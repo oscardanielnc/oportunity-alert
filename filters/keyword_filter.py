@@ -64,6 +64,56 @@ TIER_1_KEYWORDS = [
     "ENDORSES", "ENDORSEMENT FROM", "CALLS IT THE NEXT",
 ]
 
+# ── Tier 1 BAJISTA (2026-06-10): el filtro era estructuralmente alcista ────────
+# Auditoría del crash 06-10: 326 noticias → 0 SMS porque la única keyword bajista
+# era "FDA REJECTED". "Misses estimates", "$7B equity raise", "downgraded to sell"
+# = score 0 → el sistema era ciego al RIESGO. Estas pasan solas (la IA discrimina
+# magnitud y dirección; el flujo adverse-exit avisa si es sobre una posición).
+TIER_1_BEARISH = [
+    # Earnings malos / guidance
+    "MISSES ESTIMATES", "MISSES EXPECTATIONS", "MISSED ESTIMATES",
+    "EARNINGS MISS", "REVENUE MISS", "FALLS SHORT OF ESTIMATES",
+    "BELOW CONSENSUS", "MISSES CONSENSUS",
+    "CUTS GUIDANCE", "LOWERS GUIDANCE", "GUIDANCE CUT", "SLASHES GUIDANCE",
+    "WITHDRAWS GUIDANCE", "PROFIT WARNING", "WARNS ON",
+    # Downgrades fuertes
+    "DOWNGRADED TO SELL", "DOWNGRADED TO UNDERWEIGHT", "DOWNGRADED TO UNDERPERFORM",
+    "DOWNGRADES TO SELL", "CUT TO SELL", "LOWERED TO SELL", "RATING DOWNGRADE",
+    # Dilución / oferta de acciones (caso SMCI $7B 06-10)
+    "STOCK OFFERING", "SHARE OFFERING", "EQUITY OFFERING", "SECONDARY OFFERING",
+    "EQUITY RAISE", "COMMON STOCK OFFERING", "DILUTION", "CONVERTIBLE NOTES",
+    # Legal / regulatorio / solvencia
+    "SEC INVESTIGATION", "UNDER INVESTIGATION", "ACCOUNTING IRREGULARITIES",
+    "SHORT REPORT", "SHORT SELLER REPORT",
+    "BANKRUPTCY", "CHAPTER 11", "GOING CONCERN", "DELISTING",
+    # Clínico / FDA negativo (FDA REJECTED ya está en TIER_1_KEYWORDS)
+    "CLINICAL HOLD", "TRIAL FAILED", "FAILS PHASE", "CRL", "COMPLETE RESPONSE LETTER",
+]
+
+# ── Tier 2 BAJISTA: señales reales pero más ruidosas (2+ para pasar) ───────────
+TIER_2_BEARISH = [
+    "DOWNGRADE", "DOWNGRADED", "DOWNGRADES",
+    "PRICE TARGET LOWERED", "LOWERS PRICE TARGET", "CUTS PRICE TARGET",
+    "SELL RATING", "UNDERPERFORM", "UNDERWEIGHT",
+    "BELOW EXPECTATIONS", "WORSE THAN EXPECTED", "DISAPPOINTING",
+    "LAYOFFS", "JOB CUTS", "RECALL", "LAWSUIT", "CLASS ACTION",
+    "WEAK GUIDANCE", "WEAK DEMAND", "WEAK OUTLOOK", "SOFT GUIDANCE",
+]
+
+# ── Contexto bajista (NO suma score): activa el bypass de posición y la heurística
+# de dirección. Lenguaje periodístico de caída ("Why Is X Falling Wednesday?").
+BEARISH_CONTEXT = [
+    "FALLING", "FALLS", "PLUNGE", "PLUNGES", "PLUNGING",
+    "SINKS", "SINKING", "TUMBLES", "TUMBLING", "SLIDES", "SLIDING",
+    "DROPS", "DROPPING", "CRASHES", "CRASHING",
+    "SELLOFF", "SELL-OFF", "SELL OFF", "SLUMP", "SLUMPS",
+    "TRADING LOWER", "MOVING LOWER", "SHARES LOWER", "STOCK LOWER",
+]
+
+# Vocabulario bajista completo (para _guess_direction en main.py — antes vivía allá,
+# DESPUÉS del filtro que lo mataba; ahora el filtro mismo lo reconoce)
+ALL_BEARISH_KEYWORDS = set(TIER_1_BEARISH) | set(TIER_2_BEARISH) | set(BEARISH_CONTEXT)
+
 # ── Tier 2: necesita 2+ hits para pasar a Claude ──────────────────────────────
 # Señales reales pero más comunes — solas pueden ser ruido
 TIER_2_KEYWORDS = [
@@ -94,7 +144,7 @@ TIER_2_KEYWORDS = [
 ]
 
 # Todas las keywords críticas juntas (para fingerprint de dedup)
-CRITICAL_KEYWORDS = TIER_1_KEYWORDS + TIER_2_KEYWORDS
+CRITICAL_KEYWORDS = TIER_1_KEYWORDS + TIER_2_KEYWORDS + TIER_1_BEARISH + TIER_2_BEARISH
 
 # ── Keywords que indican ya está priceado (titular) ───────────────────────────
 PRICED_HEADLINE_WORDS = [
@@ -122,12 +172,12 @@ def score_article(raw_text: str) -> tuple[int, list[str]]:
     found = []
     score = 0
 
-    for kw in TIER_1_KEYWORDS:
+    for kw in TIER_1_KEYWORDS + TIER_1_BEARISH:
         if kw in text_upper:
             score += 4  # tier 1 pesa mucho
             found.append(kw)
 
-    for kw in TIER_2_KEYWORDS:
+    for kw in TIER_2_KEYWORDS + TIER_2_BEARISH:
         if kw in text_upper:
             score += 2
             found.append(kw)
@@ -156,6 +206,7 @@ def passes_filter(
     watchlist: list[str],
     seen_ids: set,
     max_age_minutes: int = None,
+    held_tickers: set = None,
 ) -> tuple[bool, Optional[str]]:
     """
     Retorna (True, None) si pasa el filtro, o (False, razón) si no pasa.
@@ -219,6 +270,21 @@ def passes_filter(
         article["edgar_bypass"] = True
         logger.debug(f"[EDGAR-BYPASS] ticker={tickers_in_text} score={score} — pasa sin keyword check")
     elif score < 3:
+        # BYPASS DE POSICIÓN (2026-06-10): noticia BAJISTA sobre un ticker que TENEMOS
+        # en cartera pasa aunque el score sea bajo. Cierra el hueco confirmado del crash
+        # 06-04/06-10: "Why Is Micron Falling" moría con score 0 mientras la posición se
+        # hundía. Volumen acotado (≤8 posiciones) y los conviction gates siguen filtrando.
+        held = held_tickers or set()
+        if held and any(t in held for t in tickers_in_text):
+            bearish_hit = [kw for kw in ALL_BEARISH_KEYWORDS if kw in raw_text]
+            if bearish_hit:
+                article["held_bypass"] = True
+                article["keywords_found"] = found_keywords + bearish_hit[:5]
+                logger.info(
+                    f"[HELD-BYPASS] {tickers_in_text} score={score} pero noticia bajista "
+                    f"sobre posición abierta ({bearish_hit[0]}) — pasa a gates"
+                )
+                return True, None
         return False, f"score bajo ({score}/10) — keywords insuficientes"
 
     # 5. Anotar señales adicionales (no descartan, pero informan a Claude)

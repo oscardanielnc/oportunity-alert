@@ -201,9 +201,9 @@ def get_realtime_price(ticker: str) -> dict:
                     if sip_bars and sip_bars[0].get("c"):
                         current_price = float(sip_bars[0]["c"])
                         result["current_price"] = current_price
+                        age_txt = f"{trade_age_minutes:.0f}" if trade_age_minutes else "?"
                         logger.debug(
-                            f"[alpaca_price] {ticker} IEX stale "
-                            f"({trade_age_minutes:.0f if trade_age_minutes else '?'} min) "
+                            f"[alpaca_price] {ticker} IEX stale ({age_txt} min) "
                             f"→ SIP bar ${current_price:.2f}"
                         )
             except Exception as sip_e:
@@ -258,8 +258,10 @@ def get_realtime_price(ticker: str) -> dict:
                         pass
                     if not bars:
                         bars = _bars   # IEX obsoleto pero SIP tiene algo
-        if bars_resp.status_code == 200 and not bars:
-            bars = bars_resp.json().get("bars") or []
+        # BUG FIX 2026-06-10: esta asignación estaba DENTRO de un `if ... and not bars:`
+        # → cuando el loop SÍ encontraba barras (el caso normal), candles_1m quedaba []
+        # y Gate 3 / event-mode / SMS 2 corrían ciegos siempre que se usaba el path Alpaca.
+        if bars:
             result["candles_1m"] = [
                 {
                     "t": b.get("t"),
