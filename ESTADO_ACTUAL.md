@@ -1,6 +1,79 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-02 (NOCHE — research + panel PED; ver abajo)
+# Última actualización: 2026-06-10 (auditoría completa + paquetes A/B/C DESPLEGADOS en VM)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-10 — AUDITORÍA COMPLETA + 3 PAQUETES DESPLEGADOS Y VERIFICADOS EN LA VM
+
+> **Contexto:** Oscar reportó pérdidas por el crash de la semana (CPI caliente, Irán, AVGO/SMCI).
+> Queja central: "las validaciones de salida de Marea son muy rígidas, siempre me sugieren quedarme
+> aun cuando todo se hunde; no tenemos buenos planes para salir a tiempo". Pidió una "super alerta
+> macro" de caída global. Se hizo auditoría completa del sistema (3 agentes en paralelo) + 3 paquetes
+> de mejoras. **TODO DESPLEGADO EN LA VM y verificado en vivo el mismo día** (commits `38b36c4`,
+> `6b132bd`, `18027ce` en origin/main; service `opportunity-alert` active).
+
+### 🔍 Diagnóstico raíz (por qué el crash pasó sin un solo SMS)
+1. **Brazo de noticias 100% alcista:** la única keyword bajista era "FDA REJECTED". Log 24h del crash =
+   326 noticias → 322 filtradas → 3 a IA (todas alcistas) → 0 SMS. "Why Is MU Falling" / "$7B equity
+   raise" / "CPI rises most in 37 months" = score 0.
+2. **Salida Marea tardaba 28-72h:** el tracker comparaba el cierre de AYER toda la sesión + sin SMS de
+   régimen + sin aviso intradía. Chandelier NO-ratchet (se afloja en pánico — esto es CORRECTO, validado).
+3. **Sin detección macro/market-wide:** todo era per-ticker.
+
+### 🟢 PAQUETE A — alerta macro + ojo bajista + aviso intradía (commit `38b36c4`)
+- **`utils/market_sentinel.py` (NUEVO) + thread `MacroSentinel`:** la "super alerta" por PRECIO
+  (QQQ/SPY intradía, QQQ ret_5d, breadth del universo sobre EMA20, posiciones a <5% del stop), 1 SMS/día.
+  + SMS al CAMBIO de régimen (SMA200 ±3%). Umbrales en la zona VALIDADA: ret5d −3% / breadth 35.
+- **Keyword filter:** ~50 keywords bajistas Tier-1/2 (misses, guidance cuts, downgrades, offerings,
+  dilución, investigaciones, quiebras) + bypass de posición (noticia bajista de un held SIEMPRE va a IA).
+- **Aviso INTRADÍA de chandelier:** el tracker compara precio eToro en vivo vs stop → SMS "cruzó el
+  chandelier, la regla confirma al cierre; eToro 24/5 te deja salir ya". + recordatorio "eToro reabre
+  domingo" en señales de viernes.
+- **Gap scanner −4% para posiciones** (antes 12-30%); explain-move lee titulares filtrados.
+- **Bugs rojos:** candles_1m, hh día 0, WS encola (no bloquea), stop/target invertidos, mute 12h, timestamps.
+
+### 📊 PAQUETE B — backtest de salidas (commit `6b132bd`, `research/backtest_marea_killswitch.py`)
+2020-2026, 79 tickers. Veredictos: RATCHET ❌ (Sharpe 1.18, MaxDD −27.2 — vende el shakeout),
+TIGHTEN ❌, SECTOR CAP ❌, DERISK-HALF ❌. **Único ganador: DERISK-ALL rápido −3%/35** (Sharpe 1.69,
+MaxDD −14.2, DD2022 −2.8) PERO **4 de 5 activaciones son whipsaw** (se recompra más caro) y **NO aporta
+sobre K=8 ya live**. **DECISIÓN OSCAR (acordada): el kill-switch queda como ALERTA informativa
+(MacroSentinel), NO ejecución automática.** Memoria: `study_marea_killswitch`.
+
+### 🔧 PAQUETE C — contabilidad auditable + robustez (commit `18027ce`)
+- **Trades auditables:** open_datetime real de eToro (hold_hours correcto) + columnas strategy/exit_reason
+  (migración ALTER TABLE idempotente, ya aplicada en la VM) + `get_pnl_by_strategy()` + sección
+  [ESTRATEGIA] en `show_metrics.py`. Guard 2-ciclos anti-cierres-fantasma.
+- **Robustez:** Twilio retry 3×; weekend digest no se autodestruye; WS ping/keepalive; watchdog de threads
+  colgados en heartbeat; purga SQLite diaria; re-aviso token 24h; worker DelayedAlerts blindado;
+  throttle refresh_daily_summary; WARNING si DASHBOARD_PASS vacía.
+
+### ✅ VERIFICADO EN VIVO (10-jun, tarde-noche Lima)
+- **Estreno del MacroSentinel: DISPARÓ a los 34s del arranque** — `[Sentinel] ALERTA MACRO enviada:
+  ['QQQ -2.3% hoy', 'SPY -1.8% hoy', 'QQQ -7.1% en 5 días', 'solo 32% del universo sobre su EMA20']`
+  (SID SMf3611d19...). Exactamente el escenario para el que se construyó.
+- 10 threads vivos (incl. MacroSentinel); `market_sentinel_state.json` = risk_on; account_cache fresco;
+  migración trades.strategy/exit_reason confirmada en la DB.
+- **DASHBOARD_PASS configurado** en `/etc/opportunity-alert.env` (EnvironmentFile del service) — dashboard
+  ya pide login (user `oscar`). Cierra la exposición del puerto 8081.
+
+### 📌 NOTAS OPERATIVAS DE LA VM (para retomar)
+- Service real: **`opportunity-alert`** (guion, doble 'p'). Path: `/home/opc/oportunity-alert` (una 'p').
+- EnvironmentFile: **`/etc/opportunity-alert.env`** (owner root → editar con `sudo tee -a`; systemd lo
+  relee solo al `restart`, no al reload).
+- Log directo: `/home/opc/oportunity-alert/opportunity_alert.log` (los ciclos OK de sentinel/tracker son
+  DEBUG → no salen al journal; grepear el log de archivo, no `journalctl`).
+- Dashboard: `http://213.35.121.9:8081` (ahora con Basic Auth; es HTTP plano — para blindaje total,
+  futuro: bloquear puerto en Security List de Oracle + túnel SSH).
+
+### 🔜 PENDIENTES (ninguno urgente)
+- En ~2-4 semanas: `python show_metrics.py --days 30` → P&L por estrategia con datos reales (la columna
+  strategy se llena desde este deploy). Evaluar qué brazo gana / si las salidas discrecionales suman.
+- Mañana con mercado abierto: ver en vivo avisos intradía de chandelier + noticias bajistas sobre posiciones.
+- Blindaje opcional del dashboard (firewall + túnel SSH) cuando Oscar quiera.
+
+---
+
 
 ## 🌙 CIERRE 2026-06-02 (NOCHE) — research de estrategias nuevas + visibilidad PED (commits en `main`, SIN PUSH)
 
