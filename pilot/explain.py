@@ -52,7 +52,12 @@ def run():
             print(f"  {tk:<6}{p['entry_price']:>9.2f}{i['price']:>9.2f}{p['hh']:>9.2f}"
                   f"{stop:>12.2f}{dist:>+7.1f}%{pnl:>+7.1f}%")
         print("\n  Regla: si el CIERRE cae por debajo del stop -> vender al open siguiente.")
-        print("  El stop solo SUBE (sigue al maxAlcanzado). Nunca baja.")
+        # 2026-06-10: corregido — el stop sigue al maxAlcanzado pero se RECALCULA con el
+        # ATR de cada dia: si la volatilidad se expande (panico), el stop puede BAJAR.
+        # Es la version validada por backtest (el ratchet "nunca baja" se midio y PIERDE:
+        # Sharpe 1.54->1.18, MaxDD -20.7->-27.2 — vende el shakeout y recompra arriba).
+        print("  El stop sigue al maxAlcanzado, pero respira con el ATR del dia:")
+        print("  puede bajar si la volatilidad se expande (validado: NO es un trailing fijo).")
     print()
 
 

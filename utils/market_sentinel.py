@@ -31,11 +31,14 @@ _DATA_DIR  = Path(__file__).parent.parent / "data"
 STATE_PATH = _DATA_DIR / "market_sentinel_state.json"
 
 # Umbrales por defecto — overrideables desde config.json["macro_sentinel"]
+# ret5d/breadth alineados a la zona VALIDADA por research/backtest_marea_killswitch.py
+# (2026-06-10): el edge del kill-switch vive en la VELOCIDAD — el disparador −3%/35
+# gana (Sharpe 1.69, MaxDD −14.2%); el lento −4%/30 rinde PEOR que no hacer nada.
 DEFAULTS = {
     "qqq_intraday_pct":   -2.0,   # QQQ cae esto intradía → trigger
     "spy_intraday_pct":   -1.5,   # SPY (más lento que QQQ) → trigger
-    "qqq_ret5d_pct":      -4.0,   # velocidad: retorno 5 días hábiles
-    "breadth_min_pct":    30.0,   # % del universo sobre EMA20 por debajo de esto → trigger
+    "qqq_ret5d_pct":      -3.0,   # velocidad: retorno 5 días hábiles (zona validada)
+    "breadth_min_pct":    35.0,   # % del universo sobre EMA20 por debajo de esto → trigger
     "stop_proximity_pct":  5.0,   # posición a <5% de su chandelier = "en riesgo"
 }
 

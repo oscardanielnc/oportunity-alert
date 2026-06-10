@@ -376,7 +376,9 @@ def _pos_lines(pp, cl):
 
 def _live_chandelier(pp, inds, tk):
     """Stop 4×ATR vivo (chandelier) de una posición Marea: hh_desde_entrada − 4×ATR actual.
-    Sube con los máximos, nunca baja. None para PED (sale por tiempo) o si falta ATR/hh."""
+    Sigue al máximo alcanzado pero se recalcula con el ATR del día: puede BAJAR si la
+    volatilidad se expande (no es trailing fijo — el ratchet se midió y pierde, 2026-06-10).
+    None para PED (sale por tiempo) o si falta ATR/hh."""
     pos = pp.positions.get(tk, {})
     if pos.get("source", "marea") == "ped":
         return None
