@@ -590,6 +590,7 @@ tbody tr:hover { background: #fafafb; }
     <div class="sb-brand">Opportunity<em>Alert</em></div>
     <div class="sb-tag">Panel de inversiones</div>
     <nav class="sb-nav">
+      <button class="tab"     onclick="go('brief')">📋 Brief diario</button>
       <button class="tab on"  onclick="go('noticias')">Noticias</button>
       <button class="tab"     onclick="go('posiciones')">Posiciones</button>
       <button class="tab"     onclick="go('watchlist')">Watchlist</button>
@@ -626,6 +627,19 @@ tbody tr:hover { background: #fafafb; }
 
     <input type="hidden" id="f-date">
     <div class="main">
+
+    <!-- ===== BRIEF DIARIO ===== -->
+    <div id="p-brief" class="panel">
+      <div style="font-size:11px;color:var(--text3);margin:0 0 10px 2px">
+        🧭 Resumen pre-market · <b>decision support</b> — consolida régimen, centinela macro, sectores y tus posiciones.
+        NO da órdenes de compra/venta: tú decides. Redactado por IA (Haiku), 1 vez al día.
+      </div>
+      <div class="filter-row" style="margin-bottom:12px">
+        <span id="brief-asof" style="font-size:12px;color:var(--text3)">—</span>
+        <button class="btn-ghost" onclick="loadBrief(true)" title="Regenerar la narrativa con datos frescos">↻ Regenerar narrativa</button>
+      </div>
+      <div id="brief-body"><div style="color:var(--text3);padding:20px">Cargando brief…</div></div>
+    </div>
 
     <!-- ===== NOTICIAS ===== -->
     <div id="p-noticias" class="panel on">
@@ -899,6 +913,7 @@ async function updateTopbar() {
 function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
   if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(); }
+  if (active.includes('brief'))   return loadBrief();
   if (active === 'posiciones')   return loadPositions();
   if (active === 'watchlist')    return loadWatchlist();
   if (active.includes('piloto'))  return loadPilot();
@@ -910,6 +925,7 @@ function go(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const tabs = {
+    brief:'📋 Brief diario',
     noticias:'Noticias',
     posiciones:'Posiciones', watchlist:'Watchlist',
     piloto:'🚀 Piloto',
@@ -918,6 +934,7 @@ function go(name) {
     .find(t => t.textContent.trim() === tabs[name]);
   btn?.classList.add('on');
   document.getElementById(`p-${name}`)?.classList.add('on');
+  if (name === 'brief')      loadBrief();
   if (name === 'noticias')   { loadAlerts(); loadNoticiasFilterSummary(); }
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
@@ -931,6 +948,108 @@ async function api(path, method = 'GET', body = null) {
   const r = await fetch(path, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+
+// ── Tab: Brief diario (decision support) ───────────────────────────────────────
+async function loadBrief(refresh = false) {
+  const body = document.getElementById('brief-body');
+  body.innerHTML = '<div style="color:var(--text3);padding:20px">'
+    + (refresh ? 'Regenerando narrativa con IA…' : 'Cargando brief…') + '</div>';
+  let d;
+  try { d = await api('/api/daily-brief' + (refresh ? '?refresh=true' : '')); }
+  catch (e) { body.innerHTML = '<div style="color:var(--red);padding:20px">No se pudo cargar el brief ('+e+')</div>'; return; }
+  renderBrief(d);
+}
+
+function _briefCard(title, value, sub, color) {
+  return `<div style="flex:1;min-width:160px;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:14px 16px">
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${esc(title)}</div>
+    <div style="font-size:18px;font-weight:600;margin-top:4px;color:${color||'var(--text1,#111)'}">${value}</div>
+    ${sub ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${sub}</div>` : ''}
+  </div>`;
+}
+
+function renderBrief(d) {
+  const asof = document.getElementById('brief-asof');
+  if (asof) asof.textContent = 'Datos: ' + (d.as_of || '—')
+    + (d.narrative ? '  ·  narrativa: ' + (d.narrative.generated_at || '—') + ' (' + (d.narrative.engine || '?') + ')' : '');
+
+  const n = d.narrative || {};
+  let h = '';
+
+  // ── Narrativa IA (resumen + atención) ──
+  h += `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-left:4px solid var(--accent,#4f46e5);border-radius:12px;padding:16px 18px;margin-bottom:16px">
+    <div style="font-size:14px;line-height:1.55;color:var(--text1,#111)">${esc(n.resumen || 'Sin narrativa disponible.')}</div>`;
+  if (n.atencion && n.atencion.length) {
+    h += `<div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">⚠ Atención hoy</div><ul style="margin:0;padding-left:18px">`;
+    h += n.atencion.map(a => `<li style="font-size:13px;line-height:1.5;margin-bottom:5px;color:var(--text1,#111)">${esc(a)}</li>`).join('');
+    h += `</ul>`;
+  }
+  h += `</div>`;
+
+  // ── Tarjetas de estado (régimen / centinela / sector) ──
+  const r = d.regime || {}, s = d.sentinel || {}, sec = d.sectors || {};
+  const regColor = r.risk_on ? 'var(--green)' : 'var(--red)';
+  const regTxt = (r.risk_on ? 'RISK-ON' : 'RISK-OFF') + (r.label ? ' · ' + esc(r.label) : '');
+  const senFired = (s.triggers || []).length > 0;
+  h += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">`;
+  h += _briefCard('Régimen macro', regTxt, r.use ? esc(r.use) : 'QQQ vs SMA200 ±3%', regColor);
+  h += _briefCard('Centinela macro',
+        senFired ? esc(s.triggers.join(' · ')) : 'Sin alertas',
+        senFired ? 'señal de riesgo activa' : 'mercado tranquilo hoy',
+        senFired ? 'var(--red)' : 'var(--green)');
+  if (sec.leader) {
+    h += _briefCard('Sectores',
+      `${esc(sec.leader.name)} <span style="color:var(--green)">${sec.leader.mom_pct>=0?'+':''}${sec.leader.mom_pct.toFixed(0)}%</span>`,
+      `más débil: ${esc(sec.laggard.name)} (${sec.laggard.mom_pct.toFixed(0)}%)`);
+  }
+  h += `</div>`;
+
+  // ── Posiciones ──
+  const pos = d.positions || [];
+  h += `<div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px 2px">Tus posiciones (${pos.length})</div>`;
+  if (!pos.length) {
+    h += `<div style="color:var(--text3);font-size:13px;margin-bottom:16px;padding-left:2px">Sin posiciones abiertas en eToro.</div>`;
+  } else {
+    h += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
+    for (const p of pos) {
+      const pnl = p.pnl_pct;
+      const pnlCol = pnl == null ? 'var(--text3)' : (pnl >= 0 ? 'var(--green)' : 'var(--red)');
+      let flag = '', flagCol = 'var(--text3)';
+      if (p.exit_signal) { flag = '⚠ SEÑAL DE SALIDA: ' + esc(p.exit_reason || ''); flagCol = 'var(--red)'; }
+      else if (p.intraday_breach) { flag = 'Precio bajo el stop intradía (regla confirma al cierre)'; flagCol = 'var(--yellow)'; }
+      else if (p.stop_dist_pct != null && p.stop_dist_pct < 5) { flag = 'Cerca del stop'; flagCol = 'var(--yellow)'; }
+      h += `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="font-weight:700;font-size:15px;min-width:56px">${esc(p.ticker)}</div>
+        <div style="font-size:11px;color:var(--text3);background:var(--bg2,#f3f4f6);padding:2px 8px;border-radius:6px">${esc(p.strategy)}</div>
+        <div style="font-weight:600;color:${pnlCol};min-width:64px">${pnl==null?'—':(pnl>=0?'+':'')+pnl.toFixed(1)+'%'}</div>
+        ${p.stop_dist_pct!=null ? `<div style="font-size:12px;color:var(--text3)">${p.stop_dist_pct.toFixed(1)}% del stop${p.stop_price?` ($${p.stop_price})`:''}</div>` : ''}
+        ${p.earnings ? `<div style="font-size:11px;color:var(--blue)">📊 earnings</div>` : ''}
+        ${flag ? `<div style="font-size:12px;font-weight:600;color:${flagCol};margin-left:auto">${flag}</div>` : ''}
+      </div>`;
+    }
+    h += `</div>`;
+  }
+
+  // ── Oportunidades (líderes Marea fuera de cartera) ──
+  const opp = d.opportunities || [];
+  if (opp.length) {
+    h += `<div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px 2px">Líderes Marea fuera de cartera</div>`;
+    h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">`;
+    for (const o of opp) {
+      const tags = [];
+      if (o.is_top) tags.push('⭐TOP');
+      if (o.is_breakout) tags.push('breakout');
+      h += `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:10px 12px">
+        <span style="font-weight:700">${esc(o.ticker)}</span>
+        <span style="font-size:11px;color:var(--text3)"> #${o.rank ?? '?'} · ${tags.join(' ')}</span>
+        ${o.sector_name?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(o.sector_name)} #${o.sector_rank}/${o.sector_total}${o.size_pct?` · ~${o.size_pct.toFixed(0)}%`:''}</div>`:''}
+      </div>`;
+    }
+    h += `</div>`;
+  }
+
+  document.getElementById('brief-body').innerHTML = h;
 }
 
 // ── Tab: Piloto (momentum swing, paper) ────────────────────────────────────────

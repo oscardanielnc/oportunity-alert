@@ -243,6 +243,20 @@ def get_pilot(_: str = Depends(_require_auth)):
         return {"available": False, "error": str(e)}
 
 
+@app.get("/api/daily-brief")
+def get_daily_brief(
+    refresh: bool = Query(False, description="Regenera la narrativa IA (ignora cache del día)"),
+    _: str = Depends(_require_auth),
+):
+    """
+    Brief Diario: consolida régimen + centinela macro + sectores + posiciones cerca
+    de su chandelier + líderes Marea, y lo redacta con Gemini (cacheado 1 vez/día).
+    Decision support — NO da órdenes de compra/venta. Ver utils/daily_brief.py.
+    """
+    from utils.daily_brief import get_brief
+    return get_brief(force_narrative=refresh)
+
+
 @app.get("/api/equity-history")
 def get_equity_history_api(
     days: int = Query(365, ge=1, le=730),
