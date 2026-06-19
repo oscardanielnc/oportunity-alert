@@ -712,6 +712,7 @@ class MetricsStore:
         hours: int = 24,
         prioridad: str = None,
         ticker: str = None,
+        sort: str = "score",
     ) -> list:
         cutoff = (datetime.now(LIMA) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S")
         filters = ["ts >= ?"]
@@ -766,6 +767,14 @@ class MetricsStore:
             except Exception:
                 pass
             results.append(row)
+        # Orden final (2 modos, ts es ISO → orden lexicográfico = cronológico):
+        #   "score" (defecto): puntaje IA descendente (10, 9, 8…) y, dentro de cada
+        #            puntaje, por hora descendente. Más granular que ALTA/MEDIA/BAJA.
+        #   "date":  solo por hora descendente (más reciente primero, sin importar score).
+        if sort == "date":
+            results.sort(key=lambda r: r.get("ts") or "", reverse=True)
+        else:
+            results.sort(key=lambda r: (r.get("score_ia") or 0, r.get("ts") or ""), reverse=True)
         return results
 
     def get_latest_positions(self) -> list:

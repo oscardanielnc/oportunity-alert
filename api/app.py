@@ -179,9 +179,10 @@ def get_alerts(
     hours:     int           = Query(24, ge=1, le=168),
     prioridad: Optional[str] = Query(None),
     ticker:    Optional[str] = Query(None),
+    sort:      str           = Query("score", description="score = puntaje+fecha; date = solo fecha"),
     _: str = Depends(_require_auth),
 ):
-    return _metrics.get_alerts_recent(hours=hours, prioridad=prioridad, ticker=ticker)
+    return _metrics.get_alerts_recent(hours=hours, prioridad=prioridad, ticker=ticker, sort=sort)
 
 
 @app.get("/api/positions")
@@ -255,6 +256,20 @@ def get_daily_brief(
     """
     from utils.daily_brief import get_brief
     return get_brief(force_narrative=refresh)
+
+
+@app.get("/api/trump")
+def get_trump_feed(
+    limit: int = Query(20, ge=1, le=40),
+    _: str = Depends(_require_auth),
+):
+    """
+    Radar de declaraciones de Trump que pueden mover el mercado. El sistema (main.py)
+    las detecta en los feeds existentes y las resume con IA en background; este endpoint
+    solo LEE el feed cacheado (cero IA en la visita). Ver utils/trump_tracker.py.
+    """
+    from utils.trump_tracker import get_feed
+    return get_feed(limit=limit)
 
 
 @app.get("/api/equity-history")

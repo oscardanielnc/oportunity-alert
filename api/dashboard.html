@@ -591,6 +591,7 @@ tbody tr:hover { background: #fafafb; }
     <div class="sb-tag">Panel de inversiones</div>
     <nav class="sb-nav">
       <button class="tab"     onclick="go('brief')">📋 Brief diario</button>
+      <button class="tab"     onclick="go('trump')">🇺🇸 Trump</button>
       <button class="tab on"  onclick="go('noticias')">Noticias</button>
       <button class="tab"     onclick="go('posiciones')">Posiciones</button>
       <button class="tab"     onclick="go('watchlist')">Watchlist</button>
@@ -632,13 +633,29 @@ tbody tr:hover { background: #fafafb; }
     <div id="p-brief" class="panel">
       <div style="font-size:11px;color:var(--text3);margin:0 0 10px 2px">
         🧭 Resumen pre-market · <b>decision support</b> — consolida régimen, centinela macro, sectores y tus posiciones.
-        NO da órdenes de compra/venta: tú decides. Redactado por IA (Haiku), 1 vez al día.
+        NO da órdenes de compra/venta: tú decides. La narrativa se genera en <b>background</b>
+        (cada mañana pre-market y cuando salta una noticia ALTA); abrir esta página solo lee la
+        última generación — no invoca a la IA. Usa <b>↻ Regenerar</b> si quieres forzar una nueva.
       </div>
       <div class="filter-row" style="margin-bottom:12px">
         <span id="brief-asof" style="font-size:12px;color:var(--text3)">—</span>
-        <button class="btn-ghost" onclick="loadBrief(true)" title="Regenerar la narrativa con datos frescos">↻ Regenerar narrativa</button>
+        <button class="btn-ghost" onclick="loadBrief(true)" title="Forzar una narrativa nueva con datos frescos (llama a la IA ahora)">↻ Regenerar narrativa</button>
       </div>
       <div id="brief-body"><div style="color:var(--text3);padding:20px">Cargando brief…</div></div>
+    </div>
+
+    <!-- ===== TRUMP ===== -->
+    <div id="p-trump" class="panel">
+      <div style="font-size:11px;color:var(--text3);margin:0 0 10px 2px">
+        🇺🇸 <b>Radar Trump</b> — declaraciones del presidente que pueden mover el mercado, detectadas
+        en los feeds de noticias y resumidas por IA: <b>qué dijo</b>, <b>qué significa</b> y la
+        <b>acción concreta</b> que podrías evaluar según tu watchlist y tus posiciones. Decision support — tú decides.
+      </div>
+      <div class="filter-row" style="margin-bottom:12px">
+        <span id="trump-asof" style="font-size:12px;color:var(--text3)">—</span>
+        <button class="btn-ghost" onclick="loadTrump()" title="Recargar el radar">↻ Actualizar</button>
+      </div>
+      <div id="trump-body"><div style="color:var(--text3);padding:20px">Cargando radar…</div></div>
     </div>
 
     <!-- ===== NOTICIAS ===== -->
@@ -664,6 +681,11 @@ tbody tr:hover { background: #fafafb; }
           <option value="ALTA">7-10 (SMS)</option>
           <option value="MEDIA">4-6 (log)</option>
           <option value="BAJA">1-3 (bajo)</option>
+        </select>
+        <label>Orden:</label>
+        <select class="sel" id="f-sort" onchange="loadAlerts()">
+          <option value="score" selected>Puntaje y fecha</option>
+          <option value="date">Solo fecha (recientes)</option>
         </select>
         <input class="inp inp-ticker" id="f-ticker" type="text"
                placeholder="Buscar ticker…" maxlength="6"
@@ -910,11 +932,15 @@ async function updateTopbar() {
   } catch {}
 }
 
+// El auto-refresh (cada 60s) llama con silent=true: NO vacía el contenedor con
+// skeletons antes de pedir datos, solo intercambia el contenido cuando llega
+// la respuesta. Así el refresh es imperceptible y no salta el scroll al inicio.
 function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
-  if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(); }
-  if (active.includes('brief'))   return loadBrief();
-  if (active === 'posiciones')   return loadPositions();
+  if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(true); }
+  if (active.includes('brief'))   return loadBrief(false, true);
+  if (active.includes('trump'))   return loadTrump(true);
+  if (active === 'posiciones')   return loadPositions(true);
   if (active === 'watchlist')    return loadWatchlist();
   if (active.includes('piloto'))  return loadPilot();
   return Promise.resolve();
@@ -925,7 +951,7 @@ function go(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const tabs = {
-    brief:'📋 Brief diario',
+    brief:'📋 Brief diario', trump:'🇺🇸 Trump',
     noticias:'Noticias',
     posiciones:'Posiciones', watchlist:'Watchlist',
     piloto:'🚀 Piloto',
@@ -935,6 +961,7 @@ function go(name) {
   btn?.classList.add('on');
   document.getElementById(`p-${name}`)?.classList.add('on');
   if (name === 'brief')      loadBrief();
+  if (name === 'trump')      loadTrump();
   if (name === 'noticias')   { loadAlerts(); loadNoticiasFilterSummary(); }
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
@@ -951,10 +978,14 @@ async function api(path, method = 'GET', body = null) {
 }
 
 // ── Tab: Brief diario (decision support) ───────────────────────────────────────
-async function loadBrief(refresh = false) {
+async function loadBrief(refresh = false, silent = false) {
   const body = document.getElementById('brief-body');
-  body.innerHTML = '<div style="color:var(--text3);padding:20px">'
-    + (refresh ? 'Regenerando narrativa con IA…' : 'Cargando brief…') + '</div>';
+  // En refresh silencioso (auto cada 60s) mantenemos el contenido actual hasta que
+  // lleguen los datos. Solo mostramos el aviso en carga inicial o refresh manual.
+  if (!silent || refresh) {
+    body.innerHTML = '<div style="color:var(--text3);padding:20px">'
+      + (refresh ? 'Regenerando narrativa con IA…' : 'Cargando brief…') + '</div>';
+  }
   let d;
   try { d = await api('/api/daily-brief' + (refresh ? '?refresh=true' : '')); }
   catch (e) { body.innerHTML = '<div style="color:var(--red);padding:20px">No se pudo cargar el brief ('+e+')</div>'; return; }
@@ -970,16 +1001,21 @@ function _briefCard(title, value, sub, color) {
 }
 
 function renderBrief(d) {
+  const n = d.narrative || {};
+  const pending = n.pending || !n.generated_at;
   const asof = document.getElementById('brief-asof');
   if (asof) asof.textContent = 'Datos: ' + (d.as_of || '—')
-    + (d.narrative ? '  ·  narrativa: ' + (d.narrative.generated_at || '—') + ' (' + (d.narrative.engine || '?') + ')' : '');
+    + (pending ? '  ·  narrativa: aún no generada (se crea en background)'
+               : '  ·  generada: ' + (n.generated_at || '—') + ' (' + (n.engine || '?') + ')');
 
-  const n = d.narrative || {};
   let h = '';
 
   // ── Narrativa IA (resumen + atención) ──
+  const resumenTxt = n.resumen
+    || (pending ? 'La narrativa del día se está generando en background (cada mañana pre-market y cuando salta una noticia ALTA). Vuelve en un momento o pulsa ↻ Regenerar para forzarla ahora.'
+                : 'Sin narrativa disponible.');
   h += `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-left:4px solid var(--accent,#4f46e5);border-radius:12px;padding:16px 18px;margin-bottom:16px">
-    <div style="font-size:14px;line-height:1.55;color:var(--text1,#111)">${esc(n.resumen || 'Sin narrativa disponible.')}</div>`;
+    <div style="font-size:14px;line-height:1.55;color:var(--text1,#111)">${esc(resumenTxt)}</div>`;
   if (n.atencion && n.atencion.length) {
     h += `<div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">⚠ Atención hoy</div><ul style="margin:0;padding-left:18px">`;
     h += n.atencion.map(a => `<li style="font-size:13px;line-height:1.5;margin-bottom:5px;color:var(--text1,#111)">${esc(a)}</li>`).join('');
@@ -1283,14 +1319,72 @@ async function loadPilot() {
       : '<tr><td colspan="5" style="color:var(--text3)">Aún sin trades cerrados</td></tr>';
 }
 
+// ── Tab: Trump (radar de declaraciones que mueven el mercado) ─────────────────
+const TRUMP_IMPACT = {
+  alcista:  { col:'var(--green)',  bg:'rgba(34,197,94,.14)',  icon:'📈', label:'ALCISTA' },
+  bajista:  { col:'var(--red)',    bg:'rgba(239,68,68,.14)',  icon:'📉', label:'BAJISTA' },
+  mixto:    { col:'var(--yellow)', bg:'rgba(234,179,8,.16)',  icon:'↔️', label:'MIXTO'   },
+  incierto: { col:'var(--text3)',  bg:'var(--bg2,#f3f4f6)',   icon:'❓', label:'INCIERTO'},
+};
+
+async function loadTrump(silent = false) {
+  const body = document.getElementById('trump-body');
+  if (!silent) body.innerHTML = '<div style="color:var(--text3);padding:20px">Cargando radar…</div>';
+  let d;
+  try { d = await api('/api/trump?limit=20'); }
+  catch (e) { body.innerHTML = `<div style="color:var(--red);padding:20px">No se pudo cargar el radar (${esc(String(e))})</div>`; return; }
+
+  const items = (d && d.items) || [];
+  const asof = document.getElementById('trump-asof');
+  if (asof) asof.textContent = items.length
+    ? `${items.length} declaración${items.length===1?'':'es'} · última: ${items[0].ts ? items[0].ts.replace('T',' ') : '—'}`
+    : 'Sin declaraciones detectadas todavía';
+
+  if (!items.length) {
+    body.innerHTML = `<div class="empty" style="padding:24px"><strong>Sin señales de Trump por ahora</strong>
+      El sistema vigila los feeds de noticias y mostrará aquí cualquier declaración con
+      potencial de mover tus acciones o el mercado. Se actualiza en background.</div>`;
+    return;
+  }
+  body.innerHTML = items.map(renderTrump).join('');
+}
+
+function renderTrump(t) {
+  const m = TRUMP_IMPACT[(t.impacto||'incierto').toLowerCase()] || TRUMP_IMPACT.incierto;
+  const scopeTxt = { ticker:'acción', sector:'sector', macro:'macro' }[(t.alcance||'').toLowerCase()] || (t.alcance||'');
+  const chips = (t.tickers||[]).map(tk =>
+    `<span style="font-size:11px;font-weight:700;background:var(--bg2,#f3f4f6);color:var(--text1,#111);border-radius:5px;padding:2px 7px">${esc(tk)}</span>`).join(' ');
+  const when = t.ts ? t.ts.replace('T',' ') : '';
+  const link = t.url
+    ? `<a href="${esc(t.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px;text-decoration:none">ver fuente ↗</a>` : '';
+  return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-left:4px solid ${m.col};border-radius:12px;padding:16px 18px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:11px;font-weight:700;color:${m.col};background:${m.bg};border-radius:6px;padding:3px 9px">${m.icon} ${m.label}</span>
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${esc(scopeTxt)}</span>
+      ${chips}
+      <span style="font-size:11px;color:var(--text3);margin-left:auto">${esc(when)}</span>
+    </div>
+    <div style="font-size:13px;font-style:italic;color:var(--text2);margin-bottom:10px;line-height:1.5">🗣 "${esc(t.headline||'')}"</div>
+    ${t.resumen ? `<div style="font-size:14px;line-height:1.55;color:var(--text1,#111);margin-bottom:8px">${esc(t.resumen)}</div>` : ''}
+    ${t.significado ? `<div style="font-size:13px;line-height:1.5;color:var(--text2);margin-bottom:8px"><b style="color:var(--text1,#111)">Qué significa:</b> ${esc(t.significado)}</div>` : ''}
+    ${t.accion ? `<div style="font-size:13px;line-height:1.5;background:var(--bg2,#f6f7f9);border-radius:8px;padding:10px 12px;color:var(--text1,#111)"><b>🎯 Acción:</b> ${esc(t.accion)}</div>` : ''}
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text3)">
+      ${t.source ? `<span>${esc(t.source)}</span>` : ''}${link}
+      <span style="margin-left:auto">${esc(t.engine||'')}</span>
+    </div>
+  </div>`;
+}
+
 // ── Tab: Noticias ─────────────────────────────────────────────────────────────
-async function loadAlerts() {
+async function loadAlerts(silent = false) {
   const el  = document.getElementById('alerts-list');
   const hrs = document.getElementById('f-hours').value;
   const pri = document.getElementById('f-prio').value;
   const tk  = document.getElementById('f-ticker').value.trim().toUpperCase();
-  el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
-  let url = `/api/alerts?hours=${hrs}`;
+  const srt = document.getElementById('f-sort').value;
+  // silent (auto-refresh): no vaciar la lista con skeletons, evita el flash y el salto de scroll.
+  if (!silent) el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  let url = `/api/alerts?hours=${hrs}&sort=${srt}`;
   if (pri) url += `&prioridad=${pri}`;
   if (tk)  url += `&ticker=${tk}`;
   try {
@@ -1413,9 +1507,10 @@ async function loadEquityCurve() {
   } catch (e) { el.innerHTML = ''; }
 }
 
-async function loadPositions() {
+async function loadPositions(silent = false) {
   const grid = document.getElementById('pos-grid');
-  grid.innerHTML = '<div class="skeleton" style="height:140px"></div><div class="skeleton" style="height:140px"></div>';
+  // silent (auto-refresh): no vaciar el grid con skeletons, evita el flash y el salto de scroll.
+  if (!silent) grid.innerHTML = '<div class="skeleton" style="height:140px"></div><div class="skeleton" style="height:140px"></div>';
   loadEquityCurve();
   try {
     const { positions, snapshot_ts } = await api('/api/positions');

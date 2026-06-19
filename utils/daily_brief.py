@@ -11,9 +11,10 @@ Lo horario es costo + ruido (validado: el kill-switch reactivo whipsapea, ver
 research/backtest_marea_killswitch.py). Todo el dato duro es código ya existente;
 la IA es solo capa de redacción y se CACHEA 1 vez por día (Lima) para no re-llamar.
 
-build_brief()  -> dict estructurado (cero IA, best-effort, nunca lanza)
-narrative(d)   -> {"resumen", "atencion": [...]} redactado por Gemini, cacheado/día
-get_brief()    -> build_brief() + narrative, listo para el endpoint
+build_brief()        -> dict estructurado (cero IA, best-effort, nunca lanza)
+generate_narrative() -> redacta con IA y CACHEA (camino caro; solo background/manual)
+regenerate()         -> build + generate_narrative, refresca cache (background AM + ALTA)
+get_brief()          -> build + ÚLTIMA narrativa cacheada (visita: NO llama IA)
 """
 from __future__ import annotations
 
@@ -262,18 +263,23 @@ def _save_cache(payload: dict) -> None:
         logger.warning(f"[DailyBrief] no pude cachear narrativa: {e}")
 
 
-def narrative(brief: dict, force: bool = False) -> dict:
+def _read_cached_narrative() -> dict | None:
+    """Narrativa cacheada (la última generada, sea de hoy o de días previos). None si nunca se generó."""
+    cache = _load_cache()
+    if cache.get("resumen"):
+        return {k: cache[k] for k in ("resumen", "atencion", "generated_at", "engine", "date")
+                if k in cache}
+    return None
+
+
+def generate_narrative(brief: dict) -> dict:
     """
-    Redacta el brief con Gemini. Cachea 1 vez por día (Lima): la narrativa pre-market
-    se reusa todo el día salvo force=True (botón "regenerar"). Cae a un resumen por
-    código si la IA no está disponible — el brief nunca se queda sin texto.
+    Redacta el brief con la IA y CACHEA el resultado. Esta función SIEMPRE llama a la
+    IA (es el camino caro) — solo debe invocarse desde el background (loop AM + evento
+    ALTA) o desde el botón manual "regenerar". Las visitas a la página NO la llaman:
+    sirven _read_cached_narrative(). Cae a un resumen por código si la IA no responde.
     """
     today = _today_lima()
-    cache = _load_cache()
-    if not force and cache.get("date") == today and cache.get("resumen"):
-        return {k: cache[k] for k in ("resumen", "atencion", "generated_at", "engine")
-                if k in cache}
-
     import os as _os
     # Motor BARATO (el brief es 1 llamada/día — Oscar pidió modelo barato, 2026-06-17):
     #   - engine: DAILY_BRIEF_ENGINE > AI_ENGINE del sistema > gemini.
@@ -316,7 +322,7 @@ def narrative(brief: dict, force: bool = False) -> dict:
         "engine": engine,
     }
     _save_cache(payload)
-    return {k: payload[k] for k in ("resumen", "atencion", "generated_at", "engine")}
+    return {k: payload[k] for k in ("resumen", "atencion", "generated_at", "engine", "date")}
 
 
 def _fallback_narrative(brief: dict) -> tuple:
@@ -343,12 +349,53 @@ _struct_cache: dict = {"ts": 0.0, "payload": None}
 
 
 def get_brief(force_narrative: bool = False) -> dict:
-    """Brief completo para el endpoint: datos + narrativa. Cacheado 5 min (bypass con force)."""
-    if (not force_narrative and _struct_cache["payload"] is not None
+    """
+    Brief para el endpoint (cada visita). Por defecto NO llama a la IA: ensambla los
+    datos duros (cero IA) y adjunta la ÚLTIMA narrativa cacheada — la que generó el
+    background (loop AM o evento ALTA). Así abrir la página es instantáneo y gratis;
+    se lee la generación previa durante todo el día hasta que el background la renueve.
+
+    force_narrative=True (botón manual "regenerar") SÍ dispara una generación on-demand.
+    """
+    if force_narrative:
+        return regenerate(reason="manual (botón regenerar)")
+
+    # Camino normal (visita): datos frescos + narrativa cacheada. Struct-cache 5 min
+    # para no re-disparar los fetches en vivo del centinela (QQQ/SPY) en cada refresh.
+    if (_struct_cache["payload"] is not None
             and time.time() - _struct_cache["ts"] < _STRUCT_TTL):
         return _struct_cache["payload"]
     brief = build_brief()
-    brief["narrative"] = narrative(brief, force=force_narrative)
+    cached = _read_cached_narrative()
+    brief["narrative"] = cached or {
+        "resumen": "", "atencion": [], "generated_at": None, "engine": None, "pending": True,
+    }
     _struct_cache["ts"] = time.time()
     _struct_cache["payload"] = brief
     return brief
+
+
+def regenerate(reason: str = "") -> dict:
+    """
+    Regenera la narrativa con IA y refresca el struct-cache. Punto de entrada del
+    background (loop AM + evento ALTA) y del botón manual. Best-effort: nunca lanza.
+    """
+    brief = build_brief()
+    try:
+        brief["narrative"] = generate_narrative(brief)
+        logger.info(f"[DailyBrief] narrativa regenerada ({reason}) → "
+                    f"{brief['narrative'].get('generated_at')} [{brief['narrative'].get('engine')}]")
+    except Exception as e:
+        logger.warning(f"[DailyBrief] regenerate falló ({reason}): {e}")
+        brief["narrative"] = _read_cached_narrative() or {
+            "resumen": "", "atencion": [], "generated_at": None, "engine": None, "pending": True,
+        }
+    _struct_cache["ts"] = time.time()
+    _struct_cache["payload"] = brief
+    return brief
+
+
+def has_narrative_today() -> bool:
+    """True si ya existe narrativa cacheada generada HOY (Lima). Lo usa el loop AM."""
+    cache = _load_cache()
+    return bool(cache.get("resumen") and cache.get("date") == _today_lima())

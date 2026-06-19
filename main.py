@@ -338,6 +338,17 @@ def process_article(
 ) -> None:
     article_id = article.get("id", "")
 
+    # Radar Trump (2026-06-18): chequeo barato sobre TODO artículo (con dedup propio).
+    # Va ANTES del filtro de watchlist para no perder declaraciones macro de Trump que
+    # no nombran un ticker del universo (guerra/tariffs/Fed). El gate por keywords
+    # descarta en <1ms lo que no menciona a Trump.
+    try:
+        from utils import trump_tracker
+        if trump_tracker.mentions_trump(article):
+            trump_tracker.capture_headline(article, watchlist=watchlist, held=_held_tickers())
+    except Exception:
+        pass
+
     if dedup.is_seen(article_id):
         with _stats_lock:
             _stats["dedup"] += 1
@@ -692,6 +703,11 @@ def process_article(
                 "sms_sent": sms_enviado, "event_mode": event_mode,
             })
 
+    # Brief en background: una noticia ALTA es "algo que vale la pena mostrar" → regenera
+    # la narrativa del Brief Diario (throttled, en thread aparte: no bloquea el pipeline).
+    if prioridad == "ALTA":
+        _trigger_brief_regen(f"evento ALTA: {ticker}")
+
     dedup.mark_seen(article_id, source)
 
 
@@ -746,6 +762,15 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
                     process_article(article, live_wl, dedup, config, **kwargs)
             market_articles = fetch_market_news()
             for article in market_articles:
+                # Radar Trump sobre la noticia de MERCADO general (antes del filtro de
+                # ticker): aquí aparecen las declaraciones macro de Trump (tariffs, guerra,
+                # Fed) que no nombran un ticker del universo y que process_article saltaría.
+                try:
+                    from utils import trump_tracker
+                    if trump_tracker.mentions_trump(article):
+                        trump_tracker.capture_headline(article, watchlist=live_wl, held=_held_tickers())
+                except Exception:
+                    pass
                 if not article.get("tickers_found"):
                     from filters.keyword_filter import extract_tickers_from_text
                     article["tickers_found"] = extract_tickers_from_text(
@@ -1647,6 +1672,65 @@ def market_sentinel_loop(config, twilio_to: str):
         time.sleep(interval)
 
 
+# ── Brief Diario en background ────────────────────────────────────────────────
+# La narrativa del Brief la genera SOLO el background — nunca una visita a la página
+# (eso disparaba 1 llamada IA por apertura). Dos disparadores: (1) cada mañana
+# pre-market; (2) cuando salta una noticia ALTA (algo que vale la pena mostrar),
+# con throttle para no re-llamar a la IA en cada alerta de un día movido.
+BRIEF_AM_HOUR = 6
+BRIEF_AM_MINUTE = 30
+BRIEF_REGEN_MIN_INTERVAL = 1200   # 20 min mínimo entre regeneraciones por evento
+
+_brief_regen_last = 0.0
+_brief_regen_lock = threading.Lock()
+
+
+def _trigger_brief_regen(reason: str):
+    """Regenera el Brief en un thread aparte (throttled). No bloquea el pipeline de noticias."""
+    global _brief_regen_last
+    with _brief_regen_lock:
+        if time.time() - _brief_regen_last < BRIEF_REGEN_MIN_INTERVAL:
+            return
+        _brief_regen_last = time.time()
+
+    def _run():
+        try:
+            from utils.daily_brief import regenerate
+            regenerate(reason=reason)
+        except Exception as e:
+            logger.warning(f"[DailyBrief] regen background falló ({reason}): {e}")
+
+    threading.Thread(target=_run, name="BriefRegen", daemon=True).start()
+
+
+def daily_brief_loop():
+    """
+    Genera el Brief Diario en background: 1 vez al arrancar (si no hay narrativa de hoy)
+    y cada mañana ~06:30 Lima (pre-market). Las visitas a la página solo LEEN este cache.
+    """
+    from utils.daily_brief import regenerate, has_narrative_today
+    try:
+        if not has_narrative_today():
+            regenerate(reason="arranque del sistema")
+    except Exception as e:
+        logger.warning(f"[DailyBrief] generación de arranque falló: {e}")
+    _beat("DailyBrief", 24 * 3600)
+
+    while True:
+        now = datetime.now(LIMA)
+        target = now.replace(hour=BRIEF_AM_HOUR, minute=BRIEF_AM_MINUTE, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        wait_secs = (target - now).total_seconds()
+        logger.info(f"[DailyBrief] próxima generación AM en {wait_secs/3600:.1f}h (06:30 Lima)")
+        time.sleep(wait_secs)
+        try:
+            regenerate(reason="pre-market AM")
+        except Exception as e:
+            logger.error(f"[DailyBrief] generación AM falló: {e}")
+        _beat("DailyBrief", 24 * 3600)
+
+
 # ── Comando status ────────────────────────────────────────────────────────────
 
 def show_status():
@@ -1737,6 +1821,9 @@ def main():
     start_worker()
     logger.info("DelayedAlerts worker iniciado")
 
+    from utils import trump_tracker
+    trump_tracker.start_worker()   # worker de resúmenes IA del radar Trump
+
     _load_weekend_queue()   # recargar oportunidades acumuladas si hubo reinicio
 
     # Pre-warm del mapa símbolo→instrumentId de eToro en un thread aparte: la 1ª llamada
@@ -1779,6 +1866,7 @@ def main():
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
+        ("DailyBrief",       daily_brief_loop,         (),                            {}),
         ("Dashboard",        run_dashboard,            (),                            {}),
     ]
     logger.info("Fuentes activas: EDGAR, AlpacaNews (Benzinga/WS), Finnhub, PositionTracker, GapScanner, MacroSentinel (Reddit desactivado; PreMarket archivado)")
