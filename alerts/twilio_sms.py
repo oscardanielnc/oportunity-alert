@@ -39,6 +39,16 @@ def _create_with_retry(create_fn, context: str) -> bool:
     return None
 
 
+def _send_callmebot(body: str) -> bool:
+    """Envía via CallMeBot (WhatsApp gratis). Import perezoso: no es dependencia dura."""
+    try:
+        from alerts.callmebot_whatsapp import send_message
+        return send_message(body)
+    except Exception as e:
+        logger.warning(f"[CallMeBot] no disponible: {e}")
+        return False
+
+
 def _get_twilio_client():
     try:
         from twilio.rest import Client
@@ -135,6 +145,15 @@ def send_raw_message(body: str, to_number: str) -> bool:
       position_tracker, event_mode, pre-market scanner, weekend_digest, heartbeat.
     """
     channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
+
+    # CallMeBot (WhatsApp gratis) con FALLBACK a Twilio: si CallMeBot no confirma el
+    # envío, degradamos a WhatsApp de Twilio para no perder la alerta.
+    if channel == "callmebot":
+        if _send_callmebot(body):
+            return True
+        logger.warning("[CallMeBot] sin confirmación — fallback a Twilio WhatsApp")
+        channel = "whatsapp"
+
     client  = _get_twilio_client()
     if not client:
         return False
@@ -165,12 +184,21 @@ def send_sms(result: dict, from_number: str, to_number: str) -> bool:
     """
     Envía alerta via el canal configurado: WhatsApp (preferido) o SMS.
     Canal seleccionado por variable de entorno NOTIFICATION_CHANNEL:
-      'whatsapp' → WhatsApp sandbox de Twilio (recomendado para Peru)
-      'sms'      → SMS directo (puede fallar con carriers internacionales)
-      'both'     → intenta WhatsApp primero, SMS como fallback
+      'callmebot' → WhatsApp via CallMeBot (gratis), con fallback a Twilio WhatsApp
+      'whatsapp'  → WhatsApp sandbox de Twilio (recomendado para Peru)
+      'sms'       → SMS directo (puede fallar con carriers internacionales)
+      'both'      → intenta WhatsApp primero, SMS como fallback
     Por defecto usa WhatsApp si no está configurado.
     """
     channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
+
+    if channel == "callmebot":
+        # CallMeBot con fallback a Twilio WhatsApp si no confirma (no perder la alerta).
+        if _send_callmebot(format_sms(result)):
+            logger.info(f"WhatsApp (CallMeBot) enviado: {result.get('ticker')} {result.get('prioridad')}")
+            return True
+        logger.warning("[CallMeBot] sin confirmación — fallback a Twilio WhatsApp")
+        return _send_whatsapp(result, to_number)
 
     if channel == "whatsapp":
         return _send_whatsapp(result, to_number)

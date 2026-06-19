@@ -100,16 +100,13 @@ def _on_failure(status_code: int = 0) -> str:
 
 
 def _notify_token_expired():
-    """Envía SMS de alerta cuando el token de eToro expira."""
+    """Avisa cuando el token de eToro expira. Usa el sender compartido (respeta
+    NOTIFICATION_CHANNEL: callmebot/whatsapp/sms, con fallback)."""
     try:
         import os
-        from twilio.rest import Client as TwilioClient
-        sid   = os.environ.get("TWILIO_ACCOUNT_SID", "")
-        token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-        to    = os.environ.get("TWILIO_TO", "")
-        channel = os.environ.get("NOTIFICATION_CHANNEL", "whatsapp").lower()
-        if not (sid and token and to):
-            logger.error("[eToro] Token expirado — no hay Twilio configurado para notificar")
+        to = os.environ.get("TWILIO_TO", "")
+        if not to:
+            logger.error("[eToro] Token expirado — no hay destinatario (TWILIO_TO) para notificar")
             return
         body = (
             "ALERTA OportunityAlert:\n"
@@ -119,14 +116,11 @@ def _notify_token_expired():
             "2. Reemplaza user_key con nuevo token de sesion\n"
             "El sistema sigue funcionando sin eToro (gates 1-3 activos)."
         )
-        client = TwilioClient(sid, token)
-        from_wa = "whatsapp:+14155238886"
-        if channel == "whatsapp":
-            client.messages.create(body=body, from_=from_wa, to=f"whatsapp:{to}")
+        from alerts.twilio_sms import send_raw_message
+        if send_raw_message(body, to):
+            logger.error("[eToro] Aviso de token expirado enviado a Oscar")
         else:
-            from_ = os.environ.get("TWILIO_FROM", "")
-            client.messages.create(body=body, from_=from_, to=to)
-        logger.error("[eToro] SMS de token expirado enviado a Oscar")
+            logger.error("[eToro] No pudo enviarse el aviso de token expirado")
     except Exception as e:
         logger.error(f"[eToro] No pudo notificar token expirado: {e}")
 
