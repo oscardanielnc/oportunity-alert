@@ -59,7 +59,39 @@ PRECIO** (RVOL/breakout intradía), sin IA.
 - Ojo: alto ruido — exige validación de edge neto-de-fees antes de operar (lección Watcher/pre-market).
 - **No iniciar hasta cerrar el brazo Noticias.**
 
+### VALIDACIÓN 1 (hecho 2026-06-20, `research/momentum_backtest.py`, 67 tickers, fee_rt 0.2%):
+- Saltos **chicos (2% anormal/30m) = SIN edge** (fwd neto ~0/negativo, win 44-49%) — ruido.
+- Saltos **grandes (>=5% anormal + RVOL>=2) = SÍ continúan**: fwd neto **+1.0% en 1-2h, win ~60%**,
+  exceso vs QQQ ~+1% (edge real, no beta). UP y DOWN. La tesis "los grandes siguen" se sostiene.
+- ⚠️ Muestra chica (n~50-70), un régimen. El edge (~1%) es delgado vs costo de ejecución real
+  (spreads eToro en small-caps pueden comérselo). **Make-or-break = venue/liquidez.**
+- PENDIENTE antes de construir: (a) más historia/muestra + OOS, (b) spread real por ticker,
+  (c) cuáles están en Binance perp (fee ~0.05%) para rutear ahí; (d) sensibilidad al fee.
+
 ---
+
+## SCORE DE ACCIÓN (reemplaza el score de convicción — `utils/signal_score.py`)
+El score de convicción (0-7) NO predice la reacción → se deja de MOSTRAR y de DECIDIR (confunde).
+Se REUTILIZA el campo `conviction_score` con un nuevo cálculo 0-10:
+`score = categoria(0-6) + frescura(0-2) + confirmacion_precio(0-2)`.
+- categoria: contrato/gobierno/FDA=6, oferta/lease/partnership=5, M&A=4, earnings/upgrade-real/regFD=3,
+  8-K/otro=2, sector=1, PT-maintains/votación=0 (ya filtrados).
+- frescura: age<=15min=2, <=60=1, >60=0.  confirmacion: precio ya se mueve en la dirección=2/1/0.
+Cero cambio de esquema; solo cambia quién alimenta el campo. PENDIENTE: cablear en `main.process_article`
+(que el `conviction_score` salga de aquí) + ordenar dashboard por este score + quitar el viejo de la UI.
+
+## REGLA DE SMS (qué se envía)
+Decisión Oscar: enviar todo lo bueno; suprimir lo de <1% de impacto esperado. Como aún no se puede
+predecir el % por-noticia (lo aprenderá el scoreboard forward), se aproxima por categoría: las de
+impacto ~0 (PT-maintains, sector, votación) puntúan bajo y no pasan el umbral. `should_send_sms` =
+score >= 6. Cuando el scoreboard acumule impacto real por categoría, el umbral pasa a "MFE esperado
+>= 1%" (data-driven, no adivinado).
+
+## BRAZO DE AUDITORÍA (scoreboard permanente — reconvertir la sección de Trades)
+La sección de trades pasa de "auditar noticias (one-shot)" a **scoreboard permanente de los 3 brazos**:
+cada señal (noticia/earnings/momentum) se mide con la maquinaria ya construida (retorno anormal +
+MFE/MAE + lead time), etiquetada por brazo + categoría. Es el libro mayor de "¿funcionó?" que habilita
+operar con plata real y, a futuro, auto-operar. = Fase 1 (forward) del NEWS_REACTION_PLAN, generalizada.
 
 ## RUTEO A VENTANAS DE EJECUCIÓN (los 3 brazos comparten esto)
 Por cada señal, elegir venue en este orden de prioridad:
