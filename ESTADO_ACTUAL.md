@@ -1,6 +1,55 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-10 (auditoría completa + paquetes A/B/C DESPLEGADOS en VM)
+# Última actualización: 2026-06-19 (migración a DeepSeek + 2 fixes DESPLEGADOS y verificados en VM)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-19 (NOCHE) — MIGRACIÓN A DEEPSEEK + DEDUP TRUMP + WHATSAPP DEL BRIEF (commit `5948d42`, DESPLEGADO Y VERIFICADO EN VM)
+
+> **Contexto:** Oscar reportó dos quemadores de créditos y pidió migrar todo el sistema fuera de
+> Claude/Gemini a un modelo fuerte y barato. Todo DESPLEGADO en la VM y verificado en vivo el mismo
+> día (commit `5948d42` en origin/main; service `opportunity-alert` active, ping de arranque OK).
+
+### 🤖 MIGRACIÓN A DEEPSEEK — dos tiers, motor centralizado
+- **`utils/ai_client.py`:** nuevo `resolve_engine_model(tier)` = punto único de verdad del motor/modelo.
+  Motores `deepseek` y `glm` por REST compatible-OpenAI (con `requests`, **sin deps nuevas**). Default
+  del sistema ahora **deepseek** (antes gemini/claude).
+- **Dos tiers (verificados en vivo con key real):**
+  - **FUERTE** = `deepseek-v4-pro` (razonador) → scoring de noticias / decisiones financieras. `claude_scorer`
+    subió `max_tokens` 768→2048 (el "pensamiento" consume tokens antes del JSON; con poco margen sale vacío).
+  - **BARATO** = `deepseek-chat` (no-pensante) → Brief diario + radar Trump. Más rápido/barato y sin riesgo
+    de truncar. ⚠️ `deepseek-chat` se **depreca 2026-07-24** → migrar a su sucesor no-pensante (override `AI_MODEL_CHEAP`).
+- **Por qué DeepSeek:** índice AA V4-Pro 52 > Claude Sonnet 47, a $0.44/$0.87 (~1/17 del output de Sonnet).
+  Flash/chat para tareas simples a $0.14/$0.28. GLM-5.1 quedó cableado como alternativa (`AI_ENGINE=glm`).
+- **Migrados:** `filters/claude_scorer.py` (strong), `utils/daily_brief.py` y `utils/trump_tracker.py` (cheap);
+  `main.py` arranque exige `DEEPSEEK_API_KEY` si engine=deepseek. Overrides: `DAILY_BRIEF_*`, `TRUMP_*`.
+
+### 🔇 FIX — radar Trump repetía la MISMA noticia 5× (INTC) gastando 5 llamadas IA
+- `utils/trump_tracker.py`: dedup ANTES era por **texto literal** del titular → el mismo evento llegado por
+  5 fuentes con redacciones distintas pasaba como 5 eventos. Ahora dedup **SEMÁNTICA** por `(tickers + tema
+  macro)` en ventana `TRUMP_DEDUP_HOURS=6h`, usando los **tickers estructurales del feed** (`tickers_found`/
+  `symbols`) → "Intel"→INTC se unifica. Se sella en CAPTURA (frena la ráfaga antes de la IA). Fix de TZ naive/aware.
+
+### 📲 FEATURE — WhatsApp del Brief solo si cambió
+- `utils/daily_brief.py`: al regenerar, manda WhatsApp por `send_raw_message` (CallMeBot→Twilio a `TWILIO_TO`)
+  **solo si `resumen+atención` difiere del cacheado** (decisión de Oscar: evitar spam de briefs idénticos).
+
+### ✅ VERIFICADO EN VIVO (19-jun noche Lima)
+- Key real probada: tier fuerte (`deepseek-v4-pro`, 6.9s) y barato (`deepseek-chat`, 2.6s) devuelven JSON
+  correcto; `score_with_claude` end-to-end dio `RKLB LONG/ALTA`; brief end-to-end OK.
+- VM: `bash deploy.sh` exitoso, service active, 10 threads arriba, ping WhatsApp de arranque enviado
+  (CallMeBot). Que arrancara sin morir confirma `AI_ENGINE=deepseek` + `DEEPSEEK_API_KEY` presentes en
+  `/etc/opportunity-alert.env`. Oscar verificó en vivo OK.
+
+### 🔜 PENDIENTES de esta tanda
+- **MAÑANA (2026-06-20): feature grande — registro/simulación de trades por noticia.** Por cada predicción
+  de la IA (dirección + magnitud + horizonte) "ejecutar" un trade simulado con precios reales de Alpaca y
+  puntuar P&L vs realidad → medir empíricamente qué modelo acierta más. (El benchmark elige el tier; el
+  scoreboard de trades simulados elige al ganador real.) Ver memoria `ai-engine-deepseek`.
+- **Rotar la `DEEPSEEK_API_KEY`** (Oscar dijo que cambiaría la key compartida en chat): actualizar en
+  `/etc/opportunity-alert.env` + `sudo systemctl restart opportunity-alert`.
+- **Cosmético:** los logs de ciclos de fuentes en `main.py` aún dicen `→ Claude` (texto hardcodeado); el
+  motor real es DeepSeek. Cambiar a `→ IA` cuando se quiera.
 
 ---
 
