@@ -318,6 +318,20 @@ def _process(item: dict) -> None:
     logger.info(f"[Trump] guardado [{record['impacto']}/{record['alcance']}] "
                 f"{record['tickers'] or '-'}: {record['resumen'][:80]}")
 
+    # Scoreboard de auditoría: cada ticker afectado = una señal del brazo 'trump' (medición
+    # forward a 48h con la maquinaria de reacción). Solo si hay dirección y ticker concretos.
+    try:
+        from utils import scoreboard
+        from utils.metrics_store import DB_PATH
+        _dir = {"alcista": "LONG", "bajista": "SHORT"}.get(record["impacto"])
+        if _dir:
+            for tk in record["tickers"]:
+                scoreboard.record_signal(DB_PATH, "trump", tk, _dir,
+                                         f"trump_{record['alcance']}", None,
+                                         record["source"], None, record["ts"], None)
+    except Exception as e:
+        logger.debug(f"[scoreboard] record trump: {e}")
+
 
 # ── Persistencia (data/trump_feed.json) ──────────────────────────────────────────
 

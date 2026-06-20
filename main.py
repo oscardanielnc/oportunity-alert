@@ -35,7 +35,8 @@ from utils.dedup_store import DedupStore
 from utils.etoro_client import get_portfolio, check_portfolio_gate
 from utils.conviction_gates import evaluate_conviction
 from utils.playbook_matcher import find_matching_strategies
-from utils.metrics_store import MetricsStore
+from utils.metrics_store import MetricsStore, DB_PATH as _METRICS_DB
+from utils import scoreboard
 from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
 from utils.delayed_alerts import queue_followup, start_worker
 from utils.earnings_calendar import has_earnings_today_or_yesterday
@@ -703,6 +704,17 @@ def process_article(
                 })
 
     if score_ia >= 1:  # loguear todo lo que la IA puntuó (excepto errores)
+        # Scoreboard de auditoría: registra TODA señal puntuada (medir todo forward; en
+        # producción solo se surfacean las de valor). Resolver horario la mide a 48h.
+        try:
+            scoreboard.record_signal(
+                _METRICS_DB, "noticias", ticker, direction, signal_cat,
+                signal_detail["score"], source, age,
+                datetime.now(timezone.utc).isoformat(),
+                price_data.get("current_price") or result.get("entry_price"),
+            )
+        except Exception as _e:
+            logger.debug(f"[scoreboard] record noticias: {_e}")
         log_alert(result, sms_enviado=sms_enviado, _skip_analysis_log=True)
         if _metrics:
             _metrics.log_alert(result, conviction=conviction, sms_enviado=sms_enviado)
@@ -1585,6 +1597,21 @@ def truth_social_loop(config, watchlist, dedup, **kwargs):
         time.sleep(interval)
 
 
+def scoreboard_resolver_loop(config, watchlist, dedup, **kwargs):
+    """Resuelve las señales abiertas del scoreboard cada hora: las mide a 48h con la maquinaria
+    de reacción (anormal vs QQQ + MFE/MAE, precio dual Alpaca/Binance perp). Idempotente."""
+    interval = config.get("intervals_seconds", {}).get("scoreboard", 3600)
+    while True:
+        try:
+            n = scoreboard.resolve_open(_METRICS_DB)
+            if n:
+                logger.info(f"[Scoreboard] {n} señales resueltas/actualizadas")
+            _beat("Scoreboard", interval)
+        except Exception as e:
+            logger.error(f"Error en scoreboard_resolver_loop: {e}")
+        time.sleep(interval)
+
+
 def gap_scanner_loop(config, watchlist, dedup, **kwargs):
     """Barre la watchlist cada N seg en la ventana pre-market→sesión buscando gaps grandes
     sin noticia. Cubre catalizadores nocturnos/internacionales (Hueco 1, caso MRVL)."""
@@ -1858,6 +1885,7 @@ def main():
 
     global _metrics
     _metrics = MetricsStore()
+    scoreboard.ensure_table(_METRICS_DB)   # libro mayor de outcomes (los 3 brazos)
     logger.info("MetricsStore inicializado")
 
     # Seed watchlist desde config si la tabla está vacía (primera vez)
@@ -1913,6 +1941,7 @@ def main():
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
         ("TruthSocial",      truth_social_loop,        (config, watchlist, dedup), shared),
+        ("Scoreboard",       scoreboard_resolver_loop, (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("DailyBrief",       daily_brief_loop,         (),                            {}),
         ("Dashboard",        run_dashboard,            (),                            {}),

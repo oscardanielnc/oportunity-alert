@@ -272,6 +272,19 @@ def get_trump_feed(
     return get_feed(limit=limit)
 
 
+@app.get("/api/scoreboard")
+def get_scoreboard(
+    days: int = Query(60, ge=1, le=365),
+    _: str = Depends(_require_auth),
+):
+    """Panel resumen del scoreboard de auditoría: por brazo+categoría, n / win-rate direccional /
+    reacción anormal mediana (4h,24h) / MFE. Mide los 3 brazos (noticias/trump/earnings) a 48h.
+    Solo LEE la tabla signal_outcomes (la puebla el resolver horario en main.py)."""
+    from utils.scoreboard import summary_by_category
+    from utils.metrics_store import DB_PATH
+    return {"days": days, "rows": summary_by_category(DB_PATH, days=days)}
+
+
 @app.get("/api/equity-history")
 def get_equity_history_api(
     days: int = Query(365, ge=1, le=730),
