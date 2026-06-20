@@ -282,20 +282,20 @@ def generate_narrative(brief: dict) -> dict:
     today = _today_lima()
     import os as _os
     # Motor BARATO (el brief es 1 llamada/día — Oscar pidió modelo barato, 2026-06-17):
-    #   - engine: DAILY_BRIEF_ENGINE > AI_ENGINE del sistema > gemini.
-    #   - si el motor es claude, forzamos Haiku (no el Sonnet del scorer de noticias).
-    #   - gemini-2.0-flash ya es gratis. Override fino con DAILY_BRIEF_MODEL.
+    #   - tier "cheap" del resolutor central → default deepseek-v4-flash.
+    #   - overrides: DAILY_BRIEF_ENGINE (motor) y DAILY_BRIEF_MODEL (modelo) si se quiere
+    #     desviar el brief del resto del sistema; si no, hereda AI_ENGINE / AI_MODEL_CHEAP.
     # NO forzamos un motor sin key: si la IA no responde, cae a resumen por código.
-    eng = (_os.environ.get("DAILY_BRIEF_ENGINE")
-           or _os.environ.get("AI_ENGINE", "gemini")).lower()
-    model = _os.environ.get("DAILY_BRIEF_MODEL")
-    if eng == "claude" and not model:
-        model = "claude-haiku-4-5-20251001"
+    from utils.ai_client import call_ai, parse_json_response, resolve_engine_model
+    eng, model = resolve_engine_model(
+        "cheap",
+        engine=_os.environ.get("DAILY_BRIEF_ENGINE"),
+        model=_os.environ.get("DAILY_BRIEF_MODEL"),
+    )
     used_engine = f"{eng}:{model}" if model else eng
 
     text = None
     try:
-        from utils.ai_client import call_ai, parse_json_response
         text = call_ai(_build_prompt(brief), system=_SYSTEM, engine=eng, model=model,
                        max_tokens=600, temperature=0.2)
         data = parse_json_response(text) or {}
@@ -321,8 +321,62 @@ def generate_narrative(brief: dict) -> dict:
         "generated_at": datetime.now(LIMA).strftime("%Y-%m-%d %H:%M"),
         "engine": engine,
     }
+    prev = _read_cached_narrative()   # ANTES de sobrescribir el cache
     _save_cache(payload)
+    _notify_if_changed(payload, prev)
     return {k: payload[k] for k in ("resumen", "atencion", "generated_at", "engine", "date")}
+
+
+def _content_signature(narr: dict | None) -> str:
+    """Firma del contenido (resumen + puntos de atención) para detectar cambios reales,
+    ignorando timestamp/engine. Así no avisamos por un brief idéntico regenerado."""
+    if not narr:
+        return ""
+    aten = narr.get("atencion") or []
+    if not isinstance(aten, list):
+        aten = [str(aten)]
+    return ((narr.get("resumen") or "").strip()
+            + "||" + "|".join(str(a).strip() for a in aten))
+
+
+def _notify_if_changed(payload: dict, prev: dict | None) -> None:
+    """
+    Manda un WhatsApp con el Brief SOLO si el contenido cambió respecto al anterior
+    (decisión de Oscar 2026-06-19: evitar spam de briefs idénticos). Best-effort: nunca
+    rompe la generación. Usa el canal configurado (CallMeBot→Twilio) vía send_raw_message.
+    """
+    try:
+        if _content_signature(payload) == _content_signature(prev):
+            logger.info("[DailyBrief] contenido sin cambios — no se envía WhatsApp")
+            return
+        import os
+        to = os.environ.get("TWILIO_TO", "")
+        if not to:
+            logger.warning("[DailyBrief] TWILIO_TO no configurado — no se envía aviso del brief")
+            return
+        from alerts.twilio_sms import send_raw_message
+        body = _format_brief_whatsapp(payload)
+        if send_raw_message(body, to):
+            logger.info("[DailyBrief] WhatsApp del brief enviado (contenido nuevo)")
+        else:
+            logger.warning("[DailyBrief] no se pudo enviar WhatsApp del brief")
+    except Exception as e:
+        logger.warning(f"[DailyBrief] aviso WhatsApp falló: {e}")
+
+
+def _format_brief_whatsapp(payload: dict) -> str:
+    """Texto del WhatsApp del Brief: resumen + puntos de atención. Conciso."""
+    lines = [f"📋 Brief de mercado — {payload.get('generated_at', '')}", ""]
+    resumen = (payload.get("resumen") or "").strip()
+    if resumen:
+        lines.append(resumen)
+    aten = payload.get("atencion") or []
+    if aten:
+        lines.append("")
+        lines.append("👀 Atención hoy:")
+        for a in aten:
+            lines.append(f"• {a}")
+    return "\n".join(lines)
 
 
 def _fallback_narrative(brief: dict) -> tuple:

@@ -16,7 +16,7 @@ import os
 from datetime import datetime, timezone, timedelta
 
 from utils.alpaca_price import summarize_candles
-from utils.ai_client import call_ai, parse_json_response
+from utils.ai_client import call_ai, parse_json_response, resolve_engine_model
 
 logger = logging.getLogger(__name__)
 
@@ -210,19 +210,24 @@ def score_with_claude(
     context_text: contexto calculado por código (utils.news_context) — sector/macro,
     trayectoria, noticias previas. Lo analiza la IA pero NO gasta tokens calculándolo.
     """
-    ai_engine = os.environ.get("AI_ENGINE", "gemini").lower()
+    # Noticias = decisiones financieras → tier FUERTE (default deepseek-v4-pro).
+    # `model` explícito (si main lo pasa) manda; si no, lo elige el resolutor central.
+    ai_engine, ai_model = resolve_engine_model("strong", model=model)
     ticker    = (article.get("tickers_found") or ["UNKNOWN"])[0]
 
     system_prompt, user_prompt = _build_prompt(article, price_data, conviction, context_text)
 
-    logger.info(f"[Scorer] {ai_engine.capitalize()} — {ticker}")
+    logger.info(f"[Scorer] {ai_engine}:{ai_model} — {ticker}")
 
     raw = call_ai(
         user_prompt,
         system=system_prompt,
-        max_tokens=768,   # +campos de lenguaje simple + contexto sectorial + ventana
+        # Holgura para modelos RAZONADORES (deepseek-v4-pro): el "pensamiento" consume
+        # tokens antes del JSON; con poco margen la salida sale vacía/truncada. El costo
+        # real es por tokens emitidos, así que un tope alto no encarece si no se usa.
+        max_tokens=2048,
         engine=ai_engine,
-        model=model,      # config.json (vía main) = fuente de verdad del modelo Claude
+        model=ai_model,
     )
 
     result = parse_json_response(raw)
@@ -342,6 +347,6 @@ def _error_result(article: dict, ticker: str, error_msg: str) -> dict:
         "precio_al_alerta":    None,
         "precio_24h_despues":  None,
         "timestamp":           datetime.now(timezone(timedelta(hours=-5))).strftime("%Y-%m-%dT%H:%M:%S-05:00"),
-        "ai_engine":           os.environ.get("AI_ENGINE", "gemini"),
+        "ai_engine":           os.environ.get("AI_ENGINE", "deepseek"),
         "error":               error_msg,
     }

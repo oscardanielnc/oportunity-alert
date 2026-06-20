@@ -39,6 +39,16 @@ _FEED_PATH = _DATA_DIR / "trump_feed.json"
 _MAX_ITEMS = 40           # tope de items guardados (lo más reciente primero)
 _DEDUP_WINDOW = 200       # fingerprints recientes que se revisan para no reprocesar
 
+# Dedup SEMÁNTICA (mismo evento contado por varias fuentes con OTRAS palabras): el
+# fingerprint exacto del titular no atrapa a INTC reportado 5 veces con redacciones
+# distintas. Aquí deduplicamos por (tickers + tema macro) dentro de una ventana: si ya
+# resumimos un statement de Trump sobre los mismos tickers/tema hace poco, lo saltamos
+# ANTES de gastar IA. Configurable con TRUMP_DEDUP_HOURS (default 6h).
+try:
+    _CONTENT_WINDOW_HOURS = float(os.environ.get("TRUMP_DEDUP_HOURS", "6"))
+except (TypeError, ValueError):
+    _CONTENT_WINDOW_HOURS = 6.0
+
 # ── Gate por keywords (código puro, < 1ms) ──────────────────────────────────────
 # Trump-céntrico: el titular debe nombrar a Trump (o su plataforma). "potus"/"white
 # house" se incluyen porque los feeds suelen titular así sus declaraciones.
@@ -75,6 +85,17 @@ def _fingerprint(article: dict) -> str:
     base = (article.get("title") or article.get("raw_text") or "").lower()
     base = _WS.sub(" ", re.sub(r"[^a-z0-9 ]", "", base)).strip()[:160]
     return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
+
+
+def _content_key(tickers: list, macro_hit: list) -> str:
+    """
+    Clave del EVENTO (no del texto): mismo statement de Trump sobre los mismos
+    tickers/tema → misma clave, aunque la redacción del titular cambie. Si hay tickers,
+    la clave es el set de tickers (lo más específico); si es macro puro, el tema macro.
+    """
+    if tickers:
+        return "T:" + ",".join(sorted({t.upper() for t in tickers}))
+    return "M:" + ",".join(sorted({k.strip() for k in macro_hit})[:3])
 
 
 def _mentions_ticker(text_up: str, universe: set) -> list:
@@ -115,7 +136,12 @@ def capture_headline(article: dict, watchlist=None, held=None) -> bool:
 
         universe = {t.upper() for t in (watchlist or [])} | {t.upper() for t in (held or [])}
         text_up = text.upper()
-        tickers = _mentions_ticker(text_up, universe)
+        # Tickers estructurales que el feed YA etiquetó (Benzinga/Alpaca/Finnhub): clave
+        # para la dedup — unifican "Intel"→INTC aunque el titular no escriba el símbolo,
+        # que es justo lo que hacía que el mismo evento (INTC) pasara 5 veces.
+        struct = {str(s).upper() for s in (article.get("tickers_found")
+                                           or article.get("symbols") or [])}
+        tickers = sorted(set(_mentions_ticker(text_up, universe)) | struct)
         macro_hit = [k.strip() for k in _MACRO_KEYWORDS if k in text]
         if not tickers and not macro_hit:
             return False   # menciona a Trump pero sin relevancia de mercado → ignorar
@@ -123,6 +149,17 @@ def capture_headline(article: dict, watchlist=None, held=None) -> bool:
         fp = _fingerprint(article)
         if _is_duplicate(fp):
             return False
+
+        # Dedup semántica: ¿ya resumimos este MISMO evento (mismos tickers/tema) hace
+        # poco aunque llegue con otra redacción? Se registra ya mismo, antes de encolar,
+        # para frenar también la ráfaga de copias casi simultáneas (todas pasan el gate
+        # antes de que el worker corra la 1ra). Evita gastar IA en duplicados.
+        ckey = _content_key(tickers, macro_hit)
+        if _is_recent_content(ckey):
+            logger.info(f"[Trump] DUP-evento (mismo {ckey} <{_CONTENT_WINDOW_HOURS:g}h) "
+                        f"— skip sin IA | {(article.get('title') or '')[:70]}")
+            return False
+        _remember_content(ckey)
 
         item = {
             "fp": fp,
@@ -207,16 +244,17 @@ def _build_prompt(item: dict) -> str:
 
 
 def _process(item: dict) -> None:
-    eng = (os.environ.get("TRUMP_ENGINE")
-           or os.environ.get("DAILY_BRIEF_ENGINE")
-           or os.environ.get("AI_ENGINE", "gemini")).lower()
-    model = os.environ.get("TRUMP_MODEL")
-    if eng == "claude" and not model:
-        model = "claude-haiku-4-5-20251001"
+    # Tier BARATO (default deepseek-v4-flash). Overrides: TRUMP_ENGINE / TRUMP_MODEL;
+    # si no, hereda el motor barato del sistema (AI_ENGINE / AI_MODEL_CHEAP).
+    from utils.ai_client import call_ai, parse_json_response, resolve_engine_model
+    eng, model = resolve_engine_model(
+        "cheap",
+        engine=os.environ.get("TRUMP_ENGINE") or os.environ.get("DAILY_BRIEF_ENGINE"),
+        model=os.environ.get("TRUMP_MODEL"),
+    )
 
     data = {}
     try:
-        from utils.ai_client import call_ai, parse_json_response
         text = call_ai(_build_prompt(item), system=_SYSTEM, engine=eng, model=model,
                        max_tokens=500, temperature=0.2)
         data = parse_json_response(text) or {}
@@ -264,7 +302,7 @@ def _load() -> dict:
             return d
     except Exception:
         pass
-    return {"items": [], "fingerprints": []}
+    return {"items": [], "fingerprints": [], "content_keys": {}}
 
 
 def _save(d: dict) -> None:
@@ -283,6 +321,41 @@ def _is_duplicate(fp: str) -> bool:
         if fp in (d.get("fingerprints") or []):
             return True
         return any(it.get("fp") == fp for it in d.get("items", []))
+
+
+def _is_recent_content(ckey: str) -> bool:
+    """True si ya vimos este evento (tickers/tema) dentro de la ventana de dedup."""
+    # Naive en hora Lima: _now_iso() guarda sin offset, así que el cutoff también debe
+    # ser naive (comparar aware vs naive lanzaría TypeError y rompería la dedup).
+    cutoff = datetime.now(LIMA).replace(tzinfo=None) - timedelta(hours=_CONTENT_WINDOW_HOURS)
+    with _io_lock:
+        d = _load()
+        ts = (d.get("content_keys") or {}).get(ckey)
+        if not ts:
+            return False
+        try:
+            return datetime.fromisoformat(ts) > cutoff
+        except (ValueError, TypeError):
+            return False
+
+
+def _remember_content(ckey: str) -> None:
+    """Sella el evento con timestamp ahora; purga claves fuera de ventana."""
+    cutoff = datetime.now(LIMA).replace(tzinfo=None) - timedelta(hours=_CONTENT_WINDOW_HOURS)
+    with _io_lock:
+        d = _load()
+        keys = d.get("content_keys") or {}
+        keys[ckey] = _now_iso()
+        # Purga claves expiradas para que el dict no crezca sin límite.
+        pruned = {}
+        for k, ts in keys.items():
+            try:
+                if datetime.fromisoformat(ts) > cutoff:
+                    pruned[k] = ts
+            except (ValueError, TypeError):
+                continue
+        d["content_keys"] = pruned
+        _save(d)
 
 
 def _remember_fp(fp: str) -> None:

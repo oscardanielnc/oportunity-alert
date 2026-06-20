@@ -500,9 +500,10 @@ def process_article(
     )
 
     # ── Scoring IA (prompt con contexto — stops/targets los calcula conviction) ──
-    model = os.environ.get("CLAUDE_MODEL", config.get("claude_model", "claude-sonnet-4-6"))
+    # El motor/modelo del tier FUERTE lo resuelve claude_scorer vía resolve_engine_model
+    # ("strong" → default deepseek-v4-pro). Override fino: AI_MODEL_STRONG.
     result = score_with_claude(
-        article, price_data, model=model, conviction=conviction, context_text=context_text,
+        article, price_data, conviction=conviction, context_text=context_text,
     )
 
     score_ia  = int(result.get("score_ia") or 0)
@@ -1785,8 +1786,12 @@ def main():
     logger.info(f"Watchlist: {len(watchlist)} tickers")
 
     api_keys = config.get("api_keys", {})
-    ai_engine = os.environ.get("AI_ENGINE", "claude").lower()
-    if ai_engine == "claude":
+    ai_engine = os.environ.get("AI_ENGINE", "deepseek").lower()
+    if ai_engine == "deepseek":
+        get_env_or_die("DEEPSEEK_API_KEY")
+    elif ai_engine == "glm":
+        get_env_or_die("GLM_API_KEY")
+    elif ai_engine == "claude":
         get_env_or_die(api_keys.get("anthropic_key_env", "ANTHROPIC_API_KEY"))
     get_env_or_die(api_keys.get("finnhub_key_env", "FINNHUB_API_KEY"))
 

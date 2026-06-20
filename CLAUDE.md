@@ -426,18 +426,27 @@ Barras diarias cacheadas por día (≤1 fetch Alpaca por ticker/día).
 
 ```bash
 # Ya deben estar en .env
-ANTHROPIC_API_KEY=...
-GEMINI_API_KEY=...
+# ── Motor de IA: DeepSeek, dos tiers (migración 2026-06-19) ──
+AI_ENGINE=deepseek         # deepseek (default) | glm | gemini | claude
+DEEPSEEK_API_KEY=sk-...     # obligatoria si AI_ENGINE=deepseek (platform.deepseek.com)
+AI_MODEL_STRONG=deepseek-v4-pro    # tier FUERTE: noticias / decisiones (razonador)
+AI_MODEL_CHEAP=deepseek-chat       # tier BARATO: brief / Trump (no-pensante)
+# GLM_API_KEY=...          # alternativa si AI_ENGINE=glm (api.z.ai)
+# ANTHROPIC_API_KEY / GEMINI_API_KEY  # opcionales: solo si AI_ENGINE=claude|gemini
 FINNHUB_API_KEY=...
 ALPACA_API_KEY=...
 ALPACA_SECRET_KEY=...
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
-TWILIO_TO=+51...           # numero destino
+TWILIO_TO=+51...           # numero destino (también receptor del WhatsApp del Brief)
 TWILIO_FROM=+1...          # numero origen (SMS) — no necesario en WhatsApp
-NOTIFICATION_CHANNEL=whatsapp   # "whatsapp" o "sms"
-AI_ENGINE=gemini           # gemini (gratis 1500/dia) o claude (pagado)
+NOTIFICATION_CHANNEL=callmebot  # "callmebot" (WhatsApp gratis) | "whatsapp" | "sms"
 ```
+
+**Selección de motor/modelo (centralizado en `utils/ai_client.py`):** todos los módulos
+usan `resolve_engine_model(tier)` — tier `"strong"` (noticias) o `"cheap"` (brief/Trump).
+DeepSeek/GLM se hablan por REST compatible-OpenAI (con `requests`, sin deps nuevas).
+Overrides por sección: `DAILY_BRIEF_ENGINE`/`DAILY_BRIEF_MODEL`, `TRUMP_ENGINE`/`TRUMP_MODEL`.
 
 No se necesitan nuevas variables para eToro — lee `etoro_config.json` directamente.
 
