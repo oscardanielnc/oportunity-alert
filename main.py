@@ -1560,6 +1560,31 @@ def _check_gap(ticker: str, gap_min: float, dedup, twilio_to: str,
     return False
 
 
+def truth_social_loop(config, watchlist, dedup, **kwargs):
+    """Fuente Truth Social (mirror RSS trumpstruth.org): Trump postea ahí PRIMERO (la frescura
+    es el lever — estudio 2026-06-20). Cada post market-relevant va al radar Trump
+    (capture_headline) y al pipeline normal (process_article filtra/dedup por su cuenta:
+    si nombra un ticker de watchlist pasa, si es macro se descarta barato)."""
+    from sources.truth_social import fetch_recent
+    interval = config.get("intervals_seconds", {}).get("truth_social", 120)
+    while True:
+        try:
+            live_wl = get_live_watchlist() or watchlist
+            posts = fetch_recent(max_items=40, max_age_min=interval / 60 + 30)
+            from utils import trump_tracker
+            n = 0
+            for art in posts:
+                trump_tracker.capture_headline(art, watchlist=live_wl, held=_held_tickers())
+                process_article(art, live_wl, dedup, config, **kwargs)
+                n += 1
+            if n:
+                logger.info(f"TruthSocial ciclo: {n} posts relevantes procesados")
+            _beat("TruthSocial", interval)
+        except Exception as e:
+            logger.error(f"Error en truth_social_loop: {e}")
+        time.sleep(interval)
+
+
 def gap_scanner_loop(config, watchlist, dedup, **kwargs):
     """Barre la watchlist cada N seg en la ventana pre-market→sesión buscando gaps grandes
     sin noticia. Cubre catalizadores nocturnos/internacionales (Hueco 1, caso MRVL)."""
@@ -1887,6 +1912,7 @@ def main():
         ("WeekendDigest",    weekend_digest_loop,      (twilio_from, twilio_to),   {}),
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
+        ("TruthSocial",      truth_social_loop,        (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("DailyBrief",       daily_brief_loop,         (),                            {}),
         ("Dashboard",        run_dashboard,            (),                            {}),

@@ -170,6 +170,7 @@ def capture_headline(article: dict, watchlist=None, held=None) -> bool:
             "tickers_seed": tickers,
             "macro_seed": macro_hit[:6],
             "held": sorted({t.upper() for t in (held or [])}),
+            "universe": sorted(universe),   # para validar los tickers que devuelve la IA
         }
         _q.put_nowait(item)
         logger.info(f"[Trump] capturado: {item['headline'][:80]} "
@@ -216,6 +217,23 @@ _SYSTEM = (
 )
 
 
+def _clean_tickers(raw: list, universe: set) -> list:
+    """Limpia y valida los tickers de la IA: extrae el símbolo limpio (sin paréntesis ni
+    explicaciones), valida contra el universo de Oscar, dedup, cap 5. Mata alucinaciones tipo
+    'INOD (INDIRECTO: ...)' o 'XSD (ETF ...)'. Si el universo está vacío, solo limpia."""
+    out = []
+    for t in raw:
+        m = re.match(r"\s*([A-Z]{1,5})\b", str(t).upper())
+        if not m:
+            continue
+        sym = m.group(1)
+        if universe and sym not in universe:
+            continue   # fuera del universo de Oscar → descartar (ETF/alucinación no accionable)
+        if sym not in out:
+            out.append(sym)
+    return out[:5]
+
+
 def _build_prompt(item: dict) -> str:
     held = ", ".join(item.get("held") or []) or "(ninguna)"
     seed_tk = ", ".join(item.get("tickers_seed") or []) or "(ninguno detectado)"
@@ -239,7 +257,12 @@ def _build_prompt(item: dict) -> str:
         '  "impacto": "alcista|bajista|mixto|incierto",\n'
         '  "alcance": "ticker|sector|macro",\n'
         '  "tickers_afectados": ["TICKER", ...]\n'
-        '}'
+        '}\n\n'
+        "REGLAS para tickers_afectados: SOLO símbolos limpios (ej. \"NVDA\"), SIN paréntesis ni "
+        "explicaciones. SOLO empresas del universo de Oscar DIRECTAMENTE afectadas por lo que dijo "
+        "Trump (su negocio es el tema). NUNCA incluyas una empresa por exposición indirecta, por su "
+        "cartera, o por tener otras acciones. Si es macro amplio sin un sector claro, deja la lista "
+        "vacía. Máximo 5."
     )
 
 
@@ -269,9 +292,12 @@ def _process(item: dict) -> None:
         _remember_fp(item["fp"])   # recordar para no reprocesar el mismo statement
         return
 
-    tickers = data.get("tickers_afectados") or item.get("tickers_seed") or []
-    if not isinstance(tickers, list):
-        tickers = [str(tickers)]
+    raw_tickers = data.get("tickers_afectados") or item.get("tickers_seed") or []
+    if not isinstance(raw_tickers, list):
+        raw_tickers = [str(raw_tickers)]
+    tickers = _clean_tickers(raw_tickers, set(item.get("universe") or []))
+    if not tickers:   # si la IA no dio nada válido, caer a los tickers estructurales del feed
+        tickers = _clean_tickers(item.get("tickers_seed") or [], set(item.get("universe") or []))
 
     record = {
         "fp": item["fp"],
