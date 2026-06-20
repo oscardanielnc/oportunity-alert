@@ -68,6 +68,17 @@ PRECIO** (RVOL/breakout intradía), sin IA.
 - PENDIENTE antes de construir: (a) más historia/muestra + OOS, (b) spread real por ticker,
   (c) cuáles están en Binance perp (fee ~0.05%) para rutear ahí; (d) sensibilidad al fee.
 
+### VALIDACIÓN 2 — ⛔ VEREDICTO: ARCHIVAR la versión naïve (`research/momentum_validate2.py`
+### + `extend_bars_history.py`, muestra ampliada a Feb-Jun 2026, n=463 en >=5%):
+- El +1%/60% de junio era espejismo de muestra chica + régimen. Con 4.5 meses el edge >=5% cae a
+  **+0.43%/55% a fee Binance (0.05%), BREAKEVEN/negativo a fee eToro (0.5%)**, win 53-55%.
+- THR 4% = sin edge (win 49%). El poco edge positivo está **concentrado en 3 nombres** (INOD/LUNR/
+  APPS); FLY/AMC/IONQ negativos → quitando outliers queda plano. La mayoría de los movers NO están
+  en Binance perp (único venue con fee bajo donde sobreviviría).
+- **Misma lección que Watcher/pre-market: momentum naïve en small-caps = marginal/negativo tras fees.**
+  NO construir. Solo sobreviviría como refinamiento per-ticker en perp = sobreajuste sobre muestra fina.
+- → El brazo Momentum queda ARCHIVADO. Prioridad tradeable pasa a EARNINGS (PED, ya validado).
+
 ---
 
 ## SCORE DE ACCIÓN (reemplaza el score de convicción — `utils/signal_score.py`)
