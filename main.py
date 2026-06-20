@@ -39,6 +39,7 @@ from utils.metrics_store import MetricsStore
 from utils.event_gate import detect_event_type, is_event_mode, event_gate2_score, format_event_watch_sms
 from utils.delayed_alerts import queue_followup, start_worker
 from utils.earnings_calendar import has_earnings_today_or_yesterday
+from utils.signal_score import classify_category, compute_signal_score, should_send_sms
 # premarket_scanner ARCHIVADO (2026-05-30) → _deprecated/. Sin edge validado (backtest).
 from api.app import run_dashboard
 
@@ -510,6 +511,20 @@ def process_article(
     prioridad = result.get("prioridad", "BAJA")
     direction = result.get("direccion", "")
 
+    # ── NUEVO score de ACCIÓN (reemplaza al score de convicción como guía de decisión) ──
+    # Estudio 2026-06-20: el score de convicción/IA NO predice la reacción (dir_ok ~50%).
+    # Lo que sí importa: CATEGORÍA del catalizador + FRESCURA + confirmación de precio. Se
+    # computa acá (necesita resumen+dirección de la IA) y gatea el SMS. Se persiste en raw_json.
+    signal_cat = classify_category(
+        f"{result.get('resumen_cataliz','')} {article.get('title','')} {article.get('url','')}"
+    )
+    signal_detail = compute_signal_score(
+        signal_cat, article.get("age_minutes"), price_data.get("change_pct"), direction
+    )
+    result["signal_score"]     = signal_detail["score"]
+    result["signal_categoria"] = signal_cat
+    result["signal_breakdown"] = signal_detail
+
     # ── Gate 4: Playbook match (informativo) ──────────────────────────────────
     playbook_matches = find_matching_strategies(result.get("resumen_cataliz", ""))
     result["playbook_matches"] = playbook_matches
@@ -590,7 +605,9 @@ def process_article(
             )
         adverse_exit = True   # no duplicar con el flujo normal de oportunidad
 
-    min_score_sms = config.get("min_score_sms", 7)
+    # Umbral de SMS por el NUEVO score de acción (categoría+frescura+confirmación). El score_ia
+    # viejo ya no decide (no predecía). Tunable sin tocar código: config min_signal_score_sms.
+    min_signal_sms = config.get("min_signal_score_sms", 6)
     sms_enviado = False
     # Movimiento ya priceado (continuación) = por defecto SOLO dashboard, sin SMS
     # (decisión Oscar 2026-06-01: cero ruido por drift). EXCEPCIÓN (Hueco 2, caso MRVL
@@ -637,7 +654,7 @@ def process_article(
                 )
         adverse_exit = True   # no duplicar con el flujo normal de oportunidad de abajo
 
-    if score_ia >= min_score_sms and not adverse_exit and not is_warning:
+    if signal_detail["score"] >= min_signal_sms and not adverse_exit and not is_warning:
         market_open   = is_market_open()
         crypto_ticker = ticker in CRYPTO_ALWAYS_ALERT
 
