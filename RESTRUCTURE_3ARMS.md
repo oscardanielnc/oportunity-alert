@@ -104,6 +104,24 @@ cada señal (noticia/earnings/momentum) se mide con la maquinaria ya construida 
 MFE/MAE + lead time), etiquetada por brazo + categoría. Es el libro mayor de "¿funcionó?" que habilita
 operar con plata real y, a futuro, auto-operar. = Fase 1 (forward) del NEWS_REACTION_PLAN, generalizada.
 
+## HIPÓTESIS APARCADA — Reversión (NO perseguir ahora)
+Idea (Oscar): entrar cuando el precio empieza a REVERTIR tras un salto. Análisis: invertir el
+trigger de momentum es el ESPEJO de lo ya medido (~0 neto de fees) → no hay edge. Una reversión
+real necesita señal propia de AGOTAMIENTO (RSI/Bollinger extremos, clímax de volumen, estiramiento
+vs VWAP) + esperar confirmación del giro (no entrar en el pico). Es la misma familia de scalping
+intradía net-negativa (Watcher/pre-market/momentum) + mismo problema fees/venue, y es dominio de
+precio. DECISIÓN: documentada, NO se construye ahora. Si se retoma un brazo de precio, testear con
+señales de agotamiento propias y disciplina neto-de-fees.
+
+## TRUMP TRACKER — unificar MEDICIÓN, conservar captura especial (en evaluación)
+El tracker ya reutiliza los feeds y clasifica con IA barata {impacto, alcance, tickers_afectados};
+hace el mapeo uno-a-muchos (macro→cesta) que el brazo per-ticker NO. Decisión: NO disolverlo en el
+filtro per-ticker (perdería la cobertura macro), SÍ medir su impacto con la misma maquinaria (retorno
+anormal + frescura + ¿los tickers afectados se movieron?) y meterlo al mismo scoreboard. Pendiente:
+(1) medir impacto real (trae trump_feed.json de la VM); (2) si predice bien → Truth Social como fuente
+fresca (postea primero = age 0, el lever que probamos que importa) + unificar al scoreboard. Caso
+fuerte: "Trump Admin To Take Quantum Stakes" movió RGTI/IONQ/QBTS +25%.
+
 ## RUTEO A VENTANAS DE EJECUCIÓN (los 3 brazos comparten esto)
 Por cada señal, elegir venue en este orden de prioridad:
 1. **Binance perp** si el ticker existe como `{T}/USDT:USDT` (24/7, apalancado, fees bajos).
