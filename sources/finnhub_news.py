@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 
+# Sub-fuentes de Finnhub company-news que se DESCARTAN al ingestar (validado backfill 2026-06-20):
+# laggy + bajo rendimiento. Yahoo: age mediana 106min, 3% llega a IA, 3 alertas en 25 días.
+# CNBC: ~473min de lag. El Benzinga real-time entra por el WebSocket de Alpaca (age 0), no acá.
+# El backbone de velocidad = ALPACA_BENZINGA (WS) + SEC_EDGAR. SeekingAlpha/Fintel se conservan
+# (traen catalizadores únicos aunque laggeados). Ajustable sin tocar lógica.
+DEPRIORITIZED_FINNHUB_SOURCES = {"YAHOO", "CNBC"}
+
 
 def _get_api_key() -> str:
     key = os.environ.get("FINNHUB_API_KEY", "")
@@ -54,10 +61,14 @@ def fetch_company_news(ticker: str, hours_back: int = 1) -> list[dict]:
                     pub_dt = now
                 age_minutes = (now - pub_dt).total_seconds() / 60
 
+                source = item.get("source", "Finnhub")
+                # Descartar sub-fuentes laggeadas/deprior­izadas (Yahoo/CNBC) — ver constante arriba.
+                if source.upper() in DEPRIORITIZED_FINNHUB_SOURCES:
+                    continue
+
                 headline = item.get("headline", "")
                 summary = item.get("summary", "")
                 url = item.get("url", "")
-                source = item.get("source", "Finnhub")
                 item_id = item.get("id", "")
                 if not item_id:
                     item_id = hashlib.md5(url.encode()).hexdigest()

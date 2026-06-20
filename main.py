@@ -489,7 +489,7 @@ def process_article(
     )
 
     # ── Contexto por CÓDIGO (sector/macro, trayectoria, noticias previas) ─────
-    # Todo lo computable sin IA va acá → Claude solo razona lo que no se puede calcular.
+    # Todo lo computable sin IA va acá → la IA solo razona lo que no se puede calcular.
     earnings_flag = has_earnings_today_or_yesterday(ticker)
     recent_news   = _metrics.get_recent_news_for_ticker(ticker, minutes=90) if _metrics else None
     context_text, _ctx = build_context(
@@ -733,7 +733,7 @@ def edgar_loop(config, watchlist, dedup, **kwargs):
             if n_dedup > 0 or n_filtered > 0 or n_claude > 0:
                 logger.info(
                     f"EDGAR ciclo: {len(articles)} filings | "
-                    f"{n_dedup} ya vistos | {n_filtered} sin keywords | {n_claude} → Claude"
+                    f"{n_dedup} ya vistos | {n_filtered} sin keywords | {n_claude} → IA"
                 )
             _beat("EDGAR", interval)
         except Exception as e:
@@ -790,7 +790,7 @@ def finnhub_loop(config, watchlist, dedup, **kwargs):
             logger.info(
                 f"Finnhub: ciclo {cycle} | batch {batch[0] if batch else '?'}-{batch[-1] if batch else '?'} "
                 f"({progress}/{len(live_wl)} tickers) | {fetched} obtenidos | "
-                f"{n_dedup} vistos | {n_filtered} sin keywords | {n_claude} → Claude"
+                f"{n_dedup} vistos | {n_filtered} sin keywords | {n_claude} → IA"
             )
             _beat("Finnhub", interval)
         except Exception as e:

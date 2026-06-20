@@ -25,6 +25,13 @@ TIER_1_KEYWORDS = [
     "GOVERNMENT STAKE", "EQUITY STAKE",
     "BILLION CONTRACT", "BILLION DEAL", "BILLION AWARD",
     "DOD AWARD", "PENTAGON CONTRACT", "PENTAGON AWARD", "DEFENSE CONTRACT",
+    # Capacidad/infra de data center (catalizador real en nombres IA/infra — caso APLD +12%
+    # "210 MW AI Data Center Lease", backfill cubeta-2 2026-06-20). Específicos para no meter
+    # ruido de leases inmobiliarios rutinarios.
+    "DATA CENTER LEASE", "AI DATA CENTER", "MW DATA CENTER", "HYPERSCALER",
+    # MOU con socio relevante = evento corporativo real (caso WOLF-GE Aerospace +17%, llegó age 0
+    # por Benzinga y murió en keyword_filtered). Término legal específico, poco ruido.
+    "MEMORANDUM OF UNDERSTANDING", "SIGNS MOU", "SIGN MOU",
     # FDA
     "FDA APPROVAL", "FDA APPROVED", "FDA REJECTED", "FDA CLEARANCE",
     "FDA GRANTS", "RECEIVES FDA", "CLEARED BY FDA",
@@ -46,13 +53,13 @@ TIER_1_KEYWORDS = [
     "ITEM 1.01", "ITEM 2.01", "ITEM 2.02", "ITEM 7.01", "ITEM 8.01",
     "MATERIAL DEFINITIVE AGREEMENT", "RESULTS OF OPERATIONS",
     "ENTRY INTO A MATERIAL",
-    # Upgrades de analista / subida de price target — 1 sola basta (la IA discrimina
-    # magnitud). Validado: en large-caps un upgrade mueve el precio (caso MU 26-may,
-    # UBS +204% PT) y antes se descartaba por pesar solo 2 pts en Tier-2.
-    "PRICE TARGET RAISED", "RAISES PRICE TARGET", "RAISES TARGET", "RAISES PT",
-    "PRICE TARGET INCREASED", "BOOSTS PRICE TARGET", "LIFTS PRICE TARGET",
+    # Upgrades REALES de analista (cambio de rating) — 1 sola basta. Los PT-raise SIN
+    # cambio de rating ("Maintains, raises PT") se manejan aparte (PT_RAISE_KEYWORDS) y se
+    # DEGRADAN si el rating queda igual. Backfill 2026-06-20: analyst_rating fue la mayor
+    # categoría (n=85) y la de menor señal (abn4h +0.24, pico lento 18h); un upgrade real
+    # sí mueve (caso MU 26-may), un "Maintains + raises PT" ya priceado no.
     "UPGRADED TO BUY", "UPGRADED TO OVERWEIGHT", "RAISED TO BUY",
-    "UPGRADES TO BUY", "UPGRADES TO OVERWEIGHT",
+    "UPGRADES TO BUY", "UPGRADES TO OVERWEIGHT", "UPGRADED TO OUTPERFORM",
     # Endorsement de peso / hito de capitalización — 1 sola basta. Caso MRVL 2-jun:
     # Jensen Huang (CEO Nvidia) la llamó "next trillion-dollar company" en Computex y
     # voló ~20-29%; el titular llegó en tiempo real (Benzinga age 0) pero con score 0
@@ -79,9 +86,12 @@ TIER_1_BEARISH = [
     # Downgrades fuertes
     "DOWNGRADED TO SELL", "DOWNGRADED TO UNDERWEIGHT", "DOWNGRADED TO UNDERPERFORM",
     "DOWNGRADES TO SELL", "CUT TO SELL", "LOWERED TO SELL", "RATING DOWNGRADE",
-    # Dilución / oferta de acciones (caso SMCI $7B 06-10)
+    # Dilución / oferta de acciones (caso SMCI $7B 06-10; + variantes "prices/prospectus"
+    # del backfill cubeta-2 2026-06-20: SMCI/WOLF movieron -12/-17% por ofertas no capturadas)
     "STOCK OFFERING", "SHARE OFFERING", "EQUITY OFFERING", "SECONDARY OFFERING",
     "EQUITY RAISE", "COMMON STOCK OFFERING", "DILUTION", "CONVERTIBLE NOTES",
+    "PROSPECTUS", "FILES PROSPECTUS", "PRICES PUBLIC OFFERING", "PRICED OFFERING",
+    "UNDERWRITTEN PUBLIC OFFERING", "PRICES UNDERWRITTEN", "FILES FOR OFFERING",
     # Legal / regulatorio / solvencia
     "SEC INVESTIGATION", "UNDER INVESTIGATION", "ACCOUNTING IRREGULARITIES",
     "SHORT REPORT", "SHORT SELLER REPORT",
@@ -129,7 +139,6 @@ TIER_2_KEYWORDS = [
     "SUPPLY AGREEMENT", "LICENSE AGREEMENT", "MULTI-YEAR AGREEMENT",
     "INSIDER BUYING", "CEO PURCHASED", "CFO PURCHASED",
     "SECURES CONTRACT", "SELECTED BY",
-    "MEMORANDUM OF UNDERSTANDING",
     "UNUSUAL OPTIONS",
     # Earnings con lenguaje periodístico real
     "QUARTERLY RESULTS", "QUARTERLY EARNINGS", "FULL YEAR RESULTS",
@@ -143,8 +152,28 @@ TIER_2_KEYWORDS = [
     "MULTI-YEAR CONTRACT", "LONG-TERM CONTRACT",
 ]
 
+# ── 8-K rutinarios sin impacto (backfill 2026-06-20) ──────────────────────────
+# La votación de accionistas (Item 5.07) movió anormal +0.11% mediana = ruido puro;
+# la propia IA los marca "no operar". Se descartan ANTES de la IA (ahorro de costo)
+# salvo que el mismo filing traiga un item MATERIAL o un catalizador Tier-1 fuerte.
+ROUTINE_8K_ITEMS = ["ITEM 5.07"]
+MATERIAL_8K_ITEMS = ["ITEM 1.01", "ITEM 2.01", "ITEM 2.02", "ITEM 7.01", "ITEM 8.01"]
+
+# ── PT-raise de analista degradable ───────────────────────────────────────────
+# Un "Maintains/Reitera X, sube PT" (rating SIN cambio) pesa +2 (no pasa solo); un
+# UPGRADE real (cambio de rating, ya en TIER_1) sigue pesando +4. Backfill: el grueso
+# de analyst_rating era PT-maintains ya priceado, de señal ~nula.
+RATING_MAINTAIN_WORDS = ["MAINTAINS", "REITERATES", "REAFFIRMS", "KEEPS",
+                         "REITERATED", "MAINTAINED", "REAFFIRMED"]
+PT_RAISE_KEYWORDS = ["PRICE TARGET RAISED", "RAISES PRICE TARGET", "RAISES TARGET",
+                     "RAISES PT", "PRICE TARGET INCREASED", "BOOSTS PRICE TARGET",
+                     "LIFTS PRICE TARGET"]
+TRUE_UPGRADE_KEYWORDS = ["UPGRADED TO BUY", "UPGRADED TO OVERWEIGHT", "RAISED TO BUY",
+                         "UPGRADES TO BUY", "UPGRADES TO OVERWEIGHT", "UPGRADED TO OUTPERFORM"]
+
 # Todas las keywords críticas juntas (para fingerprint de dedup)
-CRITICAL_KEYWORDS = TIER_1_KEYWORDS + TIER_2_KEYWORDS + TIER_1_BEARISH + TIER_2_BEARISH
+CRITICAL_KEYWORDS = (TIER_1_KEYWORDS + TIER_2_KEYWORDS + TIER_1_BEARISH + TIER_2_BEARISH
+                     + PT_RAISE_KEYWORDS)
 
 # ── Keywords que indican ya está priceado (titular) ───────────────────────────
 PRICED_HEADLINE_WORDS = [
@@ -180,6 +209,15 @@ def score_article(raw_text: str) -> tuple[int, list[str]]:
     for kw in TIER_2_KEYWORDS + TIER_2_BEARISH:
         if kw in text_upper:
             score += 2
+            found.append(kw)
+
+    # PT-raise de analista: +4 normalmente, pero solo +2 si el rating queda IGUAL
+    # (Maintains/Reitera) sin upgrade real → degradado, no pasa solo (backfill 06-20).
+    pt_weight = 2 if (any(w in text_upper for w in RATING_MAINTAIN_WORDS)
+                      and not any(k in text_upper for k in TRUE_UPGRADE_KEYWORDS)) else 4
+    for kw in PT_RAISE_KEYWORDS:
+        if kw in text_upper:
+            score += pt_weight
             found.append(kw)
 
     for kw in WEAK_KEYWORDS:
@@ -267,6 +305,13 @@ def passes_filter(
     # Cualquier filing material es inherentemente relevante — las conviction gates
     # filtran si no hay movimiento de precio ni catalizador real.
     if source == "SEC_EDGAR":
+        # Kill de 8-K rutinario (Item 5.07 votación de accionistas) SIN item material ni
+        # catalizador Tier-1: ruido puro que la IA misma descarta (backfill 06-20). Se corta
+        # antes de gastar una llamada de IA. Si trae un item material, sigue de largo.
+        if (any(it in raw_text for it in ROUTINE_8K_ITEMS)
+                and not any(it in raw_text for it in MATERIAL_8K_ITEMS)
+                and score < 4):
+            return False, "8-K rutinario (Item 5.07 votacion) — sin item material ni catalizador"
         article["edgar_bypass"] = True
         logger.debug(f"[EDGAR-BYPASS] ticker={tickers_in_text} score={score} — pasa sin keyword check")
     elif score < 3:
