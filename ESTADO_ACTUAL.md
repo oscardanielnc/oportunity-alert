@@ -1,6 +1,55 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-19 (migración a DeepSeek + 2 fixes DESPLEGADOS y verificados en VM)
+# Última actualización: 2026-06-20 (NOCHE) — gran sesión: estudio de reacción + rediseño noticias +
+#   scoreboard de auditoría + Market Movers (Truth Social/Fed/SEC/Treasury). DESPLEGADO Y VIVO.
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-20 (NOCHE) — REDISEÑO NOTICIAS + SCOREBOARD + MARKET MOVERS (DESPLEGADO, commit `85991de`)
+
+> Sesión enorme. Fuente de verdad del rediseño: `RESTRUCTURE_3ARMS.md` + memorias
+> `news-reaction-findings`, `news-reaction-measurement`. **TODO desplegado y vivo en la VM**
+> (servicio active, 15 threads, 0 errores). **REGLA: no desplegar sin que Oscar lo pida** (memoria
+> `feedback-no-deploy-sin-pedir`).
+
+### 🔬 Estudio de reacción a noticias (qué descubrimos, con datos)
+- El **score de convicción NO predice** la reacción (dir_ok ~50%). Llegábamos **TARDE a los saltos
+  ≥12%**: 88% perdidos, lead negativo. Problema = **cobertura+velocidad+filtro**, no el modelo.
+- Autopsia: los catalizadores reales llegaban en tiempo real (age 0) por ALPACA_BENZINGA y el
+  **filtro de keywords los mataba**. NO hace falta pagar feed: el fix era el filtro (ya hecho).
+- **Momentum ⛔ ARCHIVADO**: el edge no sobrevive muestra grande + fees (ver `momentum_validate2`).
+- **Earnings = la prioridad tradeable** (DELL+40/SNOW+38 son earnings; PED del Piloto ya existe). → MAÑANA.
+
+### 🛠 Brazo NOTICIAS rediseñado (en vivo)
+- `filters/keyword_filter.py`: kill 8-K Item 5.07; degrade PT-maintains; + keywords cubeta-2
+  (data center lease, prospectus/offering, MOU). Yahoo/CNBC fuera del ingreso Finnhub (laggy).
+- `utils/signal_score.py` cableado: SMS por **categoría+frescura+confirmación de precio** (no el
+  score viejo). Config `min_signal_score_sms`=6. La dirección solo es predecible en fresco+no-priceado.
+
+### 📈 SCOREBOARD de auditoría (en vivo) — el validador central
+- `utils/scoreboard.py` + tabla `signal_outcomes` + thread resolver horario + `/api/scoreboard` +
+  pestaña dashboard. Mide TODA señal (noticias/market_movers) a **48h**: anormal vs QQQ + MFE/MAE +
+  acierto. **Precio DUAL Binance-perp(24/7)/Alpaca(next-open)**. `scope=macro` → mide CRUDO + índice.
+  `event_key` agrupa la cesta (1 señal POR ticker). Casos reales validados: FOMC 17-jun, Trump→INTC +5.5%.
+
+### 📢 MARKET MOVERS — sección por VOZ (en vivo), separada de Noticias (por empresa)
+- `sources/truth_social.py` (RSS trumpstruth.org), `sources/fed.py` (RSS FOMC/press), `sources/sec.py`
+  (RSS press/speeches), `sources/treasury.py` (scrape HTML, frágil — Treasury no tiene RSS).
+- `utils/trump_tracker.py` generalizado: `OFFICIAL_SOURCES={FED,TREASURY,SEC}` pasan el gate por
+  fuente; prompt source-aware; tickers sanitizados; hook scoreboard arm='market_movers' + scope + event_key.
+- Threads: `TruthSocial`, `Fed`, `OfficialMovers`(SEC+Treasury). Dashboard: "📢 Market Movers" con fuente etiquetada.
+- **Brief diario** consume market movers (bloque que prioriza bajista/mixto+macro) y **se refresca al
+  instante** ante un evento macro/bajista → avisa de cerrar antes de una caída.
+
+### 📊 LECTURA SEMANAL (para el veredicto de afinado)
+`research/scoreboard_digest.py`: traer la DB (`scp .../data/metrics.db data/metrics_vm.db`) y correr
+`python research/scoreboard_digest.py --db data/metrics_vm.db --days 7` → win-rate/abn/MFE por
+brazo+categoría+fuente + candidatos a suprimir + cesta por event_key.
+
+### 🔜 PENDIENTE (mañana)
+- **Earnings (PED)** — el brazo tradeable; revisar/validar el motor del Piloto + ejecución.
+- Refinar: panel scoreboard por fuente; medir lead-time de Fed/SEC vs wires (con datos forward).
+- Treasury scrape es frágil (sin RSS) — vigilar; SEC/Fed son RSS sólidos.
 
 ---
 
