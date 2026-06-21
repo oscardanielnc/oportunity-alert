@@ -1620,6 +1620,38 @@ def fed_loop(config, watchlist, dedup, **kwargs):
         time.sleep(interval)
 
 
+def official_movers_loop(config, watchlist, dedup, **kwargs):
+    """Fuentes OFICIALES de market movers vía RSS (SEC + Treasury cuando aplique). Mismo patrón
+    que Fed: cada comunicado → radar de market movers (bypass del gate Trump por ser fuente
+    oficial). Volumen bajo → poll lento. Fed tiene su propio loop por ser el de mayor impacto."""
+    from utils import trump_tracker
+    interval = config.get("intervals_seconds", {}).get("official_movers", 1800)
+    while True:
+        try:
+            live_wl = get_live_watchlist() or watchlist
+            posts = []
+            try:
+                from sources.sec import fetch_recent as _sec
+                posts += _sec(max_age_min=interval / 60 + 60)
+            except Exception as e:
+                logger.debug(f"[OfficialMovers] SEC: {e}")
+            try:
+                from sources.treasury import fetch_recent as _tre
+                posts += _tre(max_age_min=interval / 60 + 60)
+            except Exception as e:
+                logger.debug(f"[OfficialMovers] Treasury: {e}")
+            n = 0
+            for art in posts:
+                if trump_tracker.capture_headline(art, watchlist=live_wl, held=_held_tickers()):
+                    n += 1
+            if n:
+                logger.info(f"OfficialMovers ciclo: {n} comunicados (SEC/Treasury) al radar")
+            _beat("OfficialMovers", interval)
+        except Exception as e:
+            logger.error(f"Error en official_movers_loop: {e}")
+        time.sleep(interval)
+
+
 def scoreboard_resolver_loop(config, watchlist, dedup, **kwargs):
     """Resuelve las señales abiertas del scoreboard cada hora: las mide a 48h con la maquinaria
     de reacción (anormal vs QQQ + MFE/MAE, precio dual Alpaca/Binance perp). Idempotente."""
@@ -1965,6 +1997,7 @@ def main():
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
         ("TruthSocial",      truth_social_loop,        (config, watchlist, dedup), shared),
         ("Fed",              fed_loop,                 (config, watchlist, dedup), shared),
+        ("OfficialMovers",   official_movers_loop,     (config, watchlist, dedup), shared),
         ("Scoreboard",       scoreboard_resolver_loop, (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("DailyBrief",       daily_brief_loop,         (),                            {}),
