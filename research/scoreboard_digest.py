@@ -40,10 +40,9 @@ def _send_notify(text):
     try:
         sys.path.insert(0, _ROOT)
         from alerts.twilio_sms import send_raw_message
-        to = os.environ.get("TWILIO_TO", "")
-        if not to:
-            print("[notify] sin TWILIO_TO"); return False
-        return send_raw_message(text, to)
+        # CallMeBot (canal por defecto) usa su propio destino y NO necesita TWILIO_TO; para
+        # twilio sms/whatsapp sí. Pasamos lo que haya y dejamos que send_raw_message decida.
+        return send_raw_message(text, os.environ.get("TWILIO_TO", ""))
     except Exception as e:
         print(f"[notify] error: {e}"); return False
 
