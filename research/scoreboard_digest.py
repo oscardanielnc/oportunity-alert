@@ -102,7 +102,8 @@ def main():
     if not closed:
         print("Aún sin señales cerradas (cada una tarda 48h). Vuelve a correrlo en unos días.")
         if args.notify:
-            _send_notify(_notify_text(rows, closed, {}, args.days, args.min_n))
+            ok = _send_notify(_notify_text(rows, closed, {}, args.days, args.min_n))
+            print(f"[notify] resumen {'enviado' if ok else 'NO enviado'}")
         return
 
     def hitrate(g):
