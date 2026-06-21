@@ -347,6 +347,16 @@ def _process(item: dict) -> None:
     except Exception as e:
         logger.debug(f"[scoreboard] record market_movers: {e}")
 
+    # Si el market mover es MACRO o BAJISTA/mixto, refrescar el Brief diario AL INSTANTE (su
+    # bloque de market movers lo incluirá) → avisa a tiempo de cerrar posiciones antes de caer.
+    # Volumen bajo (Fed/Trump relevantes) → sin spam. Lazy import: evita ciclo con daily_brief.
+    try:
+        if record["impacto"] in ("bajista", "mixto") or record["alcance"] == "macro":
+            from utils import daily_brief
+            daily_brief.regenerate()
+    except Exception as e:
+        logger.debug(f"[Trump] brief regen: {e}")
+
 
 # ── Persistencia (data/trump_feed.json) ──────────────────────────────────────────
 
