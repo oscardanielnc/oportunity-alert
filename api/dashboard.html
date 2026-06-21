@@ -591,7 +591,8 @@ tbody tr:hover { background: #fafafb; }
     <div class="sb-tag">Panel de inversiones</div>
     <nav class="sb-nav">
       <button class="tab"     onclick="go('brief')">📋 Brief diario</button>
-      <button class="tab"     onclick="go('trump')">🇺🇸 Trump</button>
+      <button class="tab"     onclick="go('trump')">📢 Market Movers</button>
+      <button class="tab"     onclick="go('scoreboard')">📈 Scoreboard</button>
       <button class="tab on"  onclick="go('noticias')">Noticias</button>
       <button class="tab"     onclick="go('posiciones')">Posiciones</button>
       <button class="tab"     onclick="go('watchlist')">Watchlist</button>
@@ -644,18 +645,39 @@ tbody tr:hover { background: #fafafb; }
       <div id="brief-body"><div style="color:var(--text3);padding:20px">Cargando brief…</div></div>
     </div>
 
-    <!-- ===== TRUMP ===== -->
+    <!-- ===== MARKET MOVERS (declaraciones oficiales que mueven el mercado) ===== -->
     <div id="p-trump" class="panel">
       <div style="font-size:11px;color:var(--text3);margin:0 0 10px 2px">
-        🇺🇸 <b>Radar Trump</b> — declaraciones del presidente que pueden mover el mercado, detectadas
-        en los feeds de noticias y resumidas por IA: <b>qué dijo</b>, <b>qué significa</b> y la
-        <b>acción concreta</b> que podrías evaluar según tu watchlist y tus posiciones. Decision support — tú decides.
+        📢 <b>Market Movers oficiales</b> — declaraciones de voces que mueven el mercado, detectadas
+        en los feeds y resumidas por IA: <b>qué dijo</b>, <b>qué significa</b> y la <b>acción concreta</b>
+        que podrías evaluar según tu watchlist y posiciones. Cada item lleva su <b>fuente</b> etiquetada
+        (🟣 Truth Social, feeds de noticias…). Hoy: <b>Trump</b>. Próximamente: <b>Fed · Treasury · SEC</b>.
+        Decision support — tú decides.
       </div>
       <div class="filter-row" style="margin-bottom:12px">
         <span id="trump-asof" style="font-size:12px;color:var(--text3)">—</span>
-        <button class="btn-ghost" onclick="loadTrump()" title="Recargar el radar">↻ Actualizar</button>
+        <button class="btn-ghost" onclick="loadTrump()" title="Recargar">↻ Actualizar</button>
       </div>
-      <div id="trump-body"><div style="color:var(--text3);padding:20px">Cargando radar…</div></div>
+      <div id="trump-body"><div style="color:var(--text3);padding:20px">Cargando…</div></div>
+    </div>
+
+    <!-- ===== SCOREBOARD (auditoría de outcomes de los 3 brazos) ===== -->
+    <div id="p-scoreboard" class="panel">
+      <div style="font-size:11px;color:var(--text3);margin:0 0 10px 2px">
+        📈 <b>Scoreboard de auditoría</b> — mide el resultado REAL de cada señal (noticias · market
+        movers · earnings) a <b>48h</b>: reacción anormal vs QQQ, MFE/MAE y acierto direccional. Es el
+        empírico de <b>qué señales funcionan</b> y cuáles ignorar. Se puebla en background (resolver
+        horario, precio Alpaca + Binance perp). Tarda ~48h en cerrar cada señal.
+      </div>
+      <div class="filter-row" style="margin-bottom:12px">
+        <span id="sb-asof" style="font-size:12px;color:var(--text3)">—</span>
+        <select id="sb-days" onchange="loadScoreboard()" style="font-size:12px">
+          <option value="30">30 días</option><option value="60" selected>60 días</option>
+          <option value="120">120 días</option>
+        </select>
+        <button class="btn-ghost" onclick="loadScoreboard()" title="Recargar">↻ Actualizar</button>
+      </div>
+      <div id="sb-body"><div style="color:var(--text3);padding:20px">Cargando scoreboard…</div></div>
     </div>
 
     <!-- ===== NOTICIAS ===== -->
@@ -939,7 +961,8 @@ function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
   if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(true); }
   if (active.includes('brief'))   return loadBrief(false, true);
-  if (active.includes('trump'))   return loadTrump(true);
+  if (active.includes('movers'))  return loadTrump(true);
+  if (active.includes('scoreboard')) return loadScoreboard(true);
   if (active === 'posiciones')   return loadPositions(true);
   if (active === 'watchlist')    return loadWatchlist();
   if (active.includes('piloto'))  return loadPilot();
@@ -951,7 +974,7 @@ function go(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const tabs = {
-    brief:'📋 Brief diario', trump:'🇺🇸 Trump',
+    brief:'📋 Brief diario', trump:'📢 Market Movers', scoreboard:'📈 Scoreboard',
     noticias:'Noticias',
     posiciones:'Posiciones', watchlist:'Watchlist',
     piloto:'🚀 Piloto',
@@ -962,6 +985,7 @@ function go(name) {
   document.getElementById(`p-${name}`)?.classList.add('on');
   if (name === 'brief')      loadBrief();
   if (name === 'trump')      loadTrump();
+  if (name === 'scoreboard') loadScoreboard();
   if (name === 'noticias')   { loadAlerts(); loadNoticiasFilterSummary(); }
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
@@ -1320,6 +1344,10 @@ async function loadPilot() {
 }
 
 // ── Tab: Trump (radar de declaraciones que mueven el mercado) ─────────────────
+const SRC_LABEL = {
+  TRUTH_SOCIAL: '🟣 Truth Social',
+  ALPACA_BENZINGA: 'Benzinga (RT)', FINNHUB_BENZINGA: 'Benzinga', SEC_EDGAR: 'SEC EDGAR',
+};
 const TRUMP_IMPACT = {
   alcista:  { col:'var(--green)',  bg:'rgba(34,197,94,.14)',  icon:'📈', label:'ALCISTA' },
   bajista:  { col:'var(--red)',    bg:'rgba(239,68,68,.14)',  icon:'📉', label:'BAJISTA' },
@@ -1368,11 +1396,55 @@ function renderTrump(t) {
     ${t.resumen ? `<div style="font-size:14px;line-height:1.55;color:var(--text1,#111);margin-bottom:8px">${esc(t.resumen)}</div>` : ''}
     ${t.significado ? `<div style="font-size:13px;line-height:1.5;color:var(--text2);margin-bottom:8px"><b style="color:var(--text1,#111)">Qué significa:</b> ${esc(t.significado)}</div>` : ''}
     ${t.accion ? `<div style="font-size:13px;line-height:1.5;background:var(--bg2,#f6f7f9);border-radius:8px;padding:10px 12px;color:var(--text1,#111)"><b>🎯 Acción:</b> ${esc(t.accion)}</div>` : ''}
-    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text3)">
-      ${t.source ? `<span>${esc(t.source)}</span>` : ''}${link}
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text3);align-items:center">
+      ${t.source ? `<span style="font-weight:700;${t.source==='TRUTH_SOCIAL'?'color:#a855f7':''}">${SRC_LABEL[t.source]||esc(t.source)}</span>` : ''}${link}
       <span style="margin-left:auto">${esc(t.engine||'')}</span>
     </div>
   </div>`;
+}
+
+// ── Tab: Scoreboard (auditoría de outcomes de los 3 brazos) ───────────────────
+async function loadScoreboard(silent = false) {
+  const body = document.getElementById('sb-body');
+  const days = document.getElementById('sb-days')?.value || 60;
+  if (!silent) body.innerHTML = '<div style="color:var(--text3);padding:20px">Cargando scoreboard…</div>';
+  let d;
+  try { d = await api('/api/scoreboard?days=' + days); }
+  catch (e) { body.innerHTML = `<div style="color:var(--red);padding:20px">No se pudo cargar (${esc(String(e))})</div>`; return; }
+  const rows = (d && d.rows) || [];
+  const asof = document.getElementById('sb-asof');
+  if (asof) asof.textContent = rows.length
+    ? `${rows.length} categoría${rows.length===1?'':'s'} medida${rows.length===1?'':'s'} (cerradas a 48h)`
+    : 'Aún sin señales cerradas';
+  if (!rows.length) {
+    body.innerHTML = `<div class="empty" style="padding:24px"><strong>Sin señales cerradas todavía</strong>
+      Cada señal tarda 48h en resolverse. A medida que se cierren verás aquí win-rate direccional y
+      reacción anormal por brazo y categoría — para saber qué señales funcionan y cuáles ignorar.</div>`;
+    return;
+  }
+  const byArm = {};
+  rows.forEach(r => { (byArm[r.arm] = byArm[r.arm] || []).push(r); });
+  const armLabel = { noticias:'📰 Noticias', trump:'📢 Market Movers', earnings:'📅 Earnings', momentum:'⚡ Momentum' };
+  const fmt = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
+  let html = '';
+  Object.keys(byArm).forEach(arm => {
+    html += `<h3 style="font-size:14px;margin:14px 0 6px">${armLabel[arm] || esc(arm)}</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px">
+      <tr style="color:var(--text3);text-align:left;font-size:11px;text-transform:uppercase">
+        <th style="padding:6px 8px">Categoría</th><th>n</th><th>dir ✓</th><th>abn 4h</th><th>abn 24h</th><th>MFE</th></tr>`;
+    byArm[arm].sort((a,b) => b.n - a.n).forEach(r => {
+      const wcol = r.win_rate == null ? 'var(--text3)'
+        : (r.win_rate >= 55 ? 'var(--green)' : r.win_rate <= 45 ? 'var(--red)' : 'var(--text2)');
+      html += `<tr style="border-top:1px solid var(--border,#eee)">
+        <td style="padding:6px 8px;font-weight:600">${esc(r.categoria)}</td>
+        <td>${r.n}</td>
+        <td style="color:${wcol};font-weight:700">${r.win_rate == null ? '—' : r.win_rate + '%'}</td>
+        <td>${fmt(r.abn_4h_med)}</td><td>${fmt(r.abn_24h_med)}</td>
+        <td style="color:var(--green)">${fmt(r.mfe_med)}</td></tr>`;
+    });
+    html += '</table>';
+  });
+  body.innerHTML = html;
 }
 
 // ── Tab: Noticias ─────────────────────────────────────────────────────────────
