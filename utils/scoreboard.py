@@ -161,6 +161,23 @@ def _at(series, when):
     return closes[i]
 
 
+def _anchor(series, t0, max_h):
+    """Precio de anclaje de la señal: en t0 si hay barra; si no (overnight / mercado cerrado y
+    ticker sin perp), la PRIMERA barra después de t0 dentro de la ventana = entrada al próximo
+    open (cuando recién se puede operar). Devuelve (t_efectivo, precio)."""
+    p0 = _at(series, t0)
+    if p0 is not None:
+        return t0, p0
+    times, closes = series
+    if not times:
+        return None, None
+    end = int(t0.timestamp()) + max_h * 3600
+    i = bisect.bisect_left(times, int(t0.timestamp()))
+    if i < len(times) and times[i] <= end:
+        return datetime.fromtimestamp(times[i], timezone.utc), closes[i]
+    return None, None
+
+
 def resolve_open(db_path: str) -> int:
     """Mide y cierra señales abiertas cuya ventana de 48h ya pasó (o actualiza las en curso).
     Idempotente desde barras. Devuelve nº de filas actualizadas."""
@@ -180,7 +197,7 @@ def resolve_open(db_path: str) -> int:
         elapsed_h = (datetime.now(timezone.utc) - t0).total_seconds() / 3600
         prefer_perp = _has_perp(r["ticker"])   # 24/7 para overnight (Trump) y perp líquido
         s = _series(r["ticker"], t0 - timedelta(minutes=30), g_end, prefer_perp)
-        p0 = _at((s[0], s[1]), t0)
+        t0_eff, p0 = _anchor((s[0], s[1]), t0, HORIZON_H)   # ancla a t0 o al próximo open
         if p0 is None:
             if elapsed_h > HORIZON_H + 6:
                 con.execute("UPDATE signal_outcomes SET status='no_data', updated_at=? WHERE id=?",
@@ -189,8 +206,8 @@ def resolve_open(db_path: str) -> int:
             continue
         upd = {"price_t0": p0, "venue_precio": s[2]}
         for mins, col in zip(CHECKPOINTS_MIN, ["abn_15m", "abn_1h", "abn_4h", "abn_24h", "abn_48h"]):
-            upd[col] = _abn((s[0], s[1]), qqq, t0, mins, p0)
-        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0, p0)
+            upd[col] = _abn((s[0], s[1]), qqq, t0_eff, mins, p0)
+        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0_eff, p0)
         abn4 = upd.get("abn_4h")
         d = (r["direccion"] or "").upper()
         upd["dir_correct"] = (None if abn4 is None or d not in ("LONG", "SHORT")
@@ -255,10 +272,11 @@ def summary_by_category(db_path: str, days: int = 60) -> list[dict]:
         def med(col):
             v = [r[col] for r in rs if r[col] is not None]
             return round(st.median(v), 2) if v else None
+        srcs = sorted({r["source"] for r in rs if r["source"]})
         out.append({"arm": arm, "categoria": cat, "n": len(rs),
                     "win_rate": round(100 * sum(hits) / len(hits)) if hits else None,
                     "abn_4h_med": med("abn_4h"), "abn_24h_med": med("abn_24h"),
-                    "mfe_med": med("mfe_abn")})
+                    "mfe_med": med("mfe_abn"), "sources": srcs})
     return out
 
 
