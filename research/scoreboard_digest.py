@@ -28,10 +28,54 @@ def _med(vals):
     return round(st.median(vals), 2) if vals else None
 
 
+def _send_notify(text):
+    """Envía el resumen por el canal configurado (CallMeBot/WhatsApp/SMS). Para el cron semanal."""
+    try:
+        sys.path.insert(0, _ROOT)
+        from alerts.twilio_sms import send_raw_message
+        to = os.environ.get("TWILIO_TO", "")
+        if not to:
+            print("[notify] sin TWILIO_TO"); return False
+        return send_raw_message(text, to)
+    except Exception as e:
+        print(f"[notify] error: {e}"); return False
+
+
+def _notify_text(rows, closed, g, days, min_n):
+    """Resumen compacto + recordatorio de pendientes #2/#3 (readiness por categoría)."""
+    n_open = sum(1 for r in rows if r["status"] == "open")
+    L = [f"📊 *Scoreboard {days}d*: {len(closed)} cerradas · {n_open} abiertas"]
+    if not closed:
+        L.append("Aún sin cierres — acumulando. (PED/pre-run-up tardan ~5-8d.)")
+        return "\n".join(L)
+    # top categorías por retorno al exit
+    agg = {}
+    for (arm, cat, src), rs in g.items():
+        agg.setdefault((arm, cat), []).extend(rs)
+    def _ex(rs): return _med([r["abn_final"] for r in rs if "abn_final" in r.keys()])
+    def _win(rs):
+        h = [r["dir_correct"] for r in rs if r["dir_correct"] is not None]
+        return (100*sum(h)//len(h)) if h else None
+    top = sorted(agg.items(), key=lambda kv: -(_ex(kv[1]) or -99))[:4]
+    L.append("")
+    for (arm, cat), rs in top:
+        L.append(f"• {arm}/{cat}: n={len(rs)} win={_win(rs)}% exit={_ex(rs)}%")
+    # readiness #2 (convicción data-driven): categorías con muestra suficiente
+    ready = [f"{arm}/{cat}" for (arm, cat), rs in agg.items() if len(rs) >= min_n]
+    if ready:
+        L.append("")
+        L.append(f"🔧 *#2 listo* (n≥{min_n}): {', '.join(ready)} → cablear convicción data-driven.")
+    L.append("")
+    L.append("📈 #3: corré el digest completo para la lectura.")
+    return "\n".join(L)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=os.path.join(_ROOT, "data", "metrics_vm.db"))
     ap.add_argument("--days", type=int, default=7)
+    ap.add_argument("--notify", action="store_true", help="envía resumen + readiness por WhatsApp/SMS (cron)")
+    ap.add_argument("--min-n", type=int, default=8, help="muestra mínima para marcar #2 listo")
     args = ap.parse_args()
     if not os.path.exists(args.db):
         print(f"[ERROR] no existe {args.db}. Trae la DB de la VM (ver cabecera del script)."); sys.exit(1)
@@ -50,7 +94,10 @@ def main():
     print(f"Señales: {len(rows)} | cerradas: {len(closed)} | abiertas: "
           f"{sum(1 for r in rows if r['status']=='open')} | sin_datos: {sum(1 for r in rows if r['status']=='no_data')}\n")
     if not closed:
-        print("Aún sin señales cerradas (cada una tarda 48h). Vuelve a correrlo en unos días."); return
+        print("Aún sin señales cerradas (cada una tarda 48h). Vuelve a correrlo en unos días.")
+        if args.notify:
+            _send_notify(_notify_text(rows, closed, {}, args.days, args.min_n))
+        return
 
     def hitrate(g):
         h = [r["dir_correct"] for r in g if r["dir_correct"] is not None]
@@ -94,6 +141,10 @@ def main():
             tickers = ", ".join(f"{r['ticker']}{('+' if (r['abn_24h'] or 0)>0 else '')}{r['abn_24h']}%"
                                  for r in rs if r["abn_24h"] is not None)
             print(f"  [{src}/{scope}] {k}: {tickers}")
+
+    if args.notify:
+        ok = _send_notify(_notify_text(rows, closed, g, args.days, args.min_n))
+        print(f"\n[notify] resumen {'enviado' if ok else 'NO enviado'}")
 
 
 if __name__ == "__main__":
