@@ -54,12 +54,18 @@ except (TypeError, ValueError):
 # house" se incluyen porque los feeds suelen titular así sus declaraciones.
 _TRUMP_TOKENS = ("trump", "potus", "truth social", "president donald")
 
+# Fuentes OFICIALES de market-movers: pasan el gate por SU FUENTE (no necesitan nombrar a Trump).
+# El tracker es ahora "market movers" (voces que mueven el mercado), no solo Trump. Cada item
+# lleva su `source`. Fed/Treasury/SEC publican en sus RSS oficiales (ver sources/fed.py, etc.).
+OFFICIAL_SOURCES = {"FED", "TREASURY", "SEC"}
+
 # Relevancia macro: si el titular no nombra un ticker del universo, al menos debe tocar
 # un tema con impacto de mercado. Lista deliberadamente amplia (la IA filtra el ruido).
 _MACRO_KEYWORDS = (
     "tariff", "tariffs", "trade war", "trade deal", "import", "export", "sanction",
     "china", "chinese", "taiwan", "mexico", "canada", "europe", "eu ",
-    "fed", "federal reserve", "powell", "interest rate", "rate cut", "rate hike",
+    "fed", "federal reserve", "fomc", "monetary policy", "powell", "interest rate",
+    "rate cut", "rate hike", "basis points", "treasury", "yield",
     "inflation", "tax", "taxes", "tax cut", "stimulus", "deficit", "debt ceiling",
     "war", "military", "defense", "nato", "ukraine", "russia", "iran", "israel",
     "middle east", "ceasefire", "sanctions", "oil", "energy", "drill",
@@ -131,7 +137,11 @@ def capture_headline(article: dict, watchlist=None, held=None) -> bool:
     """
     try:
         text = _text_of(article)
-        if not any(tok in text for tok in _TRUMP_TOKENS):
+        src = (article.get("source") or "").upper()
+        is_official = src in OFFICIAL_SOURCES
+        # Fuente oficial (Fed/Treasury/SEC) = market mover por definición → no exige nombrar a Trump.
+        # Otras fuentes (feeds de noticias) → solo entran si el titular nombra a Trump.
+        if not is_official and not any(tok in text for tok in _TRUMP_TOKENS):
             return False
 
         universe = {t.upper() for t in (watchlist or [])} | {t.upper() for t in (held or [])}
@@ -210,7 +220,8 @@ def _worker() -> None:
 
 _SYSTEM = (
     "Eres un analista que ayuda a Oscar, un inversor minorista, a entender si una "
-    "declaración del presidente Trump puede mover el mercado y QUÉ hacer al respecto. "
+    "declaración de una voz que mueve el mercado (Trump, la Reserva Federal, el Tesoro, "
+    "la SEC u otra autoridad) puede mover el mercado y QUÉ hacer al respecto. "
     "Hablas claro y directo, sin jerga. NO das órdenes de comprar/vender como un asesor "
     "regulado: explicas el posible impacto y la acción que Oscar PODRÍA evaluar. "
     "Respondes SIEMPRE en español y tu salida es JSON."
@@ -244,13 +255,14 @@ def _build_prompt(item: dict) -> str:
         f"Tickers del universo de Oscar mencionados: {seed_tk}\n"
         f"Temas macro detectados: {seed_macro}\n"
         f"Posiciones ABIERTAS de Oscar ahora mismo: {held}\n\n"
-        "Evalúa si esta declaración de Trump es REALMENTE capaz de mover el mercado o un "
-        "sector/acción relevante para Oscar. Si es ruido (mención tangencial, sin impacto "
-        "de mercado, o no es realmente algo que dijo Trump), marca relevante=false.\n\n"
+        "Evalúa si esta declaración (de la fuente indicada arriba) es REALMENTE capaz de mover el "
+        "mercado o un sector/acción relevante para Oscar. Si es ruido (mención tangencial, trámite "
+        "sin impacto de mercado), marca relevante=false. OJO: un comunicado de la Fed/Tesoro/SEC "
+        "suele ser MACRO (alcance=macro: mueve el mercado entero), no de una sola acción.\n\n"
         "Devuelve JSON con EXACTAMENTE estos campos:\n"
         '{\n'
         '  "relevante": true|false,\n'
-        '  "resumen": "1-2 frases: qué dijo Trump, en simple",\n'
+        '  "resumen": "1-2 frases: qué dijo la fuente, en simple",\n'
         '  "significado": "qué implica para el mercado/sector (1-2 frases)",\n'
         '  "accion": "acción concreta que Oscar podría evaluar, nombrando los tickers de '
         'su universo afectados; si no hay nada que hacer, dilo",\n'
@@ -318,19 +330,22 @@ def _process(item: dict) -> None:
     logger.info(f"[Trump] guardado [{record['impacto']}/{record['alcance']}] "
                 f"{record['tickers'] or '-'}: {record['resumen'][:80]}")
 
-    # Scoreboard de auditoría: cada ticker afectado = una señal del brazo 'trump' (medición
-    # forward a 48h con la maquinaria de reacción). Solo si hay dirección y ticker concretos.
+    # Scoreboard de auditoría: cada ticker afectado = una señal del brazo 'market_movers',
+    # agrupadas por event_key (la cesta de UNA declaración). scope=alcance → el resolver mide
+    # MACRO en crudo. Se mide aunque la dirección sea mixta/incierta (magnitud igual sirve).
     try:
         from utils import scoreboard
         from utils.metrics_store import DB_PATH
         _dir = {"alcista": "LONG", "bajista": "SHORT"}.get(record["impacto"])
-        if _dir:
-            for tk in record["tickers"]:
-                scoreboard.record_signal(DB_PATH, "trump", tk, _dir,
-                                         f"trump_{record['alcance']}", None,
-                                         record["source"], None, record["ts"], None)
+        tickers = list(record["tickers"])
+        if record["alcance"] == "macro" and "QQQ" not in tickers:
+            tickers.append("QQQ")   # evento macro: medir siempre la reacción del mercado (índice)
+        for tk in tickers:
+            scoreboard.record_signal(DB_PATH, "market_movers", tk, _dir, record["alcance"],
+                                     None, record["source"], None, record["ts"], None,
+                                     scope=record["alcance"], event_key=record["fp"])
     except Exception as e:
-        logger.debug(f"[scoreboard] record trump: {e}")
+        logger.debug(f"[scoreboard] record market_movers: {e}")
 
 
 # ── Persistencia (data/trump_feed.json) ──────────────────────────────────────────

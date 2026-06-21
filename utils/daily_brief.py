@@ -174,6 +174,38 @@ def _sentinel_block(positions: list) -> dict:
         return {"triggers": [], "at_risk": [], "severity": 0}
 
 
+def _market_movers_block(hours: int = 24, limit: int = 4) -> list:
+    """Declaraciones recientes de market movers (Trump/Fed/Treasury/SEC) con impacto de mercado,
+    para que el brief avise si conviene CERRAR posiciones antes de una caída. Prioriza las
+    bajistas/mixtas y las macro (mueven todo el mercado)."""
+    from datetime import timedelta
+    try:
+        from utils.trump_tracker import get_feed
+        feed = get_feed(limit=20)
+        items = feed.get("items", []) if isinstance(feed, dict) else (feed or [])
+        cutoff = datetime.now(LIMA) - timedelta(hours=hours)
+        out = []
+        for it in items:
+            try:
+                ts = datetime.fromisoformat(it["ts"]) if it.get("ts") else None
+                if ts and ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=LIMA)
+            except Exception:
+                ts = None
+            if ts and ts < cutoff:
+                continue
+            out.append({"source": it.get("source"), "impacto": it.get("impacto"),
+                        "alcance": it.get("alcance"), "resumen": it.get("resumen") or it.get("headline"),
+                        "tickers": it.get("tickers") or []})
+        # prioridad: bajista/mixto primero, luego macro
+        out.sort(key=lambda x: ((x["impacto"] or "") not in ("bajista", "mixto"),
+                                (x["alcance"] or "") != "macro"))
+        return out[:limit]
+    except Exception as e:
+        logger.debug(f"[DailyBrief] market movers: {e}")
+        return []
+
+
 def build_brief() -> dict:
     """Ensambla el brief estructurado (sin IA). Best-effort: nunca lanza."""
     dash = _load_dashboard()
@@ -187,6 +219,7 @@ def build_brief() -> dict:
         "sectors":       _sectors_block(dash),
         "positions":     positions,
         "opportunities": _opportunities_block(dash, held),
+        "market_movers": _market_movers_block(),
     }
 
 
@@ -236,6 +269,11 @@ def _build_prompt(brief: dict) -> str:
         opps = ", ".join(f"{o['ticker']} (#{o.get('rank')}{'/breakout' if o.get('is_breakout') else ''})"
                          for o in brief["opportunities"])
         parts.append(f"- Líderes Marea fuera de cartera: {opps}")
+    if brief.get("market_movers"):
+        parts.append("- Market movers recientes (Trump/Fed/Treasury/SEC) — vigila si presionan tus posiciones:")
+        for m in brief["market_movers"]:
+            tk = f" [{', '.join(m['tickers'])}]" if m.get("tickers") else ""
+            parts.append(f"  · ({m.get('source')}/{m.get('impacto')}/{m.get('alcance')}){tk} {m.get('resumen')}")
     parts.append(
         "\nDevuelve JSON con dos campos: "
         '{"resumen": "2-4 frases sobre el panorama y tus posiciones", '

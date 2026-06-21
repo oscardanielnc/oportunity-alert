@@ -1597,6 +1597,29 @@ def truth_social_loop(config, watchlist, dedup, **kwargs):
         time.sleep(interval)
 
 
+def fed_loop(config, watchlist, dedup, **kwargs):
+    """Fuente Fed (RSS oficial federalreserve.gov): comunicados de la Reserva Federal como
+    MARKET MOVER oficial (FOMC = mayor impacto macro). Van al radar de market movers
+    (capture_headline; bypass del gate Trump por ser fuente oficial). Volumen bajo → poll lento."""
+    from sources.fed import fetch_recent
+    from utils import trump_tracker
+    interval = config.get("intervals_seconds", {}).get("fed", 1800)   # 30 min
+    while True:
+        try:
+            live_wl = get_live_watchlist() or watchlist
+            posts = fetch_recent(max_age_min=interval / 60 + 60)
+            n = 0
+            for art in posts:
+                if trump_tracker.capture_headline(art, watchlist=live_wl, held=_held_tickers()):
+                    n += 1
+            if n:
+                logger.info(f"Fed ciclo: {n} comunicados nuevos al radar de market movers")
+            _beat("Fed", interval)
+        except Exception as e:
+            logger.error(f"Error en fed_loop: {e}")
+        time.sleep(interval)
+
+
 def scoreboard_resolver_loop(config, watchlist, dedup, **kwargs):
     """Resuelve las señales abiertas del scoreboard cada hora: las mide a 48h con la maquinaria
     de reacción (anormal vs QQQ + MFE/MAE, precio dual Alpaca/Binance perp). Idempotente."""
@@ -1941,6 +1964,7 @@ def main():
         ("PositionTracker",  position_tracker_loop,    (twilio_from, twilio_to),   {}),
         ("GapScanner",       gap_scanner_loop,         (config, watchlist, dedup), shared),
         ("TruthSocial",      truth_social_loop,        (config, watchlist, dedup), shared),
+        ("Fed",              fed_loop,                 (config, watchlist, dedup), shared),
         ("Scoreboard",       scoreboard_resolver_loop, (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("DailyBrief",       daily_brief_loop,         (),                            {}),

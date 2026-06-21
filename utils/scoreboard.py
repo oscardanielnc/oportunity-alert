@@ -35,11 +35,13 @@ BENCH = "QQQ"
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS signal_outcomes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    arm           TEXT NOT NULL,          -- noticias | trump | earnings | momentum
+    arm           TEXT NOT NULL,          -- noticias | market_movers | earnings | momentum
     ts            TEXT NOT NULL,          -- t0 (UTC ISO)
     ticker        TEXT NOT NULL,
     direccion     TEXT,                   -- LONG | SHORT
     categoria     TEXT,
+    scope         TEXT,                   -- ticker | sector | macro  (macro => medir crudo+índice)
+    event_key     TEXT,                   -- agrupa la cesta de tickers de UNA misma declaración
     score         INTEGER,
     source        TEXT,
     age_min       REAL,
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS signal_outcomes (
     price_t0      REAL,
     venue_precio  TEXT,                   -- alpaca | binance
     abn_15m  REAL, abn_1h REAL, abn_4h REAL, abn_24h REAL, abn_48h REAL,
+    idx_24h  REAL,                        -- reacción del índice QQQ a 24h (contexto, clave en macro)
     mfe_abn  REAL, mae_abn REAL, time_to_peak_min INTEGER,
     dir_correct  INTEGER,                 -- 1/0/NULL
     status       TEXT DEFAULT 'open',     -- open | closed | no_data
@@ -59,21 +62,30 @@ CREATE TABLE IF NOT EXISTS signal_outcomes (
 def ensure_table(db_path: str) -> None:
     con = sqlite3.connect(db_path)
     con.execute(SCHEMA)
+    # Migración idempotente: añadir columnas nuevas a tablas ya creadas (CREATE IF NOT EXISTS
+    # no las agrega). Cada ALTER falla si la columna ya existe -> se ignora.
+    for col, decl in (("scope", "TEXT"), ("event_key", "TEXT"), ("idx_24h", "REAL")):
+        try:
+            con.execute(f"ALTER TABLE signal_outcomes ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
     con.commit()
     con.close()
 
 
 def record_signal(db_path, arm, ticker, direction, category, score, source,
-                  age_min, t0_iso, price_t0, alert_id=None) -> None:
-    """Inserta una señal al dispararse (status=open). Idempotente por (arm,ticker,ts)."""
+                  age_min, t0_iso, price_t0, alert_id=None, scope="ticker", event_key=None) -> None:
+    """Inserta una señal al dispararse (status=open). Idempotente por (arm,ticker,ts).
+    scope: ticker|sector|macro (macro => el resolver mide CRUDO, no anormal). event_key agrupa
+    la cesta de tickers de una misma declaración (market movers uno-a-muchos)."""
     try:
         con = sqlite3.connect(db_path)
         con.execute(SCHEMA)
         con.execute(
             "INSERT OR IGNORE INTO signal_outcomes "
-            "(arm,ts,ticker,direccion,categoria,score,source,age_min,alert_id,price_t0,status,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,'open',?)",
-            (arm, t0_iso, str(ticker).upper(), direction, category, score, source,
+            "(arm,ts,ticker,direccion,categoria,scope,event_key,score,source,age_min,alert_id,price_t0,status,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'open',?)",
+            (arm, t0_iso, str(ticker).upper(), direction, category, scope, event_key, score, source,
              age_min, alert_id, price_t0, _now()),
         )
         con.commit()
@@ -204,10 +216,14 @@ def resolve_open(db_path: str) -> int:
                             (_now(), r["id"]))
                 n += 1
             continue
+        macro = (r["scope"] == "macro")   # evento market-wide => medir CRUDO (no anormal vs QQQ)
         upd = {"price_t0": p0, "venue_precio": s[2]}
         for mins, col in zip(CHECKPOINTS_MIN, ["abn_15m", "abn_1h", "abn_4h", "abn_24h", "abn_48h"]):
-            upd[col] = _abn((s[0], s[1]), qqq, t0_eff, mins, p0)
-        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0_eff, p0)
+            upd[col] = _abn((s[0], s[1]), qqq, t0_eff, mins, p0, macro=macro)
+        # reacción del índice (QQQ) a 24h — contexto, y la señal real en macro
+        q0i = _at(qqq, t0_eff); q1i = _at(qqq, t0_eff + timedelta(minutes=1440))
+        upd["idx_24h"] = round((q1i / q0i - 1) * 100, 3) if (q0i and q1i) else None
+        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0_eff, p0, macro=macro)
         abn4 = upd.get("abn_4h")
         d = (r["direccion"] or "").upper()
         upd["dir_correct"] = (None if abn4 is None or d not in ("LONG", "SHORT")
@@ -222,18 +238,20 @@ def resolve_open(db_path: str) -> int:
     return n
 
 
-def _abn(series, qqq, t0, mins, p0):
+def _abn(series, qqq, t0, mins, p0, macro=False):
     p1 = _at(series, t0 + timedelta(minutes=mins))
-    q0, q1 = _at(qqq, t0), _at(qqq, t0 + timedelta(minutes=mins))
     if p1 is None or not p0:
         return None
     raw = (p1 / p0 - 1) * 100
+    if macro:
+        return round(raw, 3)   # macro: el movimiento CRUDO es la señal (todo el mercado se mueve)
+    q0, q1 = _at(qqq, t0), _at(qqq, t0 + timedelta(minutes=mins))
     if q0 and q1:
         return round(raw - (q1 / q0 - 1) * 100, 3)
     return round(raw, 3)   # overnight sin QQQ: retorno crudo (perp 24/7)
 
 
-def _mfe_mae(series, qqq, t0, p0):
+def _mfe_mae(series, qqq, t0, p0, macro=False):
     times, closes = series
     q0 = _at(qqq, t0)
     if not times or not p0:
@@ -243,8 +261,10 @@ def _mfe_mae(series, qqq, t0, p0):
     while i < len(times) and times[i] <= end:
         when = datetime.fromtimestamp(times[i], timezone.utc)
         q = _at(qqq, when)
-        base = (q / q0) if (q0 and q) else 1.0
-        a = ((closes[i] / p0) - base) * 100 if (q0 and q) else (closes[i] / p0 - 1) * 100
+        if macro or not (q0 and q):
+            a = (closes[i] / p0 - 1) * 100          # macro/overnight: excursión CRUDA
+        else:
+            a = ((closes[i] / p0) - (q / q0)) * 100  # anormal
         if a > mfe:
             mfe, tpeak = a, (times[i] - t0s) // 60
         if a < mae:

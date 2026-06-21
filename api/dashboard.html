@@ -1345,7 +1345,7 @@ async function loadPilot() {
 
 // ── Tab: Trump (radar de declaraciones que mueven el mercado) ─────────────────
 const SRC_LABEL = {
-  TRUTH_SOCIAL: '🟣 Truth Social',
+  TRUTH_SOCIAL: '🟣 Truth Social', FED: '🏛️ Fed', TREASURY: '🏦 Treasury', SEC: '⚖️ SEC',
   ALPACA_BENZINGA: 'Benzinga (RT)', FINNHUB_BENZINGA: 'Benzinga', SEC_EDGAR: 'SEC EDGAR',
 };
 const TRUMP_IMPACT = {
@@ -1424,7 +1424,7 @@ async function loadScoreboard(silent = false) {
   }
   const byArm = {};
   rows.forEach(r => { (byArm[r.arm] = byArm[r.arm] || []).push(r); });
-  const armLabel = { noticias:'📰 Noticias', trump:'📢 Market Movers', earnings:'📅 Earnings', momentum:'⚡ Momentum' };
+  const armLabel = { noticias:'📰 Noticias', market_movers:'📢 Market Movers', trump:'📢 Market Movers', earnings:'📅 Earnings', momentum:'⚡ Momentum' };
   const fmt = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
   let html = '';
   Object.keys(byArm).forEach(arm => {
