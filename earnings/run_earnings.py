@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datetime import timedelta
 
 from pilot.momentum_signals import fetch_daily_batch
-from pilot.ped_signals import fetch_earnings_map
+from pilot.ped_signals import fetch_earnings_map, PED_HOLD_DAYS
 from earnings.strategies import (STRATEGIES, all_universe, prerun_for, PRERUN_PROJ,
                                  PRERUN_ENTRY_CAL_DAYS)
 from earnings.calendar import upcoming_earnings
@@ -40,6 +40,9 @@ DATA_DIR = os.path.join(ROOT, "data")
 DASH_PATH = os.path.join(DATA_DIR, "earnings_dashboard.json")
 DB_PATH = os.path.join(DATA_DIR, "metrics.db")
 CALENDAR_DAYS = 14
+# Horizonte de medición del trade PED en el scoreboard: hold = PED_HOLD_DAYS ruedas desde la
+# entrada (Day+2) → a calendario ≈ *7/5. Cubre Day+2 → ~Day+8 para medir el drift completo al exit.
+PED_HORIZON_H = round(PED_HOLD_DAYS * (7 / 5) * 24)   # 6 ruedas ≈ 202h ≈ 8.4 días
 
 
 def run(use_scoreboard=True):
@@ -91,7 +94,7 @@ def run(use_scoreboard=True):
             pr["status"], pr["label"] = "holding", "Ventana de entrada pasó — mantener hasta el reporte"
         e["prerun"] = pr
         if pr["applies"] and pr["status"] == "enter_now" and e["days_until"] >= 1:
-            prerun_open.append((e["ticker"], pr, data.get(e["ticker"])))
+            prerun_open.append((e, pr, data.get(e["ticker"])))
     _pr_apply = sum(1 for e in calendar if e.get("prerun", {}).get("applies"))
     print(f"[earnings] pre-run-up: {_pr_apply}/{len(calendar)} próximos aplican (sobre SMA50)"
           + (f", {len(prerun_open)} en ventana de entrada" if prerun_open else ""))
@@ -110,15 +113,20 @@ def run(use_scoreboard=True):
                     DB_PATH, "earnings", c["ticker"], c["direction"], c["category"],
                     int(round(c["conviction"])) if c.get("conviction") is not None else None,
                     f"finnhub_earnings:{c['strategy']}", None, ped_entry_iso, None,
-                    scope="ticker",
+                    scope="ticker", horizon_h=PED_HORIZON_H,
                 )
-            # Pre-run-up: registrar al ABRIR la ventana de entrada (idempotente por entry_date).
-            for tk, pr, bars in prerun_open:
+            # Pre-run-up: registrar al ABRIR la ventana (idempotente por entry_date). Horizonte =
+            # entrada → víspera del reporte (último cierre antes del earning) para NO medir el evento.
+            for e, pr, bars in prerun_open:
                 px = bars[-1]["c"] if bars else None
+                rep = datetime.strptime(e["date"], "%Y-%m-%d").date()
+                exit_d = rep if e["hour"] == "amc" else rep - timedelta(days=1)
+                en_d = datetime.strptime(pr["entry_date"], "%Y-%m-%d").date()
+                horizon = max(24.0, (exit_d - en_d).days * 24.0)
                 scoreboard.record_signal(
-                    DB_PATH, "earnings", tk, "LONG", "prerun", None,
+                    DB_PATH, "earnings", e["ticker"], "LONG", "prerun", None,
                     "prerun:calendar", None, f"{pr['entry_date']}T20:00:00+00:00", px,
-                    scope="ticker",
+                    scope="ticker", horizon_h=horizon,
                 )
             print(f"[earnings] {len(candidates)} candidato(s) PED + {len(prerun_open)} "
                   f"pre-run-up registrados en scoreboard")

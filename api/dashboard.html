@@ -1546,7 +1546,7 @@ async function loadScoreboard(silent = false) {
     html += `<h3 style="font-size:14px;margin:14px 0 6px">${armLabel[arm] || esc(arm)}</h3>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px">
       <tr style="color:var(--text3);text-align:left;font-size:11px;text-transform:uppercase">
-        <th style="padding:6px 8px">Categoría</th><th>n</th><th>dir ✓</th><th>abn 4h</th><th>abn 24h</th><th>MFE</th></tr>`;
+        <th style="padding:6px 8px">Categoría</th><th>n</th><th>dir ✓</th><th>abn 4h</th><th>abn 24h</th><th title="Retorno anormal al EXIT real del trade (a su horizonte)">exit</th><th>MFE</th></tr>`;
     byArm[arm].sort((a,b) => b.n - a.n).forEach(r => {
       const wcol = r.win_rate == null ? 'var(--text3)'
         : (r.win_rate >= 55 ? 'var(--green)' : r.win_rate <= 45 ? 'var(--red)' : 'var(--text2)');
@@ -1557,6 +1557,7 @@ async function loadScoreboard(silent = false) {
         <td>${r.n}</td>
         <td style="color:${wcol};font-weight:700">${r.win_rate == null ? '—' : r.win_rate + '%'}</td>
         <td>${fmt(r.abn_4h_med)}</td><td>${fmt(r.abn_24h_med)}</td>
+        <td style="font-weight:600">${fmt(r.abn_final_med)}</td>
         <td style="color:var(--green)">${fmt(r.mfe_med)}</td></tr>`;
     });
     html += '</table>';

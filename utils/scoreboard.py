@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS signal_outcomes (
     price_t0      REAL,
     venue_precio  TEXT,                   -- alpaca | binance
     abn_15m  REAL, abn_1h REAL, abn_4h REAL, abn_24h REAL, abn_48h REAL,
+    abn_final REAL,                       -- retorno (anormal/crudo) AL EXIT real del trade (a horizon_h)
+    horizon_h REAL,                       -- horizonte de medición/cierre en horas (default 48; earnings multi-día)
     idx_24h  REAL,                        -- reacción del índice QQQ a 24h (contexto, clave en macro)
     mfe_abn  REAL, mae_abn REAL, time_to_peak_min INTEGER,
     dir_correct  INTEGER,                 -- 1/0/NULL
@@ -64,7 +66,8 @@ def ensure_table(db_path: str) -> None:
     con.execute(SCHEMA)
     # Migración idempotente: añadir columnas nuevas a tablas ya creadas (CREATE IF NOT EXISTS
     # no las agrega). Cada ALTER falla si la columna ya existe -> se ignora.
-    for col, decl in (("scope", "TEXT"), ("event_key", "TEXT"), ("idx_24h", "REAL")):
+    for col, decl in (("scope", "TEXT"), ("event_key", "TEXT"), ("idx_24h", "REAL"),
+                      ("abn_final", "REAL"), ("horizon_h", "REAL")):
         try:
             con.execute(f"ALTER TABLE signal_outcomes ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
@@ -74,10 +77,12 @@ def ensure_table(db_path: str) -> None:
 
 
 def record_signal(db_path, arm, ticker, direction, category, score, source,
-                  age_min, t0_iso, price_t0, alert_id=None, scope="ticker", event_key=None) -> None:
+                  age_min, t0_iso, price_t0, alert_id=None, scope="ticker", event_key=None,
+                  horizon_h=HORIZON_H) -> None:
     """Inserta una señal al dispararse (status=open). Idempotente por (arm,ticker,ts).
     scope: ticker|sector|macro (macro => el resolver mide CRUDO, no anormal). event_key agrupa
-    la cesta de tickers de una misma declaración (market movers uno-a-muchos)."""
+    la cesta de tickers de una misma declaración (market movers uno-a-muchos).
+    horizon_h: horas hasta el cierre/medición (default 48; earnings multi-día pasan 120-192h)."""
     try:
         # Normaliza ts a aware-UTC para que TODAS las fuentes guarden el mismo formato
         # (market_movers pasaba naive) y el resolver no mezcle naive/aware.
@@ -92,10 +97,10 @@ def record_signal(db_path, arm, ticker, direction, category, score, source,
         con.execute(SCHEMA)
         con.execute(
             "INSERT OR IGNORE INTO signal_outcomes "
-            "(arm,ts,ticker,direccion,categoria,scope,event_key,score,source,age_min,alert_id,price_t0,status,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'open',?)",
+            "(arm,ts,ticker,direccion,categoria,scope,event_key,score,source,age_min,alert_id,price_t0,horizon_h,status,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?)",
             (arm, t0_iso, str(ticker).upper(), direction, category, scope, event_key, score, source,
-             age_min, alert_id, price_t0, _now()),
+             age_min, alert_id, price_t0, horizon_h, _now()),
         )
         con.commit()
         con.close()
@@ -212,6 +217,7 @@ def _parse_ts(s):
 def resolve_open(db_path: str) -> int:
     """Mide y cierra señales abiertas cuya ventana de 48h ya pasó (o actualiza las en curso).
     Idempotente desde barras. Devuelve nº de filas actualizadas."""
+    ensure_table(db_path)   # garantiza columnas nuevas (horizon_h/abn_final) en DBs preexistentes
     con = sqlite3.connect(db_path); con.row_factory = sqlite3.Row
     con.execute(SCHEMA)
     rows = con.execute("SELECT * FROM signal_outcomes WHERE status='open'").fetchall()
@@ -225,12 +231,13 @@ def resolve_open(db_path: str) -> int:
     n = 0
     for r in rows:
         t0 = _parse_ts(r["ts"])
+        H = r["horizon_h"] if (r["horizon_h"] or 0) > 0 else HORIZON_H   # horizonte por-señal
         elapsed_h = (datetime.now(timezone.utc) - t0).total_seconds() / 3600
         prefer_perp = _has_perp(r["ticker"])   # 24/7 para overnight (Trump) y perp líquido
         s = _series(r["ticker"], t0 - timedelta(minutes=30), g_end, prefer_perp)
-        t0_eff, p0 = _anchor((s[0], s[1]), t0, HORIZON_H)   # ancla a t0 o al próximo open
+        t0_eff, p0 = _anchor((s[0], s[1]), t0, H)   # ancla a t0 o al próximo open
         if p0 is None:
-            if elapsed_h > HORIZON_H + 6:
+            if elapsed_h > H + 6:
                 con.execute("UPDATE signal_outcomes SET status='no_data', updated_at=? WHERE id=?",
                             (_now(), r["id"]))
                 n += 1
@@ -239,15 +246,18 @@ def resolve_open(db_path: str) -> int:
         upd = {"price_t0": p0, "venue_precio": s[2]}
         for mins, col in zip(CHECKPOINTS_MIN, ["abn_15m", "abn_1h", "abn_4h", "abn_24h", "abn_48h"]):
             upd[col] = _abn((s[0], s[1]), qqq, t0_eff, mins, p0, macro=macro)
+        # retorno AL EXIT real del trade (a horizon_h) — la "P&L" de la señal multi-día
+        upd["abn_final"] = _abn((s[0], s[1]), qqq, t0_eff, H * 60, p0, macro=macro)
         # reacción del índice (QQQ) a 24h — contexto, y la señal real en macro
         q0i = _at(qqq, t0_eff); q1i = _at(qqq, t0_eff + timedelta(minutes=1440))
         upd["idx_24h"] = round((q1i / q0i - 1) * 100, 3) if (q0i and q1i) else None
-        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0_eff, p0, macro=macro)
-        abn4 = upd.get("abn_4h")
+        upd["mfe_abn"], upd["mae_abn"], upd["time_to_peak_min"] = _mfe_mae((s[0], s[1]), qqq, t0_eff, p0, macro=macro, horizon_h=H)
+        # dir_correct según el retorno AL EXIT si ya cerró; si no, lectura temprana (abn_4h)
+        ref = upd.get("abn_final") if upd.get("abn_final") is not None else upd.get("abn_4h")
         d = (r["direccion"] or "").upper()
-        upd["dir_correct"] = (None if abn4 is None or d not in ("LONG", "SHORT")
-                              else int((abn4 > 0) == (d == "LONG")))
-        status = "closed" if elapsed_h >= HORIZON_H else "open"
+        upd["dir_correct"] = (None if ref is None or d not in ("LONG", "SHORT")
+                              else int((ref > 0) == (d == "LONG")))
+        status = "closed" if elapsed_h >= H else "open"
         cols = ", ".join(f"{k}=?" for k in upd) + ", status=?, updated_at=?"
         con.execute(f"UPDATE signal_outcomes SET {cols} WHERE id=?",
                     (*upd.values(), status, _now(), r["id"]))
@@ -270,12 +280,12 @@ def _abn(series, qqq, t0, mins, p0, macro=False):
     return round(raw, 3)   # overnight sin QQQ: retorno crudo (perp 24/7)
 
 
-def _mfe_mae(series, qqq, t0, p0, macro=False):
+def _mfe_mae(series, qqq, t0, p0, macro=False, horizon_h=HORIZON_H):
     times, closes = series
     q0 = _at(qqq, t0)
     if not times or not p0:
         return None, None, None
-    t0s = int(t0.timestamp()); end = t0s + HORIZON_H * 3600
+    t0s = int(t0.timestamp()); end = t0s + horizon_h * 3600
     i = bisect.bisect_right(times, t0s); mfe = mae = 0.0; tpeak = None
     while i < len(times) and times[i] <= end:
         when = datetime.fromtimestamp(times[i], timezone.utc)
@@ -315,7 +325,7 @@ def summary_by_category(db_path: str, days: int = 60) -> list[dict]:
         out.append({"arm": arm, "categoria": cat, "n": len(rs),
                     "win_rate": round(100 * sum(hits) / len(hits)) if hits else None,
                     "abn_4h_med": med("abn_4h"), "abn_24h_med": med("abn_24h"),
-                    "mfe_med": med("mfe_abn"), "sources": srcs})
+                    "abn_final_med": med("abn_final"), "mfe_med": med("mfe_abn"), "sources": srcs})
     return out
 
 

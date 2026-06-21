@@ -57,14 +57,15 @@ def main():
         return f"{100*sum(h)//len(h)}%" if h else "—"
 
     # por brazo + categoría + fuente
-    print(f"{'brazo':<14}{'categoría':<12}{'fuente':<16}{'n':>4}{'win':>6}{'abn4h':>7}{'abn24h':>8}{'MFE':>7}")
+    print(f"{'brazo':<14}{'categoría':<12}{'fuente':<16}{'n':>4}{'win':>6}{'abn4h':>7}{'abn24h':>8}{'exit':>7}{'MFE':>7}")
     g = defaultdict(list)
     for r in closed:
         g[(r["arm"], r["categoria"] or "?", r["source"] or "?")].append(r)
     for (arm, cat, src), rs in sorted(g.items(), key=lambda x: -len(x[1])):
+        _ex = _med([r["abn_final"] for r in rs]) if "abn_final" in rs[0].keys() else None
         print(f"{arm[:14]:<14}{str(cat)[:12]:<12}{str(src)[:16]:<16}{len(rs):>4}{hitrate(rs):>6}"
               f"{str(_med([r['abn_4h'] for r in rs])):>7}{str(_med([r['abn_24h'] for r in rs])):>8}"
-              f"{str(_med([r['mfe_abn'] for r in rs])):>7}")
+              f"{str(_ex):>7}{str(_med([r['mfe_abn'] for r in rs])):>7}")
 
     # candidatos a SUPRIMIR (impacto bajo): MFE mediana < 1% y win <= 50%
     print("\n=== CANDIDATOS A SUPRIMIR (MFE<1% y win<=50%, n>=5) ===")
