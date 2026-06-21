@@ -329,5 +329,20 @@ def summary_by_category(db_path: str, days: int = 60) -> list[dict]:
     return out
 
 
+def expected_impact(db_path: str, arm: str, category: str, min_n: int = 8, days: int = 120) -> dict | None:
+    """Impacto EMPÍRICO de una (arm, categoría) según señales YA cerradas — base de la convicción
+    data-driven (#2). Devuelve {n, median_exit, median_mfe, win} si hay muestra (n>=min_n), o None
+    para que el caller use su default hardcodeado hasta que el scoreboard acumule. Mediana del
+    retorno AL EXIT (abn_final) = "cuánto rinde de verdad esta categoría", que reemplazará al
+    proxy actual (% de reacción / proyección agregada)."""
+    for row in summary_by_category(db_path, days=days):
+        if row["arm"] == arm and (row["categoria"] or "?") == category:
+            if row["n"] >= min_n:
+                return {"n": row["n"], "median_exit": row.get("abn_final_med"),
+                        "median_mfe": row.get("mfe_med"), "win": row.get("win_rate")}
+            return None
+    return None
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
