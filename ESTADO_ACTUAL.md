@@ -1,6 +1,6 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-21 — sección EARNINGS separada del Piloto (Marea), pre-run-up
-#   validado y cableado, tracking en Scoreboard, fixes de UI + bug tz del scoreboard. DESPLEGADO.
+# Última actualización: 2026-06-21 (TARDE) — Earnings (Marea/PED) desplegado + horizonte por-señal +
+#   digest-notify semanal + NUEVO tool LOCAL earnings_shape (playbooks intradía, NO va a la VM).
 # Dueño: Oscar Navarro | Asistente: Claude
 
 ---
@@ -43,10 +43,28 @@
 - Dashboard: badge vistoso de fuente en Market Movers (Trump/Fed/Treasury/SEC con color) + 1 emoji por
   tab en el sidebar (📰 Noticias · 💼 Posiciones · 👁 Watchlist).
 
+### ✅ AÑADIDO LA MISMA TARDE (desplegado VM, commits hasta `c454edb`)
+- **Horizonte por-señal en el Scoreboard** (HECHO): `utils/scoreboard.py` columnas `horizon_h`+`abn_final`;
+  resolve_open mide hasta el exit real por-fila (PED ~202h, prerun=entrada→víspera reporte), migración
+  idempotente. `run_earnings` pasa los horizontes. Panel dashboard + digest con columna "exit".
+- **#2 base lista**: `scoreboard.expected_impact()` (impacto empírico por categoría; falta cablear).
+- **Recordatorio automático**: `research/scoreboard_digest.py --notify` + **cron VM** `30 23 * * 0`
+  (domingo) → WhatsApp con estado del scoreboard + marca "#2 listo (n≥8)". `PENDIENTES.md` documenta #2/#3.
+
+### 🧪 NUEVO — `research/earnings_shape.py` (LOCAL, NO va a la VM)
+Herramienta de research del proyecto **earnings-shape** (memoria `earnings-shape-project`): perfila
+por-ticker la forma intradía de reacción a earnings (1m [-1h,+2h] + 1h post-días, % normalizado),
+repetibilidad, clasificador por gap, doble clasificación (resultado/forma-AH) con head-fakes, y un
+**HTML local interactivo** (`data/earnings_shape.html`) con grupos personalizados (localStorage),
+cards con EPS auto + Rev/Guidance manuales. Hallazgos: MU/PLTR = playbooks fuertes; APP/AVAV no (forma).
+**Corre SOLO en local** (como los demás `research/*.py`); no se importa en main.py ni tiene cron.
+Revenue surprise/guidance NO disponibles gratis (verificado) → manuales.
+
 ### 🔜 PENDIENTE
-- Refinar convicción de earnings (hoy = % reacción / proyección agregada; futuro data-driven scoreboard).
-- Horizonte por-señal en el scoreboard (medir PED/prerun hasta su exit real, no 48h).
-- Más estrategias solo si pasan el bar (el pozo "fácil" se agotó: Short-PED/Cañonazo descartados).
+- Refinar convicción de earnings → cablear `expected_impact` cuando el scoreboard acumule muestra (#2).
+- Lectura del scoreboard (#3) cuando cierren señales (el cron semanal ya avisa).
+- earnings-shape v2: ampliar biblioteca de tickers; fuente paga si se quiere auto revenue/guidance.
+- Más estrategias tradeables solo si pasan el bar (Short-PED/Cañonazo descartados).
 
 ---
 
