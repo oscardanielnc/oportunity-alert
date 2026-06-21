@@ -597,6 +597,7 @@ tbody tr:hover { background: #fafafb; }
       <button class="tab"     onclick="go('posiciones')">Posiciones</button>
       <button class="tab"     onclick="go('watchlist')">Watchlist</button>
       <button class="tab"     onclick="go('piloto')">🚀 Piloto</button>
+      <button class="tab"     onclick="go('earnings')">📅 Earnings</button>
     </nav>
     <div class="sb-foot">
       <div class="sb-avatar">ON</div>
@@ -808,13 +809,6 @@ tbody tr:hover { background: #fafafb; }
         </div>
       </div>
 
-      <!-- Estrategias disponibles (setups de evento puntuales: PED, y futuras) -->
-      <div style="margin-top:18px">
-        <div class="pl-section-head"><h3>📅 Estrategias disponibles <span class="pl-muted">(señales de evento)</span></h3></div>
-        <p class="pl-sub2">Setups por catalizador (earnings, etc.). Aparecen el día que se cumplen sus condiciones — son poco frecuentes.</p>
-        <div id="pl-strategies" class="pl-breakout-list"></div>
-      </div>
-
       <!-- Tablas -->
       <div class="pl-table-card" style="margin-top:26px">
         <div class="pl-table-head">Posiciones abiertas</div>
@@ -832,6 +826,38 @@ tbody tr:hover { background: #fafafb; }
         </table></div>
       </div>
     </div><!-- /p-piloto -->
+
+    <!-- ===== EARNINGS ===== -->
+    <div id="p-earnings" class="panel">
+      <div class="pl-pagehead">
+        <div>
+          <h2 class="pl-h1">Earnings</h2>
+          <p class="pl-sub">Candidatos por estrategia + calendario de próximos reportes · <span style="color:var(--text3)">tú decides holdear u operar (acciones / futuros)</span></p>
+        </div>
+        <div class="pl-head-actions">
+          <span class="pl-pill" id="ea-asof">—</span>
+          <button class="pl-btn-primary" onclick="loadEarnings()">↻ Actualizar datos</button>
+        </div>
+      </div>
+
+      <div id="ea-note" style="margin-bottom:18px"></div>
+
+      <!-- Candidatos por estrategia -->
+      <div style="margin-bottom:8px">
+        <div class="pl-section-head"><h3>🎯 Candidatos por estrategia <span class="pl-muted">(señales medidas en el Scoreboard)</span></h3></div>
+        <p class="pl-sub2">Aparecen el día que cumplen sus condiciones — son poco frecuentes (la temporada fuerte es fin de jul/oct/ene/abr). Cada candidato se mide a 48h en el Scoreboard.</p>
+        <div id="ea-strategies"></div>
+      </div>
+
+      <!-- Calendario de próximos earnings -->
+      <div class="pl-table-card" style="margin-top:26px">
+        <div class="pl-table-head">📅 Próximos earnings <span class="pl-muted" id="ea-cal-window"></span></div>
+        <div class="pm-wrap"><table>
+          <thead><tr><th>Ticker</th><th>Fecha</th><th>Cuándo</th><th style="text-align:right">En</th><th style="text-align:right">EPS est.</th></tr></thead>
+          <tbody id="ea-calendar"></tbody>
+        </table></div>
+      </div>
+    </div><!-- /p-earnings -->
 
   </div><!-- /main -->
   </div><!-- /content -->
@@ -966,6 +992,7 @@ function reloadActive() {
   if (active === 'posiciones')   return loadPositions(true);
   if (active === 'watchlist')    return loadWatchlist();
   if (active.includes('piloto'))  return loadPilot();
+  if (active.includes('earnings')) return loadEarnings();
   return Promise.resolve();
 }
 
@@ -977,7 +1004,7 @@ function go(name) {
     brief:'📋 Brief diario', trump:'📢 Market Movers', scoreboard:'📈 Scoreboard',
     noticias:'Noticias',
     posiciones:'Posiciones', watchlist:'Watchlist',
-    piloto:'🚀 Piloto',
+    piloto:'🚀 Piloto', earnings:'📅 Earnings',
   };
   const btn = [...document.querySelectorAll('.tab')]
     .find(t => t.textContent.trim() === tabs[name]);
@@ -990,6 +1017,7 @@ function go(name) {
   if (name === 'posiciones') loadPositions();
   if (name === 'watchlist')  loadWatchlist();
   if (name === 'piloto') loadPilot();
+  if (name === 'earnings') loadEarnings();
 }
 
 // ── API fetch ──────────────────────────────────────────────────────────────────
@@ -1231,25 +1259,74 @@ function renderBreakouts(d) {
   return fb.map(_breakoutCard).join('');
 }
 
-function renderStrategies(d) {
-  const ss = d.strategy_signals || [];
-  if (!ss.length)
-    return '<div style="color:var(--text3);font-size:12px;padding:6px 2px">Sin señales de estrategia hoy. (PED y futuras aparecen aquí cuando se cumplen las condiciones.)</div>';
-  return ss.map(s => {
-    const star = s.star ? ' <span title="Alta convicción (beat fuerte)" style="color:#f5b301">⭐</span>' : '';
-    const badge = s.strategy === 'PED'
-      ? '<span class="pl-badge ped" title="Post-Earnings Drift: beat genuino de mega-cap, drift al alza D+2→D+7">🟣 PED</span>'
-      : `<span class="pl-badge new">${s.strategy}</span>`;
-    const act = s.buying
-      ? '<span class="pl-buy" title="Hay slot libre — entra en la próxima apertura">🎯 Comprar (Day+2 open)</span>'
-      : '<span class="pl-badge" style="background:var(--bg2);color:var(--text2)" title="Setup válido pero sin slot libre (Marea ocupó el cupo) — vigilar/discrecional">👁 Señal (sin slot)</span>';
-    return `<div class="pl-breakout">
-      <div class="pl-breakout-head"><span class="pl-name">${s.ticker}</span>${star} ${badge}</div>
-      <div class="pl-breakout-row"><span>Reacción al earnings</span><b class="c-green">+${s.conviction}%</b></div>
-      <div class="pl-breakout-row"><span>Horizonte</span><b>${s.note || ''}</b></div>
-      <div style="margin-top:8px">${act}</div>
-    </div>`;
-  }).join('');
+// ── Earnings (sección dedicada: candidatos por estrategia + calendario) ──────────
+const _STRAT_BADGE = {
+  PED: '<span class="pl-badge ped" title="Post-Earnings Drift: beat genuino de mega-cap, drift al alza D+2→D+7">🟣 PED</span>',
+};
+
+function _earningsStratBlock(s) {
+  const cands = s.candidates || [];
+  const badge = _STRAT_BADGE[s.name] || `<span class="pl-badge new">${s.name}</span>`;
+  let body;
+  if (!cands.length) {
+    body = '<div style="color:var(--text3);font-size:12px;padding:6px 2px">Sin candidatos hoy — esta estrategia aparece cuando se cumplen sus condiciones (poco frecuente fuera de temporada).</div>';
+  } else {
+    body = '<div class="pl-breakout-list">' + cands.map(c => {
+      const star = c.star ? ' <span title="Alta convicción (reacción fuerte)" style="color:#f5b301">⭐</span>' : '';
+      const dir = (c.direction || 'LONG') === 'LONG'
+        ? '<span class="pl-badge" style="background:rgba(34,197,94,.15);color:#4ade80">LONG</span>'
+        : '<span class="pl-badge" style="background:rgba(239,68,68,.15);color:#f87171">SHORT</span>';
+      const conv = (c.conviction != null) ? `${c.conviction >= 0 ? '+' : ''}${c.conviction}%` : '—';
+      return `<div class="pl-breakout">
+        <div class="pl-breakout-head"><span class="pl-name">${c.ticker}</span>${star} ${dir}</div>
+        <div class="pl-breakout-row"><span>Reacción / convicción</span><b class="c-green">${conv}</b></div>
+        <div class="pl-breakout-row"><span>Jugada</span><b>${c.note || ''}</b></div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+  return `<div style="margin-bottom:16px">
+    <div class="pl-section-head" style="margin-bottom:8px"><h4 style="margin:0;font-size:14px">${badge} <span class="pl-muted">${cands.length} candidato(s)</span></h4></div>
+    ${body}
+  </div>`;
+}
+
+const _MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function _fmtDate(s) {
+  const p = (s || '').split('-'); if (p.length !== 3) return s || '—';
+  return `${parseInt(p[2],10)} ${_MONTHS[parseInt(p[1],10)-1] || ''}`;
+}
+
+async function loadEarnings() {
+  const setT = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
+  let d;
+  try { d = await api('/api/earnings'); }
+  catch (e) { setT('ea-asof', 'error'); return; }
+  if (!d || !d.available) {
+    document.getElementById('ea-strategies').innerHTML =
+      '<div style="color:var(--text2);font-size:13px;padding:8px 2px">La sección aún no ha corrido. Ejecuta <code>python -m earnings.run_earnings</code> en la VM.</div>';
+    document.getElementById('ea-calendar').innerHTML = '';
+    return;
+  }
+  setT('ea-asof', 'al ' + (d.as_of || '—'));
+  const cw = document.getElementById('ea-cal-window');
+  if (cw) cw.textContent = d.calendar_days ? `(próximos ${d.calendar_days} días)` : '';
+
+  document.getElementById('ea-strategies').innerHTML =
+    (d.strategies || []).map(_earningsStratBlock).join('') ||
+    '<div style="color:var(--text3);font-size:12px">Sin estrategias configuradas.</div>';
+
+  const cal = d.calendar || [];
+  document.getElementById('ea-calendar').innerHTML = cal.length
+    ? cal.map(e => {
+        const when = e.hour === 'bmo'
+          ? '<span title="Before Market Open">🌅 antes</span>'
+          : '<span title="After Market Close">🌙 después</span>';
+        const du = e.days_until === 0 ? 'hoy' : (e.days_until === 1 ? 'mañana' : `${e.days_until}d`);
+        const eps = (e.eps_estimate != null) ? e.eps_estimate.toFixed(2) : '—';
+        return `<tr><td><b>${e.ticker}</b></td><td>${_fmtDate(e.date)}</td><td>${when}</td>
+          <td style="text-align:right">${du}</td><td style="text-align:right">${eps}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="5" style="color:var(--text3);font-size:12px;padding:10px">Sin earnings agendados en la ventana.</td></tr>';
 }
 
 async function loadPilot() {
@@ -1289,8 +1366,6 @@ async function loadPilot() {
   // Cada fila conserva lo accionable (🎯 comprar / 🛑 vender al open, stop 4×ATR, niveles desplegables, sector, noticia).
   document.getElementById('pl-leaders').innerHTML = renderLeaders(d);
   document.getElementById('pl-breakouts').innerHTML = renderBreakouts(d);
-  const _strat = document.getElementById('pl-strategies');
-  if (_strat) _strat.innerHTML = renderStrategies(d);
   document.getElementById('pl-equitychart').innerHTML = _plSpark(d.equity_history);
 
   // Posiciones abiertas

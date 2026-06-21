@@ -107,6 +107,14 @@ def chandelier_stop(highest_high, atr, mult=MULT):
     return highest_high - mult * atr
 
 
+def days_held(bars, entry_date):
+    """Días hábiles en cartera: nº de barras desde entry_date hasta la última."""
+    dates = [b["t"] for b in bars]
+    if entry_date not in dates:
+        return 0
+    return (len(dates) - 1) - dates.index(entry_date)
+
+
 # Régimen macro con HISTÉRESIS (anti-whipsaw). Validado en research/backtest_marea_regime.py
 # (2026-06-02): el gate binario crudo (close>SMA200) hace whipsaw en la línea de los 200 — apaga
 # el riesgo apenas QQQ la toca por debajo y lo re-enciende apenas la toca por arriba. Exigir un

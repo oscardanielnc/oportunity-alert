@@ -18,13 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pilot.universe import load_universe, build_universe
 from pilot.momentum_signals import (
     fetch_daily_batch, indicators, entry_candidates, chandelier_stop, macro_ok, MULT,
-    entry_levels,
+    entry_levels, days_held,
 )
 from pilot.paper_portfolio import PaperPortfolio, K, VOL_TARGET, DATA_DIR
-from pilot.ped_signals import (
-    ped_entry_candidates, ped_should_exit, fetch_earnings_map, MEGA_CAP_PED,
-    days_held, PED_HOLD_DAYS,
-)
 from pilot.star_score import compute_top, sector_strength, SECTOR_ETFS, SECTOR_ETF, SECTOR_NAME, DEFAULT_ETF
 
 DASH_PATH = os.path.join(DATA_DIR, "pilot_dashboard.json")
@@ -124,12 +120,12 @@ def _leaders(pp, inds, cl, top_set, sector_mom, held_days, pending, n=10):
         reverse=True)
     leader_tks = [tk for _, tk in ranked[:n]]
     # Garantizar visibilidad de holdings y compras pendientes aunque caigan fuera del top-N
-    must = list(pp.positions) + (pending.get("buys") or []) + (pending.get("ped_buys") or [])
+    must = list(pp.positions) + (pending.get("buys") or [])
     extra = [tk for tk in dict.fromkeys(must) if tk not in leader_tks]
     all_tks = leader_tks + extra
 
     ctx = _news_sector_ctx(all_tks, sector_mom or {})
-    buys = set((pending.get("buys") or []) + (pending.get("ped_buys") or []))
+    buys = set(pending.get("buys") or [])
     sells = set(pending.get("sells") or [])
 
     out = []
@@ -218,8 +214,8 @@ def _classify_regime(qqq, regime_bars):
     risk_on = macro_ok(qqq)
     if risk_on:
         return {"state": "risk_on", "key": "alcista", "emoji": "🟢", "color": "green",
-                "label": "ALCISTA", "use": "Marea + PED",
-                "legend": "Tech sobre su media de 200 días (con histéresis). Operá Marea y PED."}
+                "label": "ALCISTA", "use": "Marea",
+                "legend": "Tech sobre su media de 200 días (con histéresis). Operá Marea."}
     dbc = indicators(regime_bars.get("DBC", [])) or {}
     tlt = indicators(regime_bars.get("TLT", [])) or {}
     if tlt.get("above_sma"):
@@ -240,7 +236,7 @@ def _classify_regime(qqq, regime_bars):
 
 def run(send_alert=True):
     uni = load_universe()
-    fetch_list = sorted(set(uni) | MEGA_CAP_PED)   # incluir mega-caps PED en el fetch
+    fetch_list = sorted(set(uni))
     data = fetch_daily_batch(fetch_list + ["QQQ"] + SECTOR_ETFS + REGIME_ETFS)
     qqq = data.pop("QQQ", [])
     sector_bars = {e: data.pop(e, []) for e in SECTOR_ETFS}   # ETFs de sector fuera del trading
@@ -267,7 +263,7 @@ def run(send_alert=True):
                 star_rows.append({"tk": tk, "mom": ind["momentum"], "trend": ind["price"]/ind["sma200"]-1})
     top_set, _ = compute_top(star_rows, sector_mom)
 
-    # Días hábiles en cartera por posición (contexto D+x; para PED define la salida ~Day+7).
+    # Días hábiles en cartera por posición (contexto D+x).
     held_days = {tk: days_held(data.get(tk, []), p["entry_date"])
                  for tk, p in pp.positions.items()}
 
@@ -278,17 +274,6 @@ def run(send_alert=True):
                                regime=regime)
 
     actions = []   # fills de hoy (ordenes que estaban pendientes)
-    earnings_map = fetch_earnings_map([t for t in MEGA_CAP_PED if t in data])
-    # Visibilidad de cobertura: si NINGÚN mega-cap trae earnings en la ventana, la fuente
-    # está rota (es justo lo que pasó con yfinance en py3.9). Un día normal sí debe haber
-    # algunos (earnings es trimestral pero el universo es grande). 0 = revisar Finnhub.
-    _ped_with_earnings = sum(1 for t in MEGA_CAP_PED if earnings_map.get(t))
-    _ped_universe = len([t for t in MEGA_CAP_PED if t in data])
-    if _ped_universe and _ped_with_earnings == 0:
-        print(f"[PED][WARN] 0/{_ped_universe} mega-caps con earnings en la ventana — "
-              f"¿fuente Finnhub caída? (con yfinance roto daba exactamente esto)")
-    else:
-        print(f"[PED] earnings detectados en {_ped_with_earnings}/{_ped_universe} mega-caps")
 
     # ── 1) EJECUTAR ordenes pendientes (generadas ayer) al OPEN de hoy ──────────
     pend = pp.pending
@@ -303,48 +288,28 @@ def run(send_alert=True):
             ind = inds.get(tk); atr_pct = (ind["atr"]/ind["price"]) if ind and ind["atr"] else None
             a = pp.open_position(tk, opn[tk], equity_now, atr_pct, ref_date)
             if a: actions.append(a)
-    for tk in pend.get("ped_buys", []):                   # entradas PED (earnings)
-        if pp.free_slots <= 0: break
-        if tk in opn and tk not in pp.positions:
-            ind = inds.get(tk); atr_pct = (ind["atr"]/ind["price"]) if ind and ind["atr"] else None
-            a = pp.open_position(tk, opn[tk], equity_now, atr_pct, ref_date, source="ped")
-            if a: actions.append(a)
 
-    # ── 2) SALIDAS: chandelier (Marea) o por tiempo ~Day+7 (PED) ────────────────
+    # ── 2) SALIDAS: chandelier (Marea) ──────────────────────────────────────────
     new_sells = []
     for tk in list(pp.positions):
         if tk in hi: pp.update_high(tk, hi[tk])
         pos = pp.positions[tk]
-        if pos.get("source") == "ped":
-            if ped_should_exit(data.get(tk, []), pos["entry_date"]):
-                new_sells.append(tk)
-            continue
         ind = inds.get(tk)
         if not ind or ind["atr"] is None or tk not in cl: continue
         stop = chandelier_stop(pos["hh"], ind["atr"])
         if cl[tk] < stop:
             new_sells.append(tk)
 
-    # ── 3) ENTRADAS nuevas: Marea (momentum, prioridad) + PED (earnings) ────────
+    # ── 3) ENTRADAS nuevas: Marea (momentum) ────────────────────────────────────
     macro = macro_ok(qqq)
     held = set(pp.positions)
     slots_next = K - (len(held) - len(new_sells))
-    new_buys, new_ped_buys = [], []
-    # Candidatos PED del día (TODOS — se muestran en "Estrategias disponibles" aunque no haya slot libre)
-    ped_cands_full = [[tk, round(rx, 1)] for tk, rx in ped_entry_candidates(data, earnings_map, ref_date)
-                      if tk not in held and tk in cl]
-    if slots_next > 0:
-        if macro:   # Marea solo en régimen alcista (QQQ > SMA200)
-            cands = [tk for tk in entry_candidates(inds) if tk not in held and tk in cl]
-            new_buys = cands[:slots_next]
-        # PED usa los slots que Marea no tomó (earnings es idiosincrático, no depende del macro)
-        slots_ped = slots_next - len(new_buys)
-        if slots_ped > 0:
-            ped_cands = [tk for tk, _ in ped_cands_full if tk not in new_buys]
-            new_ped_buys = ped_cands[:slots_ped]
+    new_buys = []
+    if macro and slots_next > 0:   # Marea solo en régimen alcista (QQQ > SMA200)
+        cands = [tk for tk in entry_candidates(inds) if tk not in held and tk in cl]
+        new_buys = cands[:slots_next]
 
-    pp.s["pending"] = {"buys": new_buys, "sells": new_sells, "ped_buys": new_ped_buys,
-                       "ped_candidates": ped_cands_full}
+    pp.s["pending"] = {"buys": new_buys, "sells": new_sells}
 
     # ── 4) marcar equity al cierre + persistir ──────────────────────────────────
     eq = pp.record_equity(ref_date, cl)
@@ -352,12 +317,12 @@ def run(send_alert=True):
     pp.save()
 
     # Niveles de entrada sugeridos (informativos) para las COMPRAS de mañana — Fase 1.
-    buy_levels = {tk: entry_levels(inds.get(tk)) for tk in (new_buys + new_ped_buys)}
+    buy_levels = {tk: entry_levels(inds.get(tk)) for tk in new_buys}
     buy_levels = {k: v for k, v in buy_levels.items() if v}
 
-    _print_console(pp, actions, new_buys, new_sells, new_ped_buys, cl, eq, macro, ref_date, buy_levels)
+    _print_console(pp, actions, new_buys, new_sells, cl, eq, macro, ref_date, buy_levels)
     return _emit_dashboard(pp, inds, cl, qqq, ref_date, actions,
-                           new_buys=new_buys, new_sells=new_sells, new_ped_buys=new_ped_buys,
+                           new_buys=new_buys, new_sells=new_sells,
                            top_set=top_set, sector_mom=sector_mom, macro=macro,
                            buy_levels=buy_levels, send_alert=send_alert, held_days=held_days,
                            regime=regime)
@@ -404,9 +369,9 @@ def _levels_lines(tickers, buy_levels, prefix="   ↳ "):
     return out
 
 
-def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date, buy_levels=None):
+def _print_console(pp, actions, buys, sells, cl, eq, macro, date, buy_levels=None):
     init = pp.s["capital_initial"]
-    print(f"\n=== MOMENTUM MULTI-DÍA (Marea + PED) — {date} ===")
+    print(f"\n=== MOMENTUM MULTI-DÍA (Marea) — {date} ===")
     print(f"Equity ${eq:,.0f}  ({(eq/init-1)*100:+.1f}% desde inicio)  | cash ${pp.cash:,.0f} | "
           f"posiciones {len(pp.positions)}/{K} | macro {'ALCISTA' if macro else 'BAJISTA (sin nuevas Marea)'}")
     if actions:
@@ -414,8 +379,8 @@ def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date, buy_
         for a in actions:
             if a["action"]=="BUY": print(f"  COMPRA {a['ticker']} [{a.get('source','marea')}] @ ${a['price']} (${a['cost']:.0f})")
             else: print(f"  VENTA  {a['ticker']} @ ${a['price']} ({a['pnl_pct']:+.1f}%, ${a['pnl_usd']:+.0f})")
-    print(f"MANANA AL ABRIR -> Marea: {buys or '—'} | PED: {ped_buys or '—'} | vender: {sells or '—'}")
-    for ln in _levels_lines((buys or []) + (ped_buys or []), buy_levels):
+    print(f"MANANA AL ABRIR -> Marea: {buys or '—'} | vender: {sells or '—'}")
+    for ln in _levels_lines(buys or [], buy_levels):
         print(ln)
     pl = _pos_lines(pp, cl)
     if pl:
@@ -424,7 +389,7 @@ def _print_console(pp, actions, buys, sells, ped_buys, cl, eq, macro, date, buy_
             print(f"  {tk:6} {pnl:+5.1f}%  (entrada ${ent} -> ${px})")
 
 
-def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_levels=None):
+def _build_alert(pp, cl, eq, actions, buys, sells, macro, date, buy_levels=None):
     init = pp.s["capital_initial"]
     L = [f"📈 *MOMENTUM MULTI-DÍA* — {date}",
          f"Equity ${eq:,.0f} ({(eq/init-1)*100:+.1f}%) | {len(pp.positions)}/{K} pos"]
@@ -434,12 +399,11 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_le
         for a in done:
             if a["action"]=="BUY": L.append(f"✅ COMPRADO {a['ticker']} [{a.get('source','marea')}] @ ${a['price']}")
             else: L.append(f"💰 VENDIDO {a['ticker']} ({a['pnl_pct']:+.1f}%)")
-    if buys or sells or ped_buys:
+    if buys or sells:
         L.append("\n➡️ *MAÑANA AL ABRIR:*")
         if buys:     L.append(f"🟢 COMPRAR (Marea): {', '.join(buys)}")
-        if ped_buys: L.append(f"🟣 PED (earnings): {', '.join(ped_buys)}")
         if sells:    L.append(f"🔴 VENDER: {', '.join(sells)}")
-        lv_lines = _levels_lines((buys or []) + (ped_buys or []), buy_levels)
+        lv_lines = _levels_lines(buys or [], buy_levels)
         if lv_lines:
             L.append("\n🎯 _Entradas sugeridas (límite, opcional):_")
             L.extend(lv_lines)
@@ -454,13 +418,13 @@ def _build_alert(pp, cl, eq, actions, buys, sells, ped_buys, macro, date, buy_le
 
 
 def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=None,
-                    new_ped_buys=None, top_set=None, sector_mom=None, macro=True,
+                    top_set=None, sector_mom=None, macro=True,
                     buy_levels=None, send_alert=True, held_days=None, regime=None):
     top_set = top_set or set()
     held_days = held_days or {}
     # Niveles de entrada sugeridos. En el camino "ya corrido" no se recomputan compras,
     # así que se derivan de pp.pending con los indicadores frescos de hoy.
-    pend_buys = (pp.pending.get("buys") or []) + (pp.pending.get("ped_buys") or [])
+    pend_buys = pp.pending.get("buys") or []
     if buy_levels is None:
         buy_levels = {tk: entry_levels(inds.get(tk)) for tk in pend_buys}
         buy_levels = {k: v for k, v in buy_levels.items() if v}
@@ -486,15 +450,6 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
     if live_start and eh:
         base = next((e["equity"] for e in eh if e["date"] >= live_start), None)
         if base: live_ret = round((eq/base - 1)*100, 1)
-    # Señales de estrategia de evento (PED hoy; futuras estrategias se agregan aquí) →
-    # panel "Estrategias disponibles". Se muestran AUNQUE no haya slot (señal != compra).
-    ped_buy_set = set(pp.pending.get("ped_buys") or [])
-    strategy_signals = [
-        {"strategy": "PED", "ticker": tk, "conviction": rx,
-         "star": rx >= 10.0, "buying": tk in ped_buy_set,
-         "note": "Compra Day+2 open, sale ~Day+7"}
-        for tk, rx in (pp.pending.get("ped_candidates") or [])
-    ]
     dash = {
         "updated": datetime.now(timezone.utc).isoformat(),
         "as_of": date,
@@ -515,8 +470,7 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
              "source": pp.positions.get(tk, {}).get("source", "marea"),
              "entry_date": pp.positions.get(tk, {}).get("entry_date"),
              "days_held": held_days.get(tk),
-             "ped_hold_days": PED_HOLD_DAYS,
-             "stop_4atr": _live_chandelier(pp, inds, tk),   # salida Marea viva (None en PED)
+             "stop_4atr": _live_chandelier(pp, inds, tk),   # salida Marea viva (chandelier)
              "top": tk in top_set}
             for tk, pnl, ent, px in _pos_lines(pp, cl)
         ],
@@ -525,7 +479,6 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
         "buy_context": buy_context,                         # contexto informativo (sector + noticia adversa)
         "leaders": leaders,                                 # top-10 ranking fuerza relativa (panel discrecional)
         "fresh_breakouts": fresh_breakouts,                 # breakouts nuevos invisibles en el top-10 (caso SNOW)
-        "strategy_signals": strategy_signals,               # panel "Estrategias disponibles" (PED + futuras)
         "star_top": sorted(top_set),                       # tickers ⭐ TOP (alta convicción, validado)
         "sector_strength": sector_strength(sector_mom or {}),
         "actions_today": actions,
@@ -548,7 +501,6 @@ def _emit_dashboard(pp, inds, cl, qqq, date, actions, new_buys=None, new_sells=N
                 to = ""
         body = _build_alert(pp, cl, eq, actions, new_buys or pp.pending.get("buys"),
                             new_sells or pp.pending.get("sells"),
-                            new_ped_buys if new_ped_buys is not None else pp.pending.get("ped_buys", []),
                             macro, date, buy_levels)
         if to:
             try:
