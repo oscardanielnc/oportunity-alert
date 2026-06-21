@@ -16,10 +16,24 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import timedelta
+
 from pilot.momentum_signals import fetch_daily_batch
 from pilot.ped_signals import fetch_earnings_map
-from earnings.strategies import STRATEGIES, all_universe
+from earnings.strategies import (STRATEGIES, all_universe, prerun_for, PRERUN_PROJ,
+                                 PRERUN_ENTRY_CAL_DAYS)
 from earnings.calendar import upcoming_earnings
+
+def _next_session_iso(ref_date):
+    """Apertura (~13:30 UTC ≈ 9:30 ET) de la PRÓXIMA sesión tras ref_date — la ENTRADA de PED
+    (Day+2 open, siendo ref_date el día de reacción Day+1). Salta sáb/dom (ignora feriados;
+    el resolver del scoreboard ancla a la primera barra real ≥ t0, así que un feriado solo
+    corre el ancla al siguiente open)."""
+    d = datetime.strptime(ref_date, "%Y-%m-%d").date() + timedelta(days=1)
+    while d.weekday() >= 5:
+        d += timedelta(days=1)
+    return f"{d.isoformat()}T13:30:00+00:00"
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -56,21 +70,58 @@ def run(use_scoreboard=True):
     calendar = upcoming_earnings(universe, days_ahead=CALENDAR_DAYS)
     print(f"[earnings] próximos {CALENDAR_DAYS}d: {len(calendar)} earnings agendados")
 
-    # Registrar candidatos en el Scoreboard (arm='earnings'). Idempotente por (arm,ticker,ts):
-    # t0 anclado a ref_date 20:00 UTC (post-cierre) => re-correr el mismo día NO duplica.
-    if use_scoreboard and candidates:
+    # PRE-RUN-UP: anotar cada earning próximo con la recomendación (no se duplica como candidato:
+    # vive sobre el calendario). applies = nombre sobre su SMA50; entry_date ≈ 5 ruedas antes.
+    prerun_open = []   # señales a registrar (ventana de entrada abierta)
+    for e in calendar:
+        pr = prerun_for(e["ticker"], e["days_until"], data.get(e["ticker"]))
+        if not pr:
+            continue
+        rep = datetime.strptime(e["date"], "%Y-%m-%d").date()
+        entry_date = (rep - timedelta(days=PRERUN_ENTRY_CAL_DAYS))
+        pr["entry_date"] = entry_date.isoformat()
+        eid = pr["entry_in_days"]
+        if not pr["applies"]:
+            pr["status"], pr["label"] = "skip", "No aplica (bajo SMA50)"
+        elif eid > 1:
+            pr["status"], pr["label"] = "upcoming", f"Entrar PRE en ~{eid}d (≈{pr['entry_date']})"
+        elif eid >= -1:
+            pr["status"], pr["label"] = "enter_now", "🟢 ENTRAR PRE ahora (ventana abierta)"
+        else:
+            pr["status"], pr["label"] = "holding", "Ventana de entrada pasó — mantener hasta el reporte"
+        e["prerun"] = pr
+        if pr["applies"] and pr["status"] == "enter_now" and e["days_until"] >= 1:
+            prerun_open.append((e["ticker"], pr, data.get(e["ticker"])))
+    _pr_apply = sum(1 for e in calendar if e.get("prerun", {}).get("applies"))
+    print(f"[earnings] pre-run-up: {_pr_apply}/{len(calendar)} próximos aplican (sobre SMA50)"
+          + (f", {len(prerun_open)} en ventana de entrada" if prerun_open else ""))
+
+    # Registrar candidatos en el Scoreboard (arm='earnings') — el track arranca el día que se
+    # ACTIVA la entrada de cada trade. Idempotente por (arm,ticker,ts).
+    #   PED: entrada Day+2 open -> t0 = próxima sesión (price_t0 lo fija el resolver al open).
+    #   Pre-run-up: entrada al abrir la ventana -> t0 = entry_date (más abajo).
+    if use_scoreboard and (candidates or prerun_open):
         try:
             from utils import scoreboard
             scoreboard.ensure_table(DB_PATH)
-            t0_iso = f"{ref_date}T20:00:00+00:00"
+            ped_entry_iso = _next_session_iso(ref_date)
             for c in candidates:
                 scoreboard.record_signal(
                     DB_PATH, "earnings", c["ticker"], c["direction"], c["category"],
                     int(round(c["conviction"])) if c.get("conviction") is not None else None,
-                    f"finnhub_earnings:{c['strategy']}", None, t0_iso, c.get("price_t0"),
+                    f"finnhub_earnings:{c['strategy']}", None, ped_entry_iso, None,
                     scope="ticker",
                 )
-            print(f"[earnings] {len(candidates)} candidato(s) registrados en scoreboard")
+            # Pre-run-up: registrar al ABRIR la ventana de entrada (idempotente por entry_date).
+            for tk, pr, bars in prerun_open:
+                px = bars[-1]["c"] if bars else None
+                scoreboard.record_signal(
+                    DB_PATH, "earnings", tk, "LONG", "prerun", None,
+                    "prerun:calendar", None, f"{pr['entry_date']}T20:00:00+00:00", px,
+                    scope="ticker",
+                )
+            print(f"[earnings] {len(candidates)} candidato(s) PED + {len(prerun_open)} "
+                  f"pre-run-up registrados en scoreboard")
         except Exception as e:
             print(f"[earnings][WARN] scoreboard: {e}")
 
@@ -84,6 +135,7 @@ def run(use_scoreboard=True):
         ],
         "calendar": calendar,
         "calendar_days": CALENDAR_DAYS,
+        "prerun_proj": PRERUN_PROJ,    # proyección histórica del pre-run-up (para el calendario)
     }
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(DASH_PATH, "w", encoding="utf-8") as f:

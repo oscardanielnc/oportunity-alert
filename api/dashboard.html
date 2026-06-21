@@ -593,9 +593,9 @@ tbody tr:hover { background: #fafafb; }
       <button class="tab"     onclick="go('brief')">📋 Brief diario</button>
       <button class="tab"     onclick="go('trump')">📢 Market Movers</button>
       <button class="tab"     onclick="go('scoreboard')">📈 Scoreboard</button>
-      <button class="tab on"  onclick="go('noticias')">Noticias</button>
-      <button class="tab"     onclick="go('posiciones')">Posiciones</button>
-      <button class="tab"     onclick="go('watchlist')">Watchlist</button>
+      <button class="tab on"  onclick="go('noticias')">📰 Noticias</button>
+      <button class="tab"     onclick="go('posiciones')">💼 Posiciones</button>
+      <button class="tab"     onclick="go('watchlist')">👁 Watchlist</button>
       <button class="tab"     onclick="go('piloto')">🚀 Piloto</button>
       <button class="tab"     onclick="go('earnings')">📅 Earnings</button>
     </nav>
@@ -844,16 +844,17 @@ tbody tr:hover { background: #fafafb; }
 
       <!-- Candidatos por estrategia -->
       <div style="margin-bottom:8px">
-        <div class="pl-section-head"><h3>🎯 Candidatos por estrategia <span class="pl-muted">(señales medidas en el Scoreboard)</span></h3></div>
-        <p class="pl-sub2">Aparecen el día que cumplen sus condiciones — son poco frecuentes (la temporada fuerte es fin de jul/oct/ene/abr). Cada candidato se mide a 48h en el Scoreboard.</p>
+        <div class="pl-section-head"><h3>🎯 Candidatos reactivos <span class="pl-muted">(POST-earnings · medidos en el Scoreboard)</span></h3></div>
+        <p class="pl-sub2">Estrategias que reaccionan a un reporte YA publicado (ej. PED). El pre-posicionamiento (PRE) va integrado en el calendario de abajo. Poco frecuentes — la temporada fuerte es fin de jul/oct/ene/abr.</p>
         <div id="ea-strategies"></div>
       </div>
 
-      <!-- Calendario de próximos earnings -->
+      <!-- Calendario de próximos earnings + recomendación PRE-RUN-UP integrada -->
       <div class="pl-table-card" style="margin-top:26px">
         <div class="pl-table-head">📅 Próximos earnings <span class="pl-muted" id="ea-cal-window"></span></div>
+        <div id="ea-prerun-note" class="pl-sub2" style="padding:2px 4px 10px"></div>
         <div class="pm-wrap"><table>
-          <thead><tr><th>Ticker</th><th>Fecha</th><th>Cuándo</th><th style="text-align:right">En</th><th style="text-align:right">EPS est.</th></tr></thead>
+          <thead><tr><th>Ticker</th><th>Earning</th><th>Cuándo</th><th style="text-align:right">Faltan</th><th>🎯 Pre-run-up (recomendación)</th><th style="text-align:right">Proyección</th></tr></thead>
           <tbody id="ea-calendar"></tbody>
         </table></div>
       </div>
@@ -985,12 +986,12 @@ async function updateTopbar() {
 // la respuesta. Así el refresh es imperceptible y no salta el scroll al inicio.
 function reloadActive() {
   const active = document.querySelector('.tab.on')?.textContent.trim().toLowerCase();
-  if (active === 'noticias')     { loadNoticiasFilterSummary(); return loadAlerts(true); }
+  if (active.includes('noticias')) { loadNoticiasFilterSummary(); return loadAlerts(true); }
   if (active.includes('brief'))   return loadBrief(false, true);
   if (active.includes('movers'))  return loadTrump(true);
   if (active.includes('scoreboard')) return loadScoreboard(true);
-  if (active === 'posiciones')   return loadPositions(true);
-  if (active === 'watchlist')    return loadWatchlist();
+  if (active.includes('posiciones')) return loadPositions(true);
+  if (active.includes('watchlist')) return loadWatchlist();
   if (active.includes('piloto'))  return loadPilot();
   if (active.includes('earnings')) return loadEarnings();
   return Promise.resolve();
@@ -1002,8 +1003,8 @@ function go(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const tabs = {
     brief:'📋 Brief diario', trump:'📢 Market Movers', scoreboard:'📈 Scoreboard',
-    noticias:'Noticias',
-    posiciones:'Posiciones', watchlist:'Watchlist',
+    noticias:'📰 Noticias',
+    posiciones:'💼 Posiciones', watchlist:'👁 Watchlist',
     piloto:'🚀 Piloto', earnings:'📅 Earnings',
   };
   const btn = [...document.querySelectorAll('.tab')]
@@ -1315,6 +1316,13 @@ async function loadEarnings() {
     (d.strategies || []).map(_earningsStratBlock).join('') ||
     '<div style="color:var(--text3);font-size:12px">Sin estrategias configuradas.</div>';
 
+  // Leyenda de proyección del pre-run-up
+  const pp = d.prerun_proj;
+  const pnote = document.getElementById('ea-prerun-note');
+  if (pnote) pnote.innerHTML = pp
+    ? `<b>Pre-run-up</b> (validado): ${esc(pp.rule)} <span style="color:var(--text3)">· histórico: mediana <b class="c-green">+${pp.raw_median}%</b>, ${pp.win}% sube, excess +${pp.excess_median}% vs mercado.</span>`
+    : '';
+
   const cal = d.calendar || [];
   document.getElementById('ea-calendar').innerHTML = cal.length
     ? cal.map(e => {
@@ -1322,11 +1330,29 @@ async function loadEarnings() {
           ? '<span title="Before Market Open">🌅 antes</span>'
           : '<span title="After Market Close">🌙 después</span>';
         const du = e.days_until === 0 ? 'hoy' : (e.days_until === 1 ? 'mañana' : `${e.days_until}d`);
-        const eps = (e.eps_estimate != null) ? e.eps_estimate.toFixed(2) : '—';
         return `<tr><td><b>${e.ticker}</b></td><td>${_fmtDate(e.date)}</td><td>${when}</td>
-          <td style="text-align:right">${du}</td><td style="text-align:right">${eps}</td></tr>`;
+          <td style="text-align:right">${du}</td><td>${_prerunRec(e.prerun)}</td>
+          <td style="text-align:right">${_prerunProj(e.prerun, pp)}</td></tr>`;
       }).join('')
-    : '<tr><td colspan="5" style="color:var(--text3);font-size:12px;padding:10px">Sin earnings agendados en la ventana.</td></tr>';
+    : '<tr><td colspan="6" style="color:var(--text3);font-size:12px;padding:10px">Sin earnings agendados en la ventana.</td></tr>';
+}
+
+// Badge de recomendación pre-run-up por estado (vistoso para el que aplica)
+const _PRERUN_STYLE = {
+  enter_now: { col:'#22c55e', bg:'rgba(34,197,94,.16)' },
+  upcoming:  { col:'#3b82f6', bg:'rgba(59,130,246,.14)' },
+  holding:   { col:'#eab308', bg:'rgba(234,179,8,.15)' },
+  skip:      { col:'var(--text3)', bg:'transparent' },
+};
+function _prerunRec(pr) {
+  if (!pr) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  const s = _PRERUN_STYLE[pr.status] || _PRERUN_STYLE.skip;
+  const weight = pr.status === 'enter_now' ? 800 : 700;
+  return `<span style="font-size:11px;font-weight:${weight};color:${s.col};background:${s.bg};border-radius:6px;padding:3px 9px">${esc(pr.label || '')}</span>`;
+}
+function _prerunProj(pr, pp) {
+  if (!pr || !pr.applies || !pp) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return `<span title="Proyección histórica del pre-run-up (mediana raw; rango p25/p75 ${pp.p25}%/${pp.p75}%)" style="font-size:12px;font-weight:700;color:var(--green,#16a34a)">+${pp.raw_median}%</span>`;
 }
 
 async function loadPilot() {
@@ -1423,6 +1449,19 @@ const SRC_LABEL = {
   TRUTH_SOCIAL: '🟣 Truth Social', FED: '🏛️ Fed', TREASURY: '🏦 Treasury', SEC: '⚖️ SEC',
   ALPACA_BENZINGA: 'Benzinga (RT)', FINNHUB_BENZINGA: 'Benzinga', SEC_EDGAR: 'SEC EDGAR',
 };
+// Badge VISTOSO de fuente (la "voz" detrás del market mover): color distintivo por origen
+// para identificar de un vistazo si viene de Trump, la Fed, Treasury o la SEC.
+const SRC_BADGE = {
+  TRUTH_SOCIAL: { icon:'🟣', label:'TRUMP',    col:'#a855f7', bg:'rgba(168,85,247,.16)' },
+  FED:          { icon:'🏛️', label:'FED',      col:'#3b82f6', bg:'rgba(59,130,246,.16)' },
+  TREASURY:     { icon:'🏦', label:'TREASURY', col:'#10b981', bg:'rgba(16,185,129,.16)' },
+  SEC:          { icon:'⚖️', label:'SEC',      col:'#f59e0b', bg:'rgba(245,158,11,.18)' },
+};
+function _srcBadge(source) {
+  const s = SRC_BADGE[source];
+  if (!s) return source ? `<span style="font-size:11px;font-weight:700;color:var(--text2);background:var(--bg2,#f3f4f6);border-radius:6px;padding:3px 9px">${SRC_LABEL[source]||esc(source)}</span>` : '';
+  return `<span title="Fuente del market mover" style="font-size:11px;font-weight:800;letter-spacing:.4px;color:${s.col};background:${s.bg};border:1px solid ${s.col}40;border-radius:6px;padding:3px 10px">${s.icon} ${s.label}</span>`;
+}
 const TRUMP_IMPACT = {
   alcista:  { col:'var(--green)',  bg:'rgba(34,197,94,.14)',  icon:'📈', label:'ALCISTA' },
   bajista:  { col:'var(--red)',    bg:'rgba(239,68,68,.14)',  icon:'📉', label:'BAJISTA' },
@@ -1462,6 +1501,7 @@ function renderTrump(t) {
     ? `<a href="${esc(t.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px;text-decoration:none">ver fuente ↗</a>` : '';
   return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-left:4px solid ${m.col};border-radius:12px;padding:16px 18px;margin-bottom:14px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      ${_srcBadge(t.source)}
       <span style="font-size:11px;font-weight:700;color:${m.col};background:${m.bg};border-radius:6px;padding:3px 9px">${m.icon} ${m.label}</span>
       <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${esc(scopeTxt)}</span>
       ${chips}
@@ -1472,7 +1512,7 @@ function renderTrump(t) {
     ${t.significado ? `<div style="font-size:13px;line-height:1.5;color:var(--text2);margin-bottom:8px"><b style="color:var(--text1,#111)">Qué significa:</b> ${esc(t.significado)}</div>` : ''}
     ${t.accion ? `<div style="font-size:13px;line-height:1.5;background:var(--bg2,#f6f7f9);border-radius:8px;padding:10px 12px;color:var(--text1,#111)"><b>🎯 Acción:</b> ${esc(t.accion)}</div>` : ''}
     <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text3);align-items:center">
-      ${t.source ? `<span style="font-weight:700;${t.source==='TRUTH_SOCIAL'?'color:#a855f7':''}">${SRC_LABEL[t.source]||esc(t.source)}</span>` : ''}${link}
+      ${link}
       <span style="margin-left:auto">${esc(t.engine||'')}</span>
     </div>
   </div>`;

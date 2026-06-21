@@ -27,6 +27,36 @@ def ped_candidates(data, earnings_map, ref_date):
     return out
 
 
+# ── PRE-RUN-UP (pre-posicionamiento) — estrategia PRE, anota el CALENDARIO ──────────────────────
+# Validada en research/backtest_prerun.py (n=589, 40 mega-caps, 4 años, EXCESS vs QQQ, neto fee,
+# OOS): entrar ~5 ruedas antes del reporte en nombres SOBRE su SMA50, salir en el último cierre
+# ANTES del earning (cero exposición al evento). Edge modesto pero real en mega-caps líquidos.
+PRERUN_K_TRADING = 5          # ruedas (días hábiles) antes del reporte = entrada
+PRERUN_ENTRY_CAL_DAYS = 7     # ≈ 5 ruedas en días calendario (para fechar la entrada)
+PRERUN_SMA = 50               # filtro de tendencia: close > SMA50 en la entrada
+# Proyección histórica (K=5, tendencia, raw bruto + excess vs QQQ) — "cuánto puede subir".
+PRERUN_PROJ = {
+    "raw_median": 1.3, "raw_mean": 1.4, "p25": -2.2, "p75": 5.0,
+    "win": 58, "excess_median": 0.9,
+    "rule": "Entrar ~5 ruedas antes del reporte si está sobre su SMA50; salir en el último "
+            "cierre ANTES del earning (no se aguanta el reporte).",
+}
+
+
+def prerun_for(ticker, days_until, bars):
+    """Aplicabilidad del pre-run-up a un earning PRÓXIMO. Retorna dict o None (sin barras).
+    applies = nombre sobre su SMA50 (filtro de tendencia validado)."""
+    closes = [b["c"] for b in (bars or []) if b.get("c")]
+    if len(closes) < PRERUN_SMA + 1:
+        return None
+    price = closes[-1]
+    sma = sum(closes[-PRERUN_SMA:]) / PRERUN_SMA
+    above = price > sma
+    return {"applies": bool(above), "above_sma": bool(above),
+            "k_trading": PRERUN_K_TRADING,
+            "entry_in_days": days_until - PRERUN_ENTRY_CAL_DAYS}
+
+
 # Cada entrada: name (etiqueta), universe (tickers a vigilar), needs ('recent_earnings' = la
 # estrategia consume el mapa de earnings YA reportados), fn (generador de candidatos).
 STRATEGIES = [

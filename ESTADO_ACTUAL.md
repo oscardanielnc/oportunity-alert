@@ -1,7 +1,52 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-20 (NOCHE) — gran sesión: estudio de reacción + rediseño noticias +
-#   scoreboard de auditoría + Market Movers (Truth Social/Fed/SEC/Treasury). DESPLEGADO Y VIVO.
+# Última actualización: 2026-06-21 — sección EARNINGS separada del Piloto (Marea), pre-run-up
+#   validado y cableado, tracking en Scoreboard, fixes de UI + bug tz del scoreboard. DESPLEGADO.
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-21 — SECCIÓN EARNINGS (separada del Piloto) + PRE-RUN-UP VALIDADO + TRACKING
+
+> Fuente de verdad viva del brazo Earnings: memoria `ped-earnings-arm`. Todo DESPLEGADO en la VM.
+
+### 🧩 Reestructura: Piloto = solo Marea · Earnings = sección propia
+- **Piloto** quedó **solo Marea** (momentum swing): PED removido del runner, K=8 completo
+  (`pilot/run_pilot.py`, `pilot/momentum_signals.py` recibe `days_held`). `pilot/ped_signals.py`
+  se mantiene como librería de math-de-señal (la reusan `earnings/` y `utils/position_strategy`).
+- **Earnings = módulo nuevo `earnings/`** (NO simula trades — genera candidatos/señales y decide
+  Oscar): `calendar.py` (Finnhub a futuro), `strategies.py` (registro extensible), `run_earnings.py`
+  (runner diario → `data/earnings_dashboard.json` + scoreboard). Endpoint `GET /api/earnings` + tab
+  "📅 Earnings". **Cron en la VM**: `15 22 * * 1-5 ... -m earnings.run_earnings`.
+
+### 🔬 Veredictos de estrategias de earnings (disciplina: causal + neto fees + OOS)
+- **PED** ✅ única validada de POST (drift, mega-cap, reacción ≥+5%, Day+2→~Day+7).
+- **Short-PED** ❌ y **Cañonazo** ❌ (el "pase" del cañonazo era LOOKAHEAD; corregido por gap en
+  `research/backtest_canon_gap.py` → sin edge). NO recablear.
+- **Pre-run-up** ✅ (PRE) validado en `research/backtest_prerun.py` (n=589, EXCESS vs QQQ, OOS):
+  entrar ~5 ruedas antes del reporte SI sobre SMA50, salir último cierre pre-reporte. win 56%,
+  excess +0.64%/raw +1.3% mediana a fee 0.3% RT. Modesto y sensible a fees → solo mega-caps líquidos.
+
+### 🎯 Cableado del pre-run-up (sobre el calendario, sin duplicar)
+- `earnings/strategies.py`: `prerun_for()` (filtro SMA50) + `PRERUN_PROJ`. El calendario de la sección
+  anota cada earning próximo con recomendación (upcoming/enter_now/holding/skip), día de entrada y
+  proyección. PED queda en el bloque "candidatos reactivos (POST)".
+
+### 📈 Tracking en Scoreboard (el día que se activa la entrada)
+- PED → t0 = próxima sesión (Day+2 open); pre-run-up → t0 = día de apertura de ventana. arm='earnings',
+  cat='ped'/'prerun'. **Limitación conocida**: el scoreboard cierra a 48h (PED aguanta ~7d, prerun ~5d)
+  → lectura PARCIAL del drift temprano (NO contamina el evento: 48h no llega al reporte). Refinamiento
+  futuro: horizonte por-señal (medir hasta el exit real).
+
+### 🐛 Bug arreglado + UI
+- `utils/scoreboard.py`: el resolver crasheaba al mezclar ts naive (market_movers) y aware (noticias)
+  → `_parse_ts` + normalización en `record_signal` (commit `4a89e1a`).
+- Dashboard: badge vistoso de fuente en Market Movers (Trump/Fed/Treasury/SEC con color) + 1 emoji por
+  tab en el sidebar (📰 Noticias · 💼 Posiciones · 👁 Watchlist).
+
+### 🔜 PENDIENTE
+- Refinar convicción de earnings (hoy = % reacción / proyección agregada; futuro data-driven scoreboard).
+- Horizonte por-señal en el scoreboard (medir PED/prerun hasta su exit real, no 48h).
+- Más estrategias solo si pasan el bar (el pozo "fácil" se agotó: Short-PED/Cañonazo descartados).
 
 ---
 
