@@ -22,6 +22,13 @@ except Exception:
     pass
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Cargar credenciales del .env del repo (TWILIO_TO/CALLMEBOT para --notify); igual que los runners.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_ROOT, ".env"))
+except Exception:
+    pass
+
 
 def _med(vals):
     vals = [v for v in vals if v is not None]
