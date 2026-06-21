@@ -79,6 +79,15 @@ def record_signal(db_path, arm, ticker, direction, category, score, source,
     scope: ticker|sector|macro (macro => el resolver mide CRUDO, no anormal). event_key agrupa
     la cesta de tickers de una misma declaración (market movers uno-a-muchos)."""
     try:
+        # Normaliza ts a aware-UTC para que TODAS las fuentes guarden el mismo formato
+        # (market_movers pasaba naive) y el resolver no mezcle naive/aware.
+        try:
+            _dt = datetime.fromisoformat(t0_iso)
+            if _dt.tzinfo is None:
+                _dt = _dt.replace(tzinfo=timezone.utc)
+            t0_iso = _dt.isoformat()
+        except Exception:
+            pass
         con = sqlite3.connect(db_path)
         con.execute(SCHEMA)
         con.execute(
@@ -190,6 +199,16 @@ def _anchor(series, t0, max_h):
     return None, None
 
 
+def _parse_ts(s):
+    """Parsea un ts ISO tolerando naive y aware: naive => se asume UTC. Evita el crash
+    'can't compare offset-naive and offset-aware datetimes' cuando conviven señales de
+    distintas fuentes (market_movers guardaba naive; noticias/earnings, aware)."""
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def resolve_open(db_path: str) -> int:
     """Mide y cierra señales abiertas cuya ventana de 48h ya pasó (o actualiza las en curso).
     Idempotente desde barras. Devuelve nº de filas actualizadas."""
@@ -199,13 +218,13 @@ def resolve_open(db_path: str) -> int:
     if not rows:
         con.close(); return 0
     # QQQ una vez para toda la tanda
-    g_start = min(datetime.fromisoformat(r["ts"]) for r in rows) - timedelta(minutes=30)
+    g_start = min(_parse_ts(r["ts"]) for r in rows) - timedelta(minutes=30)
     g_end = datetime.now(timezone.utc)
     _q = _series(BENCH, g_start, g_end, prefer_perp=False)
     qqq = (_q[0], _q[1])
     n = 0
     for r in rows:
-        t0 = datetime.fromisoformat(r["ts"])
+        t0 = _parse_ts(r["ts"])
         elapsed_h = (datetime.now(timezone.utc) - t0).total_seconds() / 3600
         prefer_perp = _has_perp(r["ticker"])   # 24/7 para overnight (Trump) y perp líquido
         s = _series(r["ticker"], t0 - timedelta(minutes=30), g_end, prefer_perp)
