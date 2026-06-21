@@ -122,6 +122,34 @@ anormal + frescura + ¿los tickers afectados se movieron?) y meterlo al mismo sc
 fresca (postea primero = age 0, el lever que probamos que importa) + unificar al scoreboard. Caso
 fuerte: "Trump Admin To Take Quantum Stakes" movió RGTI/IONQ/QBTS +25%.
 
+## PLAN — MARKET MOVERS multi-fuente + SCOREBOARD como validador (2026-06-20)
+
+### Cómo se mide una declaración que mueve VARIOS tickers (aclarado)
+UNA señal POR ticker (no una sola). Radar = 1 tarjeta (la declaración + chips de tickers);
+scoreboard = N señales medidas independientes. Venue de medición DUAL: perp (24/7, capta overnight)
+si el ticker tiene perp; si no, Alpaca anclado al PRÓXIMO OPEN (`_anchor`). Ningún ticker queda sin
+medir. Caso real validado: post Trump→INTC +5.5% (perp, overnight); WOLF overnight→next-open −18.75%.
+
+### Fase 0 — HECHO Y EN VIVO (recolectando ya)
+Scoreboard mide noticias + Market Movers(Trump) a 48h, precio dual, ancla next-open, fuente
+etiquetada. Tabla `signal_outcomes`, resolver horario, `/api/scoreboard`, panel + pestaña.
+
+### Fase 1 — Añadir fuentes oficiales (PENDIENTE — lo siguiente)
+Generalizar el tracker (arm 'trump'→'market_movers'; `source` distingue). Cada fuente oficial = un
+conector como Truth Social (RSS, py3.9, sin Cloudflare, gratis), feed → gate relevancia → misma
+IA-clasificación (impacto, tickers) → scoreboard con su source:
+- **Fed**: `federalreserve.gov` press releases RSS (FOMC, discursos, política monetaria).
+- **Treasury**: `home.treasury.gov` press releases RSS (sanciones, deuda, aranceles).
+- **SEC**: `sec.gov` press releases + litigation RSS (+ EDGAR ya lo tenemos para filings).
+Validar por fuente: ¿publican PRIMERO en su sitio (lead time) vs wires? ¿qué tipo de comunicado
+mueve qué tickers? (lo dice el scoreboard).
+
+### Fase 2 — Loop de validación/afinado (el propósito del scoreboard)
+- Panel con desglose por **fuente + categoría** (qué fuente/categoría mueve, cuál ignorar).
+- Usar los datos acumulados para **afinar filtros**: suprimir fuentes/categorías que no mueven
+  (<1% impacto), promover las que sí. Revisión semanal.
+- Cuando haya muestra, el umbral SMS pasa de "score>=6" a "impacto esperado por categoría/fuente >=1%".
+
 ## RUTEO A VENTANAS DE EJECUCIÓN (los 3 brazos comparten esto)
 Por cada señal, elegir venue en este orden de prioridad:
 1. **Binance perp** si el ticker existe como `{T}/USDT:USDT` (24/7, apalancado, fees bajos).
