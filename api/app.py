@@ -44,6 +44,7 @@ DASHBOARD_PASS = os.environ.get("DASHBOARD_PASS", "")
 HTML_PATH = Path(__file__).parent / "dashboard.html"
 PILOT_DASH_PATH = Path(__file__).parent.parent / "data" / "pilot_dashboard.json"
 EARNINGS_DASH_PATH = Path(__file__).parent.parent / "data" / "earnings_dashboard.json"
+DIP_DASH_PATH = Path(__file__).parent.parent / "data" / "dip_dashboard.json"
 
 
 CAPITAL_CACHE_MAX_MIN = 60   # antiguedad maxima del cache de eToro para confiar en el cash real
@@ -254,6 +255,22 @@ def get_earnings(_: str = Depends(_require_auth)):
         return {"available": False}
     try:
         d = _json.loads(EARNINGS_DASH_PATH.read_text(encoding="utf-8"))
+        d["available"] = True
+        return d
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+@app.get("/api/dips")
+def get_dips(_: str = Depends(_require_auth)):
+    """Sección Caídas: soportes de entrada (corto + estructural) + chips de riesgo por ticker,
+    ordenados por % al soporte corto más cercano. Solo LEE data/dip_dashboard.json
+    (lo emite dip_scanner.py tras el cierre). Informativo: no opera ni alerta."""
+    import json as _json
+    if not DIP_DASH_PATH.exists():
+        return {"available": False}
+    try:
+        d = _json.loads(DIP_DASH_PATH.read_text(encoding="utf-8"))
         d["available"] = True
         return d
     except Exception as e:

@@ -598,6 +598,7 @@ tbody tr:hover { background: #fafafb; }
       <button class="tab"     onclick="go('watchlist')">👁 Watchlist</button>
       <button class="tab"     onclick="go('piloto')">🚀 Piloto</button>
       <button class="tab"     onclick="go('earnings')">📅 Earnings</button>
+      <button class="tab"     onclick="go('caidas')">📉 Caídas</button>
     </nav>
     <div class="sb-foot">
       <div class="sb-avatar">ON</div>
@@ -860,6 +861,28 @@ tbody tr:hover { background: #fafafb; }
       </div>
     </div><!-- /p-earnings -->
 
+    <div id="p-caidas" class="panel">
+      <div class="pl-pagehead">
+        <div>
+          <h2 class="pl-h1">Caídas — soportes de entrada</h2>
+          <p class="pl-sub">Ordenado por cercanía al soporte corto · <span style="color:var(--text3)">informativo: verifica si la caída es macro (sana) o por problema propio antes de entrar</span></p>
+        </div>
+        <div class="pl-head-actions">
+          <span class="pl-pill" id="dip-asof">—</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <input id="dip-search" type="text" placeholder="Buscar ticker (ej. NVDA)…" autocomplete="off"
+          oninput="renderDips()" style="flex:1;min-width:180px;max-width:280px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface,#fff)">
+        <span id="dip-spy" style="font-size:12px;color:var(--text3)"></span>
+        <span id="dip-count" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+      </div>
+
+      <div id="dip-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px"></div>
+      <div id="dip-pager" style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:18px;flex-wrap:wrap"></div>
+    </div><!-- /p-caidas -->
+
   </div><!-- /main -->
   </div><!-- /content -->
 </div><!-- /app -->
@@ -1005,7 +1028,7 @@ function go(name) {
     brief:'📋 Brief diario', trump:'📢 Market Movers', scoreboard:'📈 Scoreboard',
     noticias:'📰 Noticias',
     posiciones:'💼 Posiciones', watchlist:'👁 Watchlist',
-    piloto:'🚀 Piloto', earnings:'📅 Earnings',
+    piloto:'🚀 Piloto', earnings:'📅 Earnings', caidas:'📉 Caídas',
   };
   const btn = [...document.querySelectorAll('.tab')]
     .find(t => t.textContent.trim() === tabs[name]);
@@ -1019,6 +1042,7 @@ function go(name) {
   if (name === 'watchlist')  loadWatchlist();
   if (name === 'piloto') loadPilot();
   if (name === 'earnings') loadEarnings();
+  if (name === 'caidas') loadDips();
 }
 
 // ── API fetch ──────────────────────────────────────────────────────────────────
@@ -1353,6 +1377,127 @@ function _prerunRec(pr) {
 function _prerunProj(pr, pp) {
   if (!pr || !pr.applies || !pp) return '<span style="color:var(--text3);font-size:11px">—</span>';
   return `<span title="Proyección histórica del pre-run-up (mediana raw; rango p25/p75 ${pp.p25}%/${pp.p75}%)" style="font-size:12px;font-weight:700;color:var(--green,#16a34a)">+${pp.raw_median}%</span>`;
+}
+
+// ── Tab: Caídas (soportes de entrada) ──────────────────────────────────────────
+let _dipData = [];
+let _dipPage = 0;
+const DIP_PER_PAGE = 10;
+
+async function loadDips() {
+  const cards = document.getElementById('dip-cards');
+  cards.innerHTML = '<div style="color:var(--text3);padding:20px">Cargando soportes…</div>';
+  let d;
+  try { d = await api('/api/dips'); }
+  catch (e) { cards.innerHTML = '<div style="color:var(--red);padding:20px">No se pudo cargar ('+e+')</div>'; return; }
+  if (!d || !d.available) {
+    cards.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 2px">La sección aún no ha corrido. Ejecuta <code>python dip_scanner.py</code> tras el cierre.</div>';
+    document.getElementById('dip-pager').innerHTML = '';
+    return;
+  }
+  document.getElementById('dip-asof').textContent = 'al ' + (d.as_of || '—');
+  const spy = document.getElementById('dip-spy');
+  if (spy && typeof d.spy_5d === 'number')
+    spy.innerHTML = 'SPY 5d: <b style="color:' + (d.spy_5d < 0 ? '#dc2626' : '#16a34a') + '">' + (d.spy_5d > 0 ? '+' : '') + d.spy_5d + '%</b>';
+  _dipData = (d.cards || []).map((c, i) => ({ ...c, _rank: i + 1 }));
+  _dipPage = 0;
+  renderDips();
+}
+
+function _dots(n) {
+  return '<span style="letter-spacing:1px;color:#f59e0b">' + '●'.repeat(n) + '<span style="color:var(--border,#d1d5db)">' + '○'.repeat(5 - n) + '</span></span>';
+}
+
+function _supRow(s) {
+  return '<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px;padding:2px 0">'
+    + '<span style="color:var(--text2,#374151);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.label) + '</span>'
+    + '<span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text1,#111)">$' + s.price + '</span>'
+    + '<span style="font-variant-numeric:tabular-nums;color:#2563eb;width:48px;text-align:right">+' + s.dist_pct + '%</span>'
+    + '<span style="width:54px;text-align:right" title="fuerza ' + s.strength + '/5 · ' + s.touches + ' toques">' + _dots(s.strength) + '</span>'
+    + '</div>';
+}
+
+function _supBlock(title, hint, sups) {
+  const rows = sups.length ? sups.map(_supRow).join('')
+    : '<div style="font-size:12px;color:var(--text3);padding:2px 0">— sin soporte claro por debajo</div>';
+  return '<div style="margin-top:8px">'
+    + '<div style="font-size:10.5px;font-weight:700;letter-spacing:.4px;color:var(--text3);text-transform:uppercase">' + title
+    + ' <span style="font-weight:400;text-transform:none">' + hint + '</span></div>' + rows + '</div>';
+}
+
+function _riskChips(r) {
+  const chip = (txt, col) => '<span style="font-size:11px;color:' + (col || 'var(--text2,#374151)') + '">' + txt + '</span>';
+  const sep = '<span style="color:var(--border,#d1d5db)">·</span>';
+  const parts = [
+    chip(r.trend_healthy ? '▲ sano' : '▼ riesgo', r.trend_healthy ? '#16a34a' : '#dc2626'),
+    chip('RSI ' + Math.round(r.rsi), r.rsi < 30 ? '#d97706' : 'var(--text2,#374151)'),
+    chip('DD ' + r.drawdown + '%', r.drawdown <= -15 ? '#d97706' : 'var(--text2,#374151)'),
+    chip(r.idiosyncratic ? '⚠ vsSPY ' + r.vs_spy : 'vsSPY ' + (r.vs_spy > 0 ? '+' : '') + r.vs_spy,
+         r.idiosyncratic ? '#dc2626' : '#16a34a'),
+    chip('Vol ×' + r.vol_ratio, r.vol_ratio >= 1.8 ? '#d97706' : 'var(--text2,#374151)'),
+    chip('Gap ' + (r.gap ? (r.gap_pct + '%') : 'no'), r.gap ? '#d97706' : 'var(--text3)'),
+  ];
+  return parts.join(' ' + sep + ' ');
+}
+
+function _dipCard(c) {
+  const chCol = c.change_today < 0 ? '#dc2626' : '#16a34a';
+  const live = c.live_price ? '<span style="font-size:11px;color:var(--text3)" title="precio en vivo eToro">· vivo $' + c.live_price + '</span>' : '';
+  return '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.04)">'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    + '<span style="font-size:11px;font-weight:700;color:var(--text3)">#' + c._rank + '</span>'
+    + '<span style="font-size:16px;font-weight:700">' + esc(c.ticker) + '</span>'
+    + '<span style="margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums">$' + c.price + '</span>'
+    + '<span style="font-size:12px;font-weight:600;color:' + chCol + ';font-variant-numeric:tabular-nums">' + (c.change_today > 0 ? '+' : '') + c.change_today + '%</span>'
+    + '</div>'
+    + (live ? '<div style="margin-top:1px">' + live + '</div>' : '')
+    + _supBlock('Corto plazo', '(a dónde rebota)', c.short_supports)
+    + _supBlock('Estructural', '(suelo serio)', c.struct_supports)
+    + '<div style="border-top:1px solid var(--border,#eee);margin-top:10px;padding-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+    + _riskChips(c.risk) + '</div>'
+    + '</div>';
+}
+
+function renderDips() {
+  const q = (document.getElementById('dip-search').value || '').trim().toUpperCase();
+  const filtered = q ? _dipData.filter(c => c.ticker.includes(q)) : _dipData;
+  const cards = document.getElementById('dip-cards');
+  const pager = document.getElementById('dip-pager');
+  const countEl = document.getElementById('dip-count');
+
+  if (!filtered.length) {
+    cards.innerHTML = '<div style="color:var(--text3);padding:20px">' + (q ? 'Sin resultados para "' + esc(q) + '"' : 'Sin caídas con soporte cercano.') + '</div>';
+    pager.innerHTML = '';
+    countEl.textContent = '';
+    return;
+  }
+
+  // Búsqueda: muestra todos los matches sin paginar. Sin búsqueda: 10 por página.
+  const paginate = !q;
+  const pages = Math.max(1, Math.ceil(filtered.length / DIP_PER_PAGE));
+  if (_dipPage >= pages) _dipPage = 0;
+  const slice = paginate ? filtered.slice(_dipPage * DIP_PER_PAGE, _dipPage * DIP_PER_PAGE + DIP_PER_PAGE) : filtered;
+
+  cards.innerHTML = slice.map(_dipCard).join('');
+  countEl.textContent = filtered.length + (filtered.length === 1 ? ' ticker' : ' tickers');
+
+  if (paginate && pages > 1) {
+    let html = '';
+    const mk = (label, page, disabled, on) =>
+      '<button onclick="_dipGo(' + page + ')" ' + (disabled ? 'disabled' : '') + ' style="padding:6px 11px;border:1px solid var(--border);border-radius:8px;background:' + (on ? 'var(--accent,#2563eb)' : 'var(--surface,#fff)') + ';color:' + (on ? '#fff' : 'var(--text2)') + ';font-size:13px;cursor:' + (disabled ? 'default' : 'pointer') + ';opacity:' + (disabled ? '.4' : '1') + '">' + label + '</button>';
+    html += mk('‹', _dipPage - 1, _dipPage === 0, false);
+    for (let i = 0; i < pages; i++) html += mk(i + 1, i, false, i === _dipPage);
+    html += mk('›', _dipPage + 1, _dipPage === pages - 1, false);
+    pager.innerHTML = html;
+  } else {
+    pager.innerHTML = '';
+  }
+}
+
+function _dipGo(page) {
+  _dipPage = page;
+  renderDips();
+  document.getElementById('dip-cards').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadPilot() {
