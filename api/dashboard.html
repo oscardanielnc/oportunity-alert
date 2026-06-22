@@ -872,11 +872,24 @@ tbody tr:hover { background: #fafafb; }
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <input id="dip-search" type="text" placeholder="Buscar ticker (ej. NVDA)…" autocomplete="off"
           oninput="renderDips()" style="flex:1;min-width:180px;max-width:280px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface,#fff)">
         <span id="dip-spy" style="font-size:12px;color:var(--text3)"></span>
         <span id="dip-count" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+      </div>
+
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;font-size:12.5px;color:var(--text2,#374151)">
+        <span style="color:var(--text3);font-weight:600">Filtros:</span>
+        <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="dip-f-healthy" onchange="_dipFilterChanged()">
+          <span title="Muestra solo tickers con tendencia mayor sana (precio sobre SMA200 y SMA50 al alza). El rebote en soporte es más fiable.">▲ Solo tendencia sana</span></label>
+        <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="dip-f-macro" onchange="_dipFilterChanged()">
+          <span title="Oculta los idiosincráticos (⚠): deja solo caídas en línea con el mercado (macro/sectorial), que suelen ser correcciones más sanas.">Solo caída macro (oculta ⚠)</span></label>
+        <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="dip-f-near" onchange="_dipFilterChanged()">
+          <span title="Solo tickers a 3% o menos de su soporte corto más cercano: candidatos a entrada inminente.">Cerca del soporte (≤3%)</span></label>
       </div>
 
       <div id="dip-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px"></div>
@@ -1495,15 +1508,29 @@ function _dipCard(c) {
     + '</div>';
 }
 
+function _dipFilterChanged() {
+  _dipPage = 0;
+  renderDips();
+}
+
 function renderDips() {
   const q = (document.getElementById('dip-search').value || '').trim().toUpperCase();
-  const filtered = q ? _dipData.filter(c => c.ticker.includes(q)) : _dipData;
+  const fHealthy = document.getElementById('dip-f-healthy') && document.getElementById('dip-f-healthy').checked;
+  const fMacro   = document.getElementById('dip-f-macro') && document.getElementById('dip-f-macro').checked;
+  const fNear    = document.getElementById('dip-f-near') && document.getElementById('dip-f-near').checked;
+
+  let filtered = _dipData;
+  if (q)        filtered = filtered.filter(c => c.ticker.includes(q));
+  if (fHealthy) filtered = filtered.filter(c => c.risk.trend_healthy);
+  if (fMacro)   filtered = filtered.filter(c => !c.risk.idiosyncratic);
+  if (fNear)    filtered = filtered.filter(c => c.nearest_pct != null && c.nearest_pct <= 3);
+
   const cards = document.getElementById('dip-cards');
   const pager = document.getElementById('dip-pager');
   const countEl = document.getElementById('dip-count');
 
   if (!filtered.length) {
-    cards.innerHTML = '<div style="color:var(--text3);padding:20px">' + (q ? 'Sin resultados para "' + esc(q) + '"' : 'Sin caídas con soporte cercano.') + '</div>';
+    cards.innerHTML = '<div style="color:var(--text3);padding:20px">' + (q ? 'Sin resultados para "' + esc(q) + '"' : 'Ningún ticker cumple los filtros activos.') + '</div>';
     pager.innerHTML = '';
     countEl.textContent = '';
     return;
