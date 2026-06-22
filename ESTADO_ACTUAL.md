@@ -1,7 +1,49 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-21 (TARDE) — Earnings (Marea/PED) desplegado + horizonte por-señal +
-#   digest-notify semanal + NUEVO tool LOCAL earnings_shape (playbooks intradía, NO va a la VM).
+# Última actualización: 2026-06-22 (TARDE) — NUEVA sección 📉 Caídas (scanner de soportes de entrada)
+#   desplegada en la VM + cron diario. (Antes: Earnings Marea/PED, horizonte por-señal, earnings_shape LOCAL.)
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-22 — SECCIÓN 📉 CAÍDAS (scanner de soportes de entrada)
+
+> Fuente de verdad viva: memoria `dip-scanner-section`. Todo DESPLEGADO en la VM. Commits `5326562`→`6420419`.
+
+### 🧩 Qué es
+Sección **informativa** (no alerta ni opera) que escanea a diario TODO el universo
+(watchlist `metrics.db` + posiciones eToro, deduplicado) y muestra por ticker, en **cards**,
+los mejores **soportes de entrada** ordenados por cercanía al soporte corto más próximo.
+Oscar revisa y decide manualmente (verifica si la caída es macro/sana o por problema propio).
+Idea: nació de la caída macro de la semana del 15-jun donde todo tocó soporte y rebotó.
+
+### ⚙️ Piezas (100% código puro, 0 IA — regla de costos)
+- **`utils/dip_levels.py`** — motor. Barras diarias Alpaca (`sort=desc`+`start`/`end` → las 300 MÁS
+  recientes, luego reversa; sin `start` Alpaca daba solo 1 barra). Soportes CORTO (EMA20, BB inf,
+  mín 10d, swing lows k=3) y ESTRUCTURAL (SMA200, EMA50, swing k=7, Fibonacci, vol POC). Clustering
+  por ATR + fuerza 1-5 (confluencia/toques/anclas/volumen). Reusa `_ema/_rsi/_atr/_bollinger` de
+  `conviction_gates`. Chips de riesgo (solo datos): Tend ▲/▼, RSI14, Drawdown 60d, **vsSPY =
+  abnormal return 5d AJUSTADO POR BETA** (excess = ret_ticker − β×ret_SPY; β cov/var de retornos
+  diarios alineados por fecha, clamp 0.2-4.0; ⚠ si ≤−3pts), Vol ×N, Gap. La beta evita falsos rojos
+  en volátiles (β>1) que caen proporcional al mercado (a Oscar le importa: opera volátiles).
+- **`dip_scanner.py`** — recorre universo, arma `spy_map` (fecha→cierre) una vez, escribe
+  `data/dip_dashboard.json` (ranking por `nearest_pct`). Standalone, NO toca `main.py`.
+- **`api/app.py`** — `GET /api/dips` (lee el JSON, patrón de `/api/earnings`).
+- **`api/dashboard.html`** — tab **📉 Caídas**: cards con buscador por ticker, **paginación 12/pág**,
+  **3 filtros** (▲ tendencia sana / solo macro-oculta ⚠ / cerca ≤3%), tooltips condicionales en cada
+  chip (qué mide + si tu valor es bueno/malo) y **estrellas ★/☆** para la fuerza del soporte.
+
+### 🚀 Despliegue
+- **Cron VM**: `25 22 * * 1-5 cd /home/opc/oportunity-alert && venv/bin/python dip_scanner.py --quiet
+  >> data/dip_scanner.log 2>&1` (**17:25 Lima / 22:25 UTC**, lun-vie; junto a pilot 22:00 y earnings 22:15).
+- Corrida inicial OK = **70 tickers** en `data/dip_dashboard.json`. Endpoint vivo (`/api/dips` → 401 con auth).
+- Tickers añadidos a la watchlist hoy: WDC, NBIS, GLW (entran solos en la corrida diaria).
+
+### 🔜 PENDIENTE / posibles iteraciones
+- Oscar revisará la UI y dirá si hay ajustes estéticos pendientes.
+- Posible: ajuste fino de la beta (ventana/clamp) si algún ticker da β rara; alinear ret5 del ticker
+  con la ventana exacta de SPY (hoy ret5 usa los últimos 6 cierres propios).
+- `database is locked` al escribir watchlist por API mientras `main.py` corre → se resolvió con
+  inserción directa `busy_timeout=30s`; si se vuelve frecuente, subir el timeout en `metrics_store._conn`.
 
 ---
 
