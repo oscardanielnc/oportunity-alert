@@ -1382,7 +1382,7 @@ function _prerunProj(pr, pp) {
 // ── Tab: Caídas (soportes de entrada) ──────────────────────────────────────────
 let _dipData = [];
 let _dipPage = 0;
-const DIP_PER_PAGE = 10;
+const DIP_PER_PAGE = 12;
 
 async function loadDips() {
   const cards = document.getElementById('dip-cards');
@@ -1404,16 +1404,22 @@ async function loadDips() {
   renderDips();
 }
 
-function _dots(n) {
-  return '<span style="letter-spacing:1px;color:#f59e0b">' + '●'.repeat(n) + '<span style="color:var(--border,#d1d5db)">' + '○'.repeat(5 - n) + '</span></span>';
+function _stars(n) {
+  // Fuerza del soporte (1-5): estrellitas pequeñas, mismo tamaño.
+  return '<span style="font-size:11px;letter-spacing:.5px;white-space:nowrap">'
+    + '<span style="color:#f59e0b">' + '★'.repeat(n) + '</span>'
+    + '<span style="color:var(--border,#d1d5db)">' + '☆'.repeat(5 - n) + '</span></span>';
 }
 
 function _supRow(s) {
+  const tip = 'Fuerza del soporte ' + s.strength + '/5: qué tan fiable es como zona de rebote. '
+    + 'Sube con confluencia (varios niveles juntos), veces testeado (' + s.touches + ' toques), '
+    + 'anclas mayores (SMA200/EMA50) y volumen. Más estrellas = más fiable.';
   return '<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px;padding:2px 0">'
     + '<span style="color:var(--text2,#374151);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.label) + '</span>'
     + '<span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text1,#111)">$' + s.price + '</span>'
     + '<span style="font-variant-numeric:tabular-nums;color:#2563eb;width:48px;text-align:right">+' + s.dist_pct + '%</span>'
-    + '<span style="width:54px;text-align:right" title="fuerza ' + s.strength + '/5 · ' + s.touches + ' toques">' + _dots(s.strength) + '</span>'
+    + '<span style="width:60px;text-align:right;cursor:help" title="' + esc(tip) + '">' + _stars(s.strength) + '</span>'
     + '</div>';
 }
 
@@ -1426,16 +1432,47 @@ function _supBlock(title, hint, sups) {
 }
 
 function _riskChips(r) {
-  const chip = (txt, col) => '<span style="font-size:11px;color:' + (col || 'var(--text2,#374151)') + '">' + txt + '</span>';
+  // Cada chip lleva tooltip condicional: explica qué mide y si TU valor es bueno o malo.
+  const chip = (txt, col, tip) => '<span title="' + esc(tip) + '" style="font-size:11px;color:'
+    + (col || 'var(--text2,#374151)') + ';cursor:help;border-bottom:1px dotted ' + (col || '#9ca3af') + '88">'
+    + txt + '</span>';
   const sep = '<span style="color:var(--border,#d1d5db)">·</span>';
+
+  const rsi = Math.round(r.rsi);
+  const rsiTip = r.rsi < 30
+    ? 'RSI ' + rsi + ' — SOBREVENTA (<30). Rebote técnico probable, pero refleja debilidad fuerte. Bueno para timing, ojo con el motivo.'
+    : (r.rsi > 70
+        ? 'RSI ' + rsi + ' — SOBRECOMPRA (>70). Poco margen al alza; NO es una zona de caída para entrar.'
+        : 'RSI ' + rsi + ' — zona neutral (30-70). Sin extremo de sobreventa/sobrecompra.');
+
+  const ddTip = 'Caída desde el máximo de los últimos 60 días: ' + r.drawdown + '%. '
+    + (r.drawdown <= -25
+        ? 'PROFUNDA (cuidado): puede esconder un problema de fondo, verifica la causa.'
+        : 'Retroceso moderado, normal en correcciones (más sano).');
+
+  const spyTip = r.idiosyncratic
+    ? 'Retorno 5d del ticker vs SPY: ' + r.vs_spy + ' pts. CAE MÁS QUE EL MERCADO (malo): debilidad PROPIA del ticker, no macro. Investiga antes de entrar.'
+    : 'Retorno 5d del ticker vs SPY: ' + (r.vs_spy > 0 ? '+' : '') + r.vs_spy + ' pts. En línea con el mercado (bueno): la caída es macro/sectorial, no problema del ticker.';
+
+  const volTip = r.vol_ratio >= 1.8
+    ? 'Volumen de hoy vs promedio 20d: ×' + r.vol_ratio + '. ALTO: mucha presión (pánico o distribución). El movimiento tiene fuerza real.'
+    : 'Volumen de hoy vs promedio 20d: ×' + r.vol_ratio + '. Normal, sin presión inusual.';
+
+  const gapTip = r.gap
+    ? 'Abrió con hueco de ' + r.gap_pct + '% vs el cierre previo. Un hueco casi siempre es noticia; a la baja = revisa el catalizador antes de entrar.'
+    : 'Sin hueco relevante en la apertura: la caída fue intradía (drift), no un salto overnight por noticia.';
+
   const parts = [
-    chip(r.trend_healthy ? '▲ sano' : '▼ riesgo', r.trend_healthy ? '#16a34a' : '#dc2626'),
-    chip('RSI ' + Math.round(r.rsi), r.rsi < 30 ? '#d97706' : 'var(--text2,#374151)'),
-    chip('DD ' + r.drawdown + '%', r.drawdown <= -15 ? '#d97706' : 'var(--text2,#374151)'),
+    chip(r.trend_healthy ? '▲ sano' : '▼ riesgo', r.trend_healthy ? '#16a34a' : '#dc2626',
+         r.trend_healthy
+           ? 'Tendencia mayor SANA (bueno): precio sobre la SMA200 y SMA50 al alza. El rebote en soporte es más fiable.'
+           : 'Tendencia DÉBIL (cuidado): precio bajo la SMA200 o SMA50 cayendo. El soporte puede no aguantar (cuchillo cayendo).'),
+    chip('RSI ' + rsi, r.rsi < 30 ? '#d97706' : 'var(--text2,#374151)', rsiTip),
+    chip('DD ' + r.drawdown + '%', r.drawdown <= -25 ? '#d97706' : 'var(--text2,#374151)', ddTip),
     chip(r.idiosyncratic ? '⚠ vsSPY ' + r.vs_spy : 'vsSPY ' + (r.vs_spy > 0 ? '+' : '') + r.vs_spy,
-         r.idiosyncratic ? '#dc2626' : '#16a34a'),
-    chip('Vol ×' + r.vol_ratio, r.vol_ratio >= 1.8 ? '#d97706' : 'var(--text2,#374151)'),
-    chip('Gap ' + (r.gap ? (r.gap_pct + '%') : 'no'), r.gap ? '#d97706' : 'var(--text3)'),
+         r.idiosyncratic ? '#dc2626' : '#16a34a', spyTip),
+    chip('Vol ×' + r.vol_ratio, r.vol_ratio >= 1.8 ? '#d97706' : 'var(--text2,#374151)', volTip),
+    chip('Gap ' + (r.gap ? (r.gap_pct + '%') : 'no'), r.gap ? '#d97706' : 'var(--text3)', gapTip),
   ];
   return parts.join(' ' + sep + ' ');
 }
