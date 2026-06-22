@@ -78,6 +78,22 @@ def spy_return_5d() -> float:
 
 # ── Helpers de cálculo ──────────────────────────────────────────────────────────
 
+def _beta(tk_returns: list, spy_returns: list, window: int = 60) -> float:
+    """Beta sobre retornos diarios YA ALINEADOS por fecha (cov/var). Fallback 1.0."""
+    m = min(len(tk_returns), len(spy_returns), window)
+    if m < 20:
+        return 1.0
+    tr, sr = tk_returns[-m:], spy_returns[-m:]
+    mean_s, mean_t = sum(sr) / m, sum(tr) / m
+    cov = sum((sr[i] - mean_s) * (tr[i] - mean_t) for i in range(m)) / m
+    var = sum((sr[i] - mean_s) ** 2 for i in range(m)) / m
+    if var == 0:
+        return 1.0
+    beta = cov / var
+    # acotar a un rango sensato para evitar betas absurdos por datos ruidosos
+    return max(0.2, min(beta, 4.0))
+
+
 def _sma(values: list, n: int) -> float:
     if len(values) < n or n <= 0:
         return 0.0
@@ -201,9 +217,10 @@ def _build_supports(candidates: list, price: float, atr14: float,
 
 # ── Análisis principal por ticker ───────────────────────────────────────────────
 
-def analyze_ticker(ticker: str, bars: list, spy_ret5: float = 0.0,
+def analyze_ticker(ticker: str, bars: list, spy_map: dict = None,
                    live_price: float = None) -> dict:
-    """Calcula soportes + chips de riesgo para un ticker. Devuelve None si datos insuficientes."""
+    """Calcula soportes + chips de riesgo para un ticker. Devuelve None si datos insuficientes.
+    spy_map: {fecha(YYYY-MM-DD): cierre SPY} para beta + abnormal return alineados por fecha."""
     if len(bars) < 30:
         return None
 
@@ -263,9 +280,27 @@ def analyze_ticker(ticker: str, bars: list, spy_ret5: float = 0.0,
     above_200 = sma200 > 0 and price > sma200
     trend_healthy = bool(above_200 and slope_up)
 
+    # Abnormal return AJUSTADO POR BETA: cuánto cayó el ticker MÁS (o menos) de lo que su
+    # volatilidad explica. expected = beta × retorno_SPY; excess = retorno_ticker − expected.
+    # Así un volátil (β>1) que cae proporcional al mercado NO se marca como débil.
+    # Retornos alineados por FECHA con SPY (evita beta ruidosa por días desfasados).
     ret5 = round((price / closes[-6] - 1) * 100, 2) if len(closes) >= 6 else 0.0
-    vs_spy = round(ret5 - spy_ret5, 1)                     # excess vs mercado
-    idiosyncratic = vs_spy <= -3.0                         # cae bastante más que SPY
+    beta = 1.0
+    spy_ret5 = 0.0
+    if spy_map:
+        dates = [b["t"][:10] for b in bars]
+        aligned = [(closes[i], spy_map[d]) for i, d in enumerate(dates) if d in spy_map]
+        if len(aligned) >= 26:
+            t_cl = [a[0] for a in aligned]
+            s_cl = [a[1] for a in aligned]
+            t_ret = [t_cl[i] / t_cl[i - 1] - 1 for i in range(1, len(t_cl))]
+            s_ret = [s_cl[i] / s_cl[i - 1] - 1 for i in range(1, len(s_cl))]
+            beta = _beta(t_ret, s_ret)
+            if len(s_cl) >= 6:
+                spy_ret5 = (s_cl[-1] / s_cl[-6] - 1) * 100
+    expected = beta * spy_ret5
+    vs_spy = round(ret5 - expected, 1)                     # excess ajustado por beta
+    idiosyncratic = vs_spy <= -3.0                         # cae más de lo que su beta explica
 
     avg_vol20 = sum(vols[-21:-1]) / 20 if len(vols) >= 21 else (sum(vols) / len(vols) if vols else 1)
     vol_ratio = round(vols[-1] / avg_vol20, 1) if avg_vol20 else 1.0
@@ -296,6 +331,7 @@ def analyze_ticker(ticker: str, bars: list, spy_ret5: float = 0.0,
             "rsi": rsi14,
             "drawdown": drawdown,
             "vs_spy": vs_spy,
+            "beta": round(beta, 2),
             "idiosyncratic": idiosyncratic,
             "vol_ratio": vol_ratio,
             "gap": is_gap,

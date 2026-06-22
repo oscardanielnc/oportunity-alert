@@ -1463,9 +1463,10 @@ function _riskChips(r) {
         ? 'PROFUNDA (cuidado): puede esconder un problema de fondo, verifica la causa.'
         : 'Retroceso moderado, normal en correcciones (más sano).');
 
+  const beta = (r.beta != null ? r.beta : 1);
   const spyTip = r.idiosyncratic
-    ? 'Retorno 5d del ticker vs SPY: ' + r.vs_spy + ' pts. CAE MÁS QUE EL MERCADO (malo): debilidad PROPIA del ticker, no macro. Investiga antes de entrar.'
-    : 'Retorno 5d del ticker vs SPY: ' + (r.vs_spy > 0 ? '+' : '') + r.vs_spy + ' pts. En línea con el mercado (bueno): la caída es macro/sectorial, no problema del ticker.';
+    ? 'Abnormal return 5d AJUSTADO POR BETA (β=' + beta + '): cayó ' + Math.abs(r.vs_spy) + ' pts MÁS de lo que su volatilidad explica. Debilidad PROPIA del ticker (malo), no es solo el mercado. Investiga antes de entrar.'
+    : 'Abnormal return 5d AJUSTADO POR BETA (β=' + beta + '): se movió en línea con lo esperado para su volatilidad (' + (r.vs_spy > 0 ? '+' : '') + r.vs_spy + ' pts). La caída es macro/sectorial (más sana), no problema del ticker.';
 
   const volTip = r.vol_ratio >= 1.8
     ? 'Volumen de hoy vs promedio 20d: ×' + r.vol_ratio + '. ALTO: mucha presión (pánico o distribución). El movimiento tiene fuerza real.'

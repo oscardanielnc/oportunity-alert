@@ -25,7 +25,7 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 
-from utils.dip_levels import fetch_daily_bars, spy_return_5d, analyze_ticker
+from utils.dip_levels import fetch_daily_bars, analyze_ticker
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -68,14 +68,18 @@ def run(quiet: bool = False) -> dict:
         print("[Dips] Universo vacío — ¿watchlist/eToro disponibles?")
         return {"available": False, "cards": []}
 
-    spy_ret5 = spy_return_5d()
+    # SPY una sola vez: header macro + beta por ticker (alineada por fecha).
+    spy_bars = fetch_daily_bars("SPY", limit=300)
+    spy_map = {b["t"][:10]: float(b["c"]) for b in spy_bars}
+    spy_closes = [float(b["c"]) for b in spy_bars]
+    spy_ret5 = round((spy_closes[-1] / spy_closes[-6] - 1) * 100, 2) if len(spy_closes) >= 6 else 0.0
     cards = []
     errors = []
 
     for ticker, live in universe.items():
         try:
             bars = fetch_daily_bars(ticker, limit=300)
-            res = analyze_ticker(ticker, bars, spy_ret5=spy_ret5, live_price=live)
+            res = analyze_ticker(ticker, bars, spy_map=spy_map, live_price=live)
             if res and res.get("nearest_pct") is not None:
                 cards.append(res)
             elif not res:
@@ -127,6 +131,7 @@ def _print_console(data: dict):
         flags.append("TEND-ok" if r["trend_healthy"] else "TEND-riesgo")
         flags.append(f"RSI{int(r['rsi'])}")
         flags.append(f"DD{r['drawdown']:.0f}%")
+        flags.append(f"b{r.get('beta', 1.0):.1f}")
         if r["idiosyncratic"]:
             flags.append(f"IDIO{r['vs_spy']:+.0f}")
         if r["vol_ratio"] >= 1.8:
