@@ -430,7 +430,7 @@ Barras diarias cacheadas por día (≤1 fetch Alpaca por ticker/día).
 AI_ENGINE=deepseek         # deepseek (default) | glm | gemini | claude
 DEEPSEEK_API_KEY=sk-...     # obligatoria si AI_ENGINE=deepseek (platform.deepseek.com)
 AI_MODEL_STRONG=deepseek-v4-pro    # tier FUERTE: noticias / decisiones (razonador)
-AI_MODEL_CHEAP=deepseek-chat       # tier BARATO: brief / Trump (no-pensante)
+AI_MODEL_CHEAP=deepseek-chat       # tier BARATO: radar Trump (no-pensante)
 # GLM_API_KEY=...          # alternativa si AI_ENGINE=glm (api.z.ai)
 # ANTHROPIC_API_KEY / GEMINI_API_KEY  # opcionales: solo si AI_ENGINE=claude|gemini
 FINNHUB_API_KEY=...
@@ -444,7 +444,7 @@ NOTIFICATION_CHANNEL=callmebot  # "callmebot" (WhatsApp gratis) | "whatsapp" | "
 ```
 
 **Selección de motor/modelo (centralizado en `utils/ai_client.py`):** todos los módulos
-usan `resolve_engine_model(tier)` — tier `"strong"` (noticias) o `"cheap"` (brief/Trump).
+usan `resolve_engine_model(tier)` — tier `"strong"` (noticias + brief diario) o `"cheap"` (radar Trump).
 DeepSeek/GLM se hablan por REST compatible-OpenAI (con `requests`, sin deps nuevas).
 Overrides por sección: `DAILY_BRIEF_ENGINE`/`DAILY_BRIEF_MODEL`, `TRUMP_ENGINE`/`TRUMP_MODEL`.
 

@@ -4,7 +4,7 @@ AIClient — motor de IA centralizado para todo el sistema.
 Un único punto de entrada para llamadas a DeepSeek, GLM, Gemini y Claude.
 Todos los módulos del sistema importan de aquí:
   - filters/claude_scorer.py   (noticias  → tier FUERTE)
-  - utils/daily_brief.py       (brief     → tier BARATO)
+  - utils/daily_brief.py       (brief     → tier FUERTE — estrategia macro, 2026-06-23)
   - utils/trump_tracker.py     (radar     → tier BARATO)
   - cualquier estrategia futura
 
@@ -39,7 +39,7 @@ _GLM_BASE      = "https://api.z.ai/api/openai/v1"
 # DeepSeek (verificado en vivo 2026-06-19):
 #   - STRONG = deepseek-v4-pro (razonador): decisiones financieras, devuelve JSON con
 #     razonamiento. Necesita max_tokens holgado (el "pensamiento" consume tokens).
-#   - CHEAP  = deepseek-chat (NO-pensante): brief/Trump = resumir. Más rápido y barato,
+#   - CHEAP  = deepseek-chat (NO-pensante): radar Trump = resumir. Más rápido y barato,
 #     sin riesgo de que el razonamiento trunque la salida. (deepseek-chat se depreca el
 #     2026-07-24 → migrar a su sucesor no-pensante; override con AI_MODEL_CHEAP.)
 _TIER_DEFAULTS = {
