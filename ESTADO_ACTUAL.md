@@ -1,7 +1,39 @@
 # 📍 ESTADO ACTUAL DEL SISTEMA — léeme para continuar
-# Última actualización: 2026-06-22 (TARDE) — NUEVA sección 📉 Caídas (scanner de soportes de entrada)
-#   desplegada en la VM + cron diario. (Antes: Earnings Marea/PED, horizonte por-señal, earnings_shape LOCAL.)
+# Última actualización: 2026-06-23 — Brief diario ESTRATÉGICO (tier fuerte + radar de sectores +
+#   contagio + catalizadores) · Scoreboard por ticker · login persistente. + 1ª lectura del
+#   scoreboard (vamos mal aún → ver SCOREBOARD_DIAGNOSIS.md). Todo desplegado en la VM.
 # Dueño: Oscar Navarro | Asistente: Claude
+
+---
+
+## ✅ CIERRE 2026-06-23 — BRIEF ESTRATÉGICO + SCOREBOARD POR TICKER + DIAGNÓSTICO
+
+> DESPLEGADO en la VM (commits `9998e63`→`50857bd`). Fuente de verdad del diagnóstico del
+> scoreboard: **`SCOREBOARD_DIAGNOSIS.md`** (doc vivo) + memoria `scoreboard-diagnostico`.
+
+### 🧩 Qué se hizo
+1. **Brief diario reorientado a ESTRATEGIA accionable** (`utils/daily_brief.py`). Oscar: NO quiere
+   que le repitan lo obvio ("QQQ cayó hoy"), quiere la **jugada siguiente** — contagio a la baja,
+   rotación de flujo, reversión por catalizador, con llamado a la acción. Cambios:
+   - **Tier FUERTE** (`deepseek-v4-pro`, razonador) en vez de barato + `max_tokens=5000` (el
+     razonador gasta tokens pensando; con menos el JSON salía vacío → fallback). Ver `ai-engine-deepseek`.
+   - **`_sector_radar_block()`** — ret 1d/5d + vs EMA20 por ETF de sector → detecta giros ANTES que
+     el momentum 126d; cruza con exposición de cartera → **alertas de contagio**.
+   - **`_catalysts_block()`** — noticias/earnings ALTA/MEDIA mapeados a su sector → base de las
+     señales de reversión al alza ("MU reportó fuerte → SMH viento a favor → LONG").
+   - System+prompt reescritos: cada señal con lógica en cadena + acción + dato que confirma/invalida.
+   - Frontend: tabla "Radar corto de sectores" + banner de contagio en el tab Brief.
+2. **Scoreboard por ticker** (`utils/scoreboard.py::summary_by_ticker` + `/api/scoreboard?group=ticker`
+   + toggle "Por categoría / Por ticker"): win-rate de la predicción e impacto real por ticker.
+3. **Login persistente** (`api/app.py` + `dashboard.html`): quitado header `WWW-Authenticate:Basic`
+   (disparaba el prompt nativo del navegador en bucle) + creds en `localStorage` (no re-pide login).
+
+### 📉 1ª lectura del scoreboard (2026-06-23) → VAMOS MAL (pero muestra mínima)
+8 cerradas de 55 (resto abiertas, cierran a 48h). **Acierto direccional 1/6 = 17%.** Todas LONG,
+casi todas semis, llamadas alcistas en pleno desplome de SMH → fallo de **contagio sectorial**. Los
+MFE grandes (MU +8.7%, COHR +10.8%) revierten al exit de 48h → el edge es **temprano y se diluye**.
+**Decisión: revisar cada ciertos días, ir pensando en la solución. TODO documentado en
+`SCOREBOARD_DIAGNOSIS.md` (snapshot + diagnóstico + hipótesis de solución + instrumentación pendiente).**
 
 ---
 
