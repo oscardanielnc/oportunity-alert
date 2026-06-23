@@ -174,6 +174,96 @@ def _sentinel_block(positions: list) -> dict:
         return {"triggers": [], "at_risk": [], "severity": 0}
 
 
+# Cache por día UTC del radar de sectores (1 fetch batched de ETFs/día).
+_radar_cache: dict = {"day": None, "data": None}
+
+
+def _sector_radar_block(positions: list) -> dict:
+    """
+    Radar FORWARD-LOOKING por sector (lo que faltaba el día del crash de semis): el
+    momentum 126d de sector_strength es lentísimo (SMH seguía +88% mientras ya caía).
+    Aquí miramos la señal CORTA de cada ETF de sector — ret_1d, ret_5d y posición vs
+    EMA20 — para detectar sectores que se están DANDO VUELTA *antes* de que el índice
+    entero ceda, y cruzarlo con tu exposición de cartera (contagio).
+
+    Devuelve {"sectors": [...], "exposure": {etf: {n, tickers, pnl_avg}}, "alerts": [str]}.
+    1 fetch batched de los ETFs/día (cacheado). Best-effort: nunca lanza.
+    """
+    try:
+        from pilot.star_score import SECTOR_ETFS, SECTOR_NAME, SECTOR_ETF
+        from pilot.momentum_signals import fetch_daily_batch, _ema
+    except Exception as e:
+        logger.debug(f"[DailyBrief] radar import: {e}")
+        return {}
+
+    # Exposición de cartera por sector (a qué sectores estás expuesto y cuánto P&L hay en juego)
+    exposure: dict = {}
+    for p in positions:
+        tk = (p.get("ticker") or "").upper()
+        etf = SECTOR_ETF.get(tk)
+        if not etf:
+            continue
+        e = exposure.setdefault(etf, {"n": 0, "tickers": [], "pnls": []})
+        e["n"] += 1
+        e["tickers"].append(tk)
+        if p.get("pnl_pct") is not None:
+            e["pnls"].append(p["pnl_pct"])
+    for e in exposure.values():
+        e["pnl_avg"] = round(sum(e["pnls"]) / len(e["pnls"]), 1) if e["pnls"] else None
+        e.pop("pnls", None)
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _radar_cache["day"] == today and _radar_cache["data"] is not None:
+        sectors = _radar_cache["data"]
+    else:
+        sectors = []
+        try:
+            bars_by_etf = fetch_daily_batch(SECTOR_ETFS, lookback_days=60)
+            for etf in SECTOR_ETFS:
+                bars = bars_by_etf.get(etf) or []
+                closes = [b["c"] for b in bars if b.get("c")]
+                if len(closes) < 21:
+                    continue
+                last = closes[-1]
+                ret_1d = round((last / closes[-2] - 1) * 100, 1) if closes[-2] else None
+                ret_5d = round((last / closes[-6] - 1) * 100, 1) if len(closes) >= 6 and closes[-6] else None
+                ema20 = _ema(closes, 20)
+                vs_ema20 = round((last / ema20 - 1) * 100, 1) if ema20 else None
+                # "Dándose vuelta": cae fuerte en 5d, o ya perdió la EMA20 con momentum 5d negativo
+                rolling = (ret_5d is not None and ret_5d <= -2.5) or \
+                          (vs_ema20 is not None and vs_ema20 < 0 and (ret_5d or 0) < 0)
+                sectors.append({
+                    "etf": etf, "name": SECTOR_NAME.get(etf, etf),
+                    "ret_1d": ret_1d, "ret_5d": ret_5d, "vs_ema20": vs_ema20,
+                    "rolling_over": bool(rolling),
+                })
+            sectors.sort(key=lambda s: (s["ret_5d"] if s["ret_5d"] is not None else 0))
+            _radar_cache["day"] = today
+            _radar_cache["data"] = sectors
+        except Exception as e:
+            logger.debug(f"[DailyBrief] radar sectores: {e}")
+            sectors = []
+
+    # Alertas de contagio: sector dándose vuelta DONDE tienes posiciones = lo más accionable
+    alerts = []
+    for s in sectors:
+        if not s["rolling_over"]:
+            continue
+        exp = exposure.get(s["etf"])
+        r5 = s["ret_5d"]
+        r5txt = f"{r5:+.1f}% en 5d" if r5 is not None else "debilitándose"
+        ema_txt = " y bajo su EMA20" if (s.get("vs_ema20") is not None and s["vs_ema20"] < 0) else ""
+        if exp:
+            alerts.append(
+                f"{s['name']} ({s['etf']}) {r5txt}{ema_txt} — tienes "
+                f"{exp['n']} posición(es) ahí ({', '.join(exp['tickers'])}); riesgo de contagio."
+            )
+        else:
+            alerts.append(f"{s['name']} ({s['etf']}) {r5txt}{ema_txt} — sector girando a la baja (sin exposición tuya).")
+
+    return {"sectors": sectors, "exposure": exposure, "alerts": alerts}
+
+
 def _market_movers_block(hours: int = 24, limit: int = 4) -> list:
     """Declaraciones recientes de market movers (Trump/Fed/Treasury/SEC) con impacto de mercado,
     para que el brief avise si conviene CERRAR posiciones antes de una caída. Prioriza las
@@ -206,6 +296,49 @@ def _market_movers_block(hours: int = 24, limit: int = 4) -> list:
         return []
 
 
+def _catalysts_block(hours: int = 30, limit: int = 8) -> list:
+    """
+    Catalizadores recientes (noticias + earnings que la IA puntuó ALTA/MEDIA) mapeados a su
+    SECTOR. Es la materia prima para las señales de REVERSIÓN/IMPULSO al alza que pedía Oscar:
+    p.ej. "MU reportó muy positivo → todo SMH tiene viento a favor → LONG". El radar de sectores
+    da el lado técnico (qué se está dando vuelta); esto da el lado del CATALIZADOR (por qué).
+    Dedup por ticker (el de mayor score). Best-effort: nunca lanza.
+    """
+    try:
+        from utils.metrics_store import MetricsStore
+        from pilot.star_score import SECTOR_ETF, SECTOR_NAME
+        rows = MetricsStore().get_alerts_recent(hours=hours, sort="score")
+    except Exception as e:
+        logger.debug(f"[DailyBrief] catalizadores: {e}")
+        return []
+    seen: set = set()
+    out = []
+    for r in rows:
+        tk = (r.get("ticker") or "").upper()
+        if not tk or tk in seen:
+            continue
+        prio = (r.get("prioridad") or "").upper()
+        score = r.get("score_ia") or 0
+        if prio not in ("ALTA", "MEDIA") and score < 6:
+            continue
+        seen.add(tk)
+        etf = SECTOR_ETF.get(tk)
+        out.append({
+            "ticker":     tk,
+            "direccion":  r.get("direccion"),
+            "tipo":       r.get("tipo_catalizador"),
+            "prioridad":  prio or None,
+            "score":      score,
+            "sector_etf": etf,
+            "sector":     SECTOR_NAME.get(etf) if etf else None,
+            "resumen":    (r.get("resumen_cataliz") or r.get("titular_simple") or "")[:160],
+            "contexto_sector": (r.get("contexto_sector") or "")[:160],
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 def build_brief() -> dict:
     """Ensambla el brief estructurado (sin IA). Best-effort: nunca lanza."""
     dash = _load_dashboard()
@@ -217,6 +350,8 @@ def build_brief() -> dict:
         "regime":        _regime_block(dash),
         "sentinel":      _sentinel_block(positions),
         "sectors":       _sectors_block(dash),
+        "sector_radar":  _sector_radar_block(positions),
+        "catalysts":     _catalysts_block(),
         "positions":     positions,
         "opportunities": _opportunities_block(dash, held),
         "market_movers": _market_movers_block(),
@@ -226,11 +361,25 @@ def build_brief() -> dict:
 # ── Capa de redacción (Gemini Flash, cacheada por día) ──────────────────────────
 
 _SYSTEM = (
-    "Eres un asistente de briefing de mercado para Oscar, un inversor que opera swing "
-    "trading (estrategia Marea, tendencia de semanas) y eventos de corto plazo. NO das "
-    "órdenes de comprar ni vender — resumes la situación y señalas qué merece atención "
-    "hoy para que Oscar decida. Eres conciso, directo y honesto: si no hay nada urgente, "
-    "lo dices. Respondes SIEMPRE en español. Tu salida es JSON."
+    "Eres el estratega macro de Oscar, un inversor que opera swing trading (estrategia Marea, "
+    "tendencia de semanas) y eventos de corto plazo. Oscar YA SABE lo que pasó hoy (que el QQQ "
+    "cayó, que tal acción está roja) — NO le repitas lo obvio ni hagas un resumen descriptivo. "
+    "Tu ÚNICO valor es la JUGADA SIGUIENTE: leer la situación y darle señales ACCIONABLES y "
+    "ANTICIPATORIAS sobre lo que probablemente pase a continuación, con el llamado a la acción "
+    "más probable. Piensa como un trader macro que conecta puntos:\n"
+    "  • CONTAGIO A LA BAJA: si las grandes de un sector ya cayeron (p.ej. NVDA/AVGO en semis), "
+    "el resto del grupo y los índices suelen seguir en 1-3 días → 'el sector va a seguir cayendo, "
+    "REDUCE/SAL de tus posiciones en X'.\n"
+    "  • ROTACIÓN / FLUJO: si el dinero está saliendo de un sector (ret 5d negativo, pierde su "
+    "EMA20, breadth cayendo) → 'están rotando fuera de X, sal rápido' o 'entrando a Y, mira ahí'.\n"
+    "  • REVERSIÓN / IMPULSO AL ALZA: si salió un catalizador fuerte (p.ej. earnings de MU muy "
+    "positivos) que beneficia a todo un sector → 'la caída de semis probablemente se revierte, "
+    "considera ABRIR LONG en líderes del sector'.\n"
+    "Cada señal lleva: (1) la lógica en cadena (por qué pasará), (2) el llamado a la acción más "
+    "probable (SALIR/REDUCIR, ABRIR LONG, VIGILAR), (3) qué dato confirma o invalida la tesis. "
+    "NO inventes datos que no te dieron; razona solo con lo que está en el contexto. Si de verdad "
+    "no hay ninguna jugada clara, dilo en una frase y no rellenes. Respondes SIEMPRE en español. "
+    "Tu salida es JSON."
 )
 
 
@@ -246,8 +395,27 @@ def _build_prompt(brief: dict) -> str:
     else:
         parts.append("- Centinela macro: sin alertas de riesgo hoy.")
     if sec.get("leader"):
-        parts.append(f"- Sector líder: {sec['leader']['name']} ({sec['leader']['mom_pct']:+.0f}%); "
+        parts.append(f"- Sector líder (momentum 126d): {sec['leader']['name']} ({sec['leader']['mom_pct']:+.0f}%); "
                      f"más débil: {sec['laggard']['name']} ({sec['laggard']['mom_pct']:+.0f}%).")
+    # Radar CORTO de sectores (forward-looking) — la pieza clave para anticipar contagios
+    radar = brief.get("sector_radar", {})
+    rsec = radar.get("sectors") or []
+    if rsec:
+        parts.append("- Radar corto de sectores (ret 1d / 5d / vs EMA20) — DETECTA giros antes que el momentum largo:")
+        for s in rsec:
+            flags = " ⚠ DÁNDOSE VUELTA" if s.get("rolling_over") else ""
+            exp = (radar.get("exposure") or {}).get(s["etf"])
+            etxt = f" [expuesto: {', '.join(exp['tickers'])}]" if exp else ""
+            parts.append(
+                f"  · {s['name']} ({s['etf']}): "
+                f"1d {('%+.1f%%' % s['ret_1d']) if s.get('ret_1d') is not None else '—'}, "
+                f"5d {('%+.1f%%' % s['ret_5d']) if s.get('ret_5d') is not None else '—'}, "
+                f"vs EMA20 {('%+.1f%%' % s['vs_ema20']) if s.get('vs_ema20') is not None else '—'}{flags}{etxt}"
+            )
+        if radar.get("alerts"):
+            parts.append("- ⚠ RIESGO DE CONTAGIO (anticipa, avisa A TIEMPO):")
+            for a in radar["alerts"]:
+                parts.append(f"  · {a}")
     if brief.get("positions"):
         parts.append("- Tus posiciones:")
         for p in brief["positions"]:
@@ -269,17 +437,36 @@ def _build_prompt(brief: dict) -> str:
         opps = ", ".join(f"{o['ticker']} (#{o.get('rank')}{'/breakout' if o.get('is_breakout') else ''})"
                          for o in brief["opportunities"])
         parts.append(f"- Líderes Marea fuera de cartera: {opps}")
+    # Catalizadores recientes (la materia prima de las señales de reversión/impulso al alza)
+    cats = brief.get("catalysts") or []
+    if cats:
+        parts.append("- Catalizadores recientes (noticias/earnings que la IA puntuó fuerte) — úsalos para "
+                     "detectar viento a favor/en contra de TODO un sector y posibles reversiones:")
+        for c in cats:
+            sec = f" [{c['sector']}/{c['sector_etf']}]" if c.get("sector") else ""
+            dir_ = f" {c['direccion']}" if c.get("direccion") else ""
+            sc = f" score {c['score']}" if c.get("score") else ""
+            ctx = f" — contexto: {c['contexto_sector']}" if c.get("contexto_sector") else ""
+            parts.append(f"  · {c['ticker']}{sec}{dir_} ({c.get('tipo') or '?'}{sc}): {c.get('resumen')}{ctx}")
     if brief.get("market_movers"):
         parts.append("- Market movers recientes (Trump/Fed/Treasury/SEC) — vigila si presionan tus posiciones:")
         for m in brief["market_movers"]:
             tk = f" [{', '.join(m['tickers'])}]" if m.get("tickers") else ""
             parts.append(f"  · ({m.get('source')}/{m.get('impacto')}/{m.get('alcance')}){tk} {m.get('resumen')}")
     parts.append(
-        "\nDevuelve JSON con dos campos: "
-        '{"resumen": "2-4 frases sobre el panorama y tus posiciones", '
-        '"atencion": ["punto accionable 1", "punto 2", ...]}. '
-        "Máximo 4 puntos de atención, los más importantes primero. Si no hay nada que "
-        "vigilar, devuelve atencion vacío y dilo en el resumen."
+        "\nTAREA — dame la JUGADA SIGUIENTE, no un resumen. Oscar ya sabe que hoy hubo rojo/verde; NO se "
+        "lo repitas. Conecta los puntos del contexto y razona hacia adelante (24-72h) para producir "
+        "SEÑALES ACCIONABLES, tanto de CAÍDA como de SUBIDA:\n"
+        "  · Contagio: ¿qué sector con grandes ya cayendo arrastrará al resto / a tus posiciones? → SALIR/REDUCIR.\n"
+        "  · Rotación de flujo: ¿de qué sector está saliendo el dinero (ret 5d-, bajo EMA20, breadth-)? ¿hacia cuál entra?\n"
+        "  · Reversión por catalizador: ¿algún catalizador fuerte (earnings, etc.) da viento a favor a TODO un sector "
+        "y revierte una caída? → considerar ABRIR LONG en sus líderes.\n"
+        "Cada punto: la lógica en cadena + el llamado a la acción más probable + el dato que lo confirmaría/invalidaría.\n"
+        "Devuelve JSON con dos campos: "
+        '{"resumen": "2-4 frases con la TESIS macro del momento y la jugada principal (no descriptivo)", '
+        '"atencion": ["señal accionable 1 (con acción y lógica)", "señal 2", ...]}. '
+        "Máximo 4 señales, la más urgente/probable primero. Si de verdad no hay ninguna jugada clara, "
+        "devuelve atencion vacío y dilo en una frase — no rellenes con obviedades."
     )
     return "\n".join(parts)
 
@@ -319,14 +506,16 @@ def generate_narrative(brief: dict) -> dict:
     """
     today = _today_lima()
     import os as _os
-    # Motor BARATO (el brief es 1 llamada/día — Oscar pidió modelo barato, 2026-06-17):
-    #   - tier "cheap" del resolutor central → default deepseek-v4-flash.
+    # Motor FUERTE (cambio 2026-06-23: Oscar quiere estrategia macro real, no resumen barato).
+    # El brief es ~1-2 llamadas/día → el costo del razonador es despreciable y la calidad
+    # del análisis (anticipación, contagio, reversiones por catalizador) es lo que importa.
+    #   - tier "strong" del resolutor central → razonador (default deepseek-v4-pro).
     #   - overrides: DAILY_BRIEF_ENGINE (motor) y DAILY_BRIEF_MODEL (modelo) si se quiere
-    #     desviar el brief del resto del sistema; si no, hereda AI_ENGINE / AI_MODEL_CHEAP.
+    #     desviar el brief del resto del sistema; si no, hereda AI_ENGINE / AI_MODEL_STRONG.
     # NO forzamos un motor sin key: si la IA no responde, cae a resumen por código.
     from utils.ai_client import call_ai, parse_json_response, resolve_engine_model
     eng, model = resolve_engine_model(
-        "cheap",
+        "strong",
         engine=_os.environ.get("DAILY_BRIEF_ENGINE"),
         model=_os.environ.get("DAILY_BRIEF_MODEL"),
     )
@@ -335,7 +524,7 @@ def generate_narrative(brief: dict) -> dict:
     text = None
     try:
         text = call_ai(_build_prompt(brief), system=_SYSTEM, engine=eng, model=model,
-                       max_tokens=600, temperature=0.2)
+                       max_tokens=1100, temperature=0.3)
         data = parse_json_response(text) or {}
     except Exception as e:
         logger.warning(f"[DailyBrief] IA no disponible: {e}")
@@ -423,6 +612,9 @@ def _fallback_narrative(brief: dict) -> tuple:
     sen = brief.get("sentinel", {})
     resumen = ("Régimen " + ("risk-on (alcista)." if reg.get("risk_on") else "risk-off (defensivo)."))
     aten = []
+    # Contagio sectorial primero (es lo anticipatorio): sectores girando donde hay exposición
+    for a in (brief.get("sector_radar", {}).get("alerts") or []):
+        aten.append(a)
     if sen.get("triggers"):
         aten.append("Centinela macro disparado: " + "; ".join(sen["triggers"]))
     for p in brief.get("positions", []):

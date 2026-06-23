@@ -82,11 +82,13 @@ def _require_auth(creds: HTTPBasicCredentials = Depends(security)):
     # (así el navegador no muestra su prompt nativo y no entra en loop).
     if not DASHBOARD_PASS:
         return creds.username if creds else "local"
+    # NOTA: NO enviamos header "WWW-Authenticate: Basic" — eso hace que el navegador
+    # muestre su prompt nativo de usuario/contraseña en cada 401 (el loop molesto).
+    # El login lo maneja el formulario HTML del dashboard (guarda creds en localStorage).
     if creds is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Auth requerida",
-            headers={"WWW-Authenticate": "Basic"},
         )
     ok_user = secrets.compare_digest(creds.username.encode(), DASHBOARD_USER.encode())
     ok_pass = secrets.compare_digest(creds.password.encode(), DASHBOARD_PASS.encode())
@@ -94,7 +96,6 @@ def _require_auth(creds: HTTPBasicCredentials = Depends(security)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
-            headers={"WWW-Authenticate": "Basic"},
         )
     return creds.username
 
@@ -308,14 +309,18 @@ def get_trump_feed(
 @app.get("/api/scoreboard")
 def get_scoreboard(
     days: int = Query(60, ge=1, le=365),
+    group: str = Query("category", pattern="^(category|ticker)$"),
     _: str = Depends(_require_auth),
 ):
-    """Panel resumen del scoreboard de auditoría: por brazo+categoría, n / win-rate direccional /
-    reacción anormal mediana (4h,24h) / MFE. Mide los 3 brazos (noticias/trump/earnings) a 48h.
+    """Panel resumen del scoreboard de auditoría a 48h (3 brazos: noticias/market_movers/earnings).
+    group=category (default): agrega por brazo+categoría. group=ticker: agrega por brazo+TICKER
+    individual → win-rate de la predicción y cuánto se movió de verdad cada ticker (a cuál afecta más).
     Solo LEE la tabla signal_outcomes (la puebla el resolver horario en main.py)."""
-    from utils.scoreboard import summary_by_category
+    from utils.scoreboard import summary_by_category, summary_by_ticker
     from utils.metrics_store import DB_PATH
-    return {"days": days, "rows": summary_by_category(DB_PATH, days=days)}
+    if group == "ticker":
+        return {"days": days, "group": "ticker", "rows": summary_by_ticker(DB_PATH, days=days)}
+    return {"days": days, "group": "category", "rows": summary_by_category(DB_PATH, days=days)}
 
 
 @app.get("/api/equity-history")

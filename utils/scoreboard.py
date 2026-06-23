@@ -329,6 +329,44 @@ def summary_by_category(db_path: str, days: int = 60) -> list[dict]:
     return out
 
 
+def summary_by_ticker(db_path: str, days: int = 60) -> list[dict]:
+    """Agregados por brazo+TICKER para el panel: cuántas veces se acertó la dirección y cuánto se
+    movió de verdad cada ticker. Responde a "¿qué tan buenas son las predicciones por ticker y a
+    cuál afectan más?". Misma fuente que summary_by_category (signal_outcomes cerradas), pero la
+    clave de agrupación es el ticker individual en vez de la categoría."""
+    con = sqlite3.connect(db_path); con.row_factory = sqlite3.Row
+    con.execute(SCHEMA)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = con.execute("SELECT * FROM signal_outcomes WHERE status='closed' AND ts>=?",
+                       (cutoff,)).fetchall()
+    con.close()
+    from collections import defaultdict, Counter
+    import statistics as st
+    g = defaultdict(list)
+    for r in rows:
+        g[(r["arm"], r["ticker"] or "?")].append(r)
+    out = []
+    for (arm, tk), rs in g.items():
+        hits = [r["dir_correct"] for r in rs if r["dir_correct"] is not None]
+        def med(col):
+            v = [r[col] for r in rs if r[col] is not None]
+            return round(st.median(v), 2) if v else None
+        # |abn_final| mediano = "cuánto se movió de verdad" → para ordenar por mayor impacto
+        moves = [abs(r["abn_final"]) for r in rs if r["abn_final"] is not None]
+        impact = round(st.median(moves), 2) if moves else None
+        cats = Counter(r["categoria"] or "?" for r in rs)
+        srcs = sorted({r["source"] for r in rs if r["source"]})
+        out.append({"arm": arm, "ticker": tk, "n": len(rs),
+                    "win_rate": round(100 * sum(hits) / len(hits)) if hits else None,
+                    "abn_4h_med": med("abn_4h"), "abn_24h_med": med("abn_24h"),
+                    "abn_final_med": med("abn_final"), "mfe_med": med("mfe_abn"),
+                    "impact_med": impact, "top_cat": cats.most_common(1)[0][0] if cats else "?",
+                    "sources": srcs})
+    # ordenar por mayor impacto (a qué ticker afecta más); empate → más muestra
+    out.sort(key=lambda x: (-(x["impact_med"] or 0), -x["n"]))
+    return out
+
+
 def expected_impact(db_path: str, arm: str, category: str, min_n: int = 8, days: int = 120) -> dict | None:
     """Impacto EMPÍRICO de una (arm, categoría) según señales YA cerradas — base de la convicción
     data-driven (#2). Devuelve {n, median_exit, median_mfe, win} si hay muestra (n>=min_n), o None
