@@ -524,10 +524,11 @@ def generate_narrative(brief: dict) -> dict:
     text = None
     try:
         # max_tokens holgado: deepseek-v4-pro es razonador y el "pensamiento" consume tokens
-        # ANTES del JSON final (con 1100 salía vacío → fallback). 3000 deja espacio al
-        # razonamiento + la narrativa completa (resumen + hasta 4 señales con su lógica).
+        # ANTES del JSON final (con 1100/3000 podía quedarse sin espacio en días de
+        # razonamiento pesado → JSON vacío → fallback). 5000 da margen al razonamiento + la
+        # narrativa completa (resumen + hasta 4 señales con su lógica). ~1-2 llamadas/día → costo trivial.
         text = call_ai(_build_prompt(brief), system=_SYSTEM, engine=eng, model=model,
-                       max_tokens=3000, temperature=0.3)
+                       max_tokens=5000, temperature=0.3)
         data = parse_json_response(text) or {}
     except Exception as e:
         logger.warning(f"[DailyBrief] IA no disponible: {e}")
