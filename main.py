@@ -1667,6 +1667,21 @@ def scoreboard_resolver_loop(config, watchlist, dedup, **kwargs):
         time.sleep(interval)
 
 
+def intraday_paper_loop(config, watchlist, dedup, **kwargs):
+    """Paper-forward del edge overnight de semis (Binance perps). Abre/actualiza/cierra los
+    registros de la canasta cada ~2 min para verlos en vivo (ABIERTO/CERRADO) en el dashboard.
+    No opera: solo registra precio, %max/%min, contexto y % final. Ver utils/intraday_paper.py."""
+    from utils import intraday_paper
+    interval = config.get("intervals_seconds", {}).get("intraday_paper", 120)
+    while True:
+        try:
+            intraday_paper.tick()
+            _beat("IntradayPaper", interval)
+        except Exception as e:
+            logger.error(f"Error en intraday_paper_loop: {e}")
+        time.sleep(interval)
+
+
 def gap_scanner_loop(config, watchlist, dedup, **kwargs):
     """Barre la watchlist cada N seg en la ventana pre-market→sesión buscando gaps grandes
     sin noticia. Cubre catalizadores nocturnos/internacionales (Hueco 1, caso MRVL)."""
@@ -1999,6 +2014,7 @@ def main():
         ("Fed",              fed_loop,                 (config, watchlist, dedup), shared),
         ("OfficialMovers",   official_movers_loop,     (config, watchlist, dedup), shared),
         ("Scoreboard",       scoreboard_resolver_loop, (config, watchlist, dedup), shared),
+        ("IntradayPaper",    intraday_paper_loop,      (config, watchlist, dedup), shared),
         ("MacroSentinel",    market_sentinel_loop,     (config, twilio_to),        {}),
         ("DailyBrief",       daily_brief_loop,         (),                            {}),
         ("Dashboard",        run_dashboard,            (),                            {}),

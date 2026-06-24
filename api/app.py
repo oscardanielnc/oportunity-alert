@@ -262,6 +262,18 @@ def get_earnings(_: str = Depends(_require_auth)):
         return {"available": False, "error": str(e)}
 
 
+@app.get("/api/intraday-paper")
+def get_intraday_paper(_: str = Depends(_require_auth)):
+    """Paper-forward del edge overnight de semis (Binance perps): registros ABIERTO/CERRADO por
+    ticker con precio entrada/salida, %max/%min recorrido, % final y contexto QQQ/acción día previo.
+    Solo LEE el estado que mantiene el thread IntradayPaper (utils/intraday_paper.py). No opera."""
+    try:
+        from utils.intraday_paper import get_trades, WINDOWS
+        return {"available": True, "trades": get_trades(), "windows": WINDOWS}
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
 @app.get("/api/dips")
 def get_dips(_: str = Depends(_require_auth)):
     """Sección Caídas: soportes de entrada (corto + estructural) + chips de riesgo por ticker,
