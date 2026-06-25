@@ -880,6 +880,10 @@ tbody tr:hover { background: #fafafb; }
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <input id="dip-search" type="text" placeholder="Buscar ticker (ej. NVDA)…" autocomplete="off"
           oninput="renderDips()" style="flex:1;min-width:180px;max-width:280px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface,#fff)">
+        <select id="dip-sort" onchange="renderDips()" title="Orden de las cards" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface,#fff)">
+          <option value="near" selected>Orden: cercanía al soporte</option>
+          <option value="action">Orden: accionabilidad (mejor dip-buy)</option>
+        </select>
         <span id="dip-spy" style="font-size:12px;color:var(--text3)"></span>
         <span id="dip-count" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
       </div>
@@ -1478,9 +1482,11 @@ function _stars(n) {
 }
 
 function _supRow(s) {
+  const react = s.reaction_pct != null ? s.reaction_pct : 0;
   const tip = 'Fuerza del soporte ' + s.strength + '/5: qué tan fiable es como zona de rebote. '
     + 'Sube con confluencia (varios niveles juntos), veces testeado (' + s.touches + ' toques), '
-    + 'anclas mayores (SMA200/EMA50) y volumen. Más estrellas = más fiable.';
+    + 'CALIDAD del rebote histórico (mediana +' + react + '% en 10 velas tras tocarlo), '
+    + 'anclas mayores (SMA200/EMA50/semanal) y volumen. Más estrellas = más fiable.';
   return '<div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px;padding:2px 0">'
     + '<span style="color:var(--text2,#374151);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.label) + '</span>'
     + '<span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text1,#111)">$' + s.price + '</span>'
@@ -1544,6 +1550,16 @@ function _riskChips(r) {
   return parts.join(' ' + sep + ' ');
 }
 
+function _actChip(a) {
+  if (a == null) return '';
+  const col = a >= 70 ? '#16a34a' : a >= 45 ? '#d97706' : '#9ca3af';
+  const tip = 'Accionabilidad ' + a + '/100: qué tan buen dip-buy es AHORA. Combina fuerza del soporte '
+    + 'más cercano + tendencia sana + caída macro (no problema propio) − lejanía al soporte. '
+    + 'Verde ≥70 (fuerte), ámbar 45-69, gris <45.';
+  return '<span title="' + esc(tip) + '" style="cursor:help;font-size:11px;font-weight:700;color:#fff;background:'
+    + col + ';border-radius:6px;padding:1px 7px">A ' + a + '</span>';
+}
+
 function _dipCard(c) {
   const chCol = c.change_today < 0 ? '#dc2626' : '#16a34a';
   const live = c.live_price ? '<span style="font-size:11px;color:var(--text3)" title="precio en vivo eToro">· vivo $' + c.live_price + '</span>' : '';
@@ -1551,6 +1567,7 @@ function _dipCard(c) {
     + '<div style="display:flex;align-items:center;gap:8px">'
     + '<span style="font-size:11px;font-weight:700;color:var(--text3)">#' + c._rank + '</span>'
     + '<span style="font-size:16px;font-weight:700">' + esc(c.ticker) + '</span>'
+    + _actChip(c.actionability)
     + '<span style="margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums">$' + c.price + '</span>'
     + '<span style="font-size:12px;font-weight:600;color:' + chCol + ';font-variant-numeric:tabular-nums">' + (c.change_today > 0 ? '+' : '') + c.change_today + '%</span>'
     + '</div>'
@@ -1578,6 +1595,13 @@ function renderDips() {
   if (fHealthy) filtered = filtered.filter(c => c.risk.trend_healthy);
   if (fMacro)   filtered = filtered.filter(c => !c.risk.idiosyncratic);
   if (fNear)    filtered = filtered.filter(c => c.nearest_pct != null && c.nearest_pct <= 3);
+
+  const sortMode = (document.getElementById('dip-sort') || {}).value || 'near';
+  filtered = filtered.slice();
+  if (sortMode === 'action')
+    filtered.sort((a, b) => (b.actionability ?? -1) - (a.actionability ?? -1));
+  else
+    filtered.sort((a, b) => (a.nearest_pct ?? 999) - (b.nearest_pct ?? 999));
 
   const cards = document.getElementById('dip-cards');
   const pager = document.getElementById('dip-pager');
@@ -1861,7 +1885,41 @@ async function loadPaper(silent = false) {
   const asof = document.getElementById('paper-asof');
   const nOpen = tr.filter(t => t.state === 'open').length;
   if (asof) asof.textContent = `${nOpen} abierto(s) · ${tr.length} registros`;
-  if (!tr.length) { body.innerHTML = `<div class="empty" style="padding:24px"><strong>Sin registros todavía</strong>\nEl primer trade se abrirá cuando llegue la hora de entrada del próximo ticker (Lima).</div>`; return; }
+
+  // ── Monitor de reversión (semáforo del edge rodante por ticker) ──
+  const mon = d.monitor || [];
+  let mh = '';
+  if (mon.length) {
+    const stCfg = { operar:['#16a34a','OPERAR'], cautela:['#d29922','CAUTELA'], parar:['#f85149','PARAR'], sin_datos:['#8b949e','—'] };
+    mh = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px 2px">Monitor de reversión (edge rodante ${''}· verde=operar / rojo=enfriado bajo costos)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">`;
+    mon.forEach(m => {
+      const [col, lab] = stCfg[m.state] || stCfg.sin_datos;
+      const roll = m.rolling==null ? '—' : (m.rolling>=0?'+':'')+m.rolling+'%';
+      const cool = m.cooling ? ' <span title="enfriándose vs su media" style="color:var(--text3)">↓</span>' : '';
+      mh += `<div style="border:1px solid ${col};border-radius:10px;padding:8px 11px;min-width:120px">
+        <div style="font-weight:700">${esc(m.ticker)} <span style="font-size:10px;color:${col};font-weight:700">● ${lab}</span></div>
+        <div style="font-size:12px;color:var(--text2)">edge ${roll}${cool} <span style="color:var(--text3)">(n${m.n})</span></div></div>`;
+    });
+    mh += `</div>`;
+  }
+
+  // ── Resumen acumulado de paper cerrados ──
+  const sm = d.summary || [];
+  if (sm.length) {
+    mh += `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px 2px">Acumulado paper (cerrados)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">`;
+    sm.forEach(s => {
+      const col = s.avg>=0?'var(--green)':'var(--red)';
+      mh += `<div style="border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:8px 11px">
+        <b>${esc(s.ticker)}</b> <span style="color:${col};font-weight:700">${s.avg>=0?'+':''}${s.avg}%</span>
+        <span style="font-size:11px;color:var(--text3)"> · ${s.n} trades · win ${s.win}% · suma ${s.sum>=0?'+':''}${s.sum}%</span></div>`;
+    });
+    mh += `</div>`;
+  }
+  body.innerHTML = mh;   // monitor/summary van arriba; la tabla se añade abajo
+
+  if (!tr.length) { body.innerHTML += `<div class="empty" style="padding:24px"><strong>Sin registros de trades todavía</strong>\nEl primer trade se abrirá cuando llegue la hora de entrada del próximo ticker (Lima).</div>`; return; }
   const pc = v => v == null ? '—' : `<span style="color:${v>=0?'var(--green)':'var(--red)'}">${v>=0?'+':''}${v.toFixed(2)}%</span>`;
   const dir = v => v==='up' ? '<span style="color:var(--green)">▲</span>' : v==='down' ? '<span style="color:var(--red)">▼</span>' : '—';
   let h = `<table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -1887,7 +1945,7 @@ async function loadPaper(silent = false) {
       <td>${dir(t.stock_prev)}</td></tr>`;
   }
   h += `</table>`;
-  body.innerHTML = h;
+  body.innerHTML += h;   // append: conserva el monitor/resumen de arriba
 }
 
 // ── Tab: Noticias ─────────────────────────────────────────────────────────────

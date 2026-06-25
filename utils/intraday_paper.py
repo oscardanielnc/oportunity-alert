@@ -34,6 +34,19 @@ WINDOWS = {
 _ex = None
 _klines_cache: dict = {}     # tk -> (fetch_epoch, {hour_epoch:(o,h,l,c)})
 _daily_cache: dict = {}      # key -> (utc_date, value)
+_monitor_cache: dict = {"ts": 0.0, "data": None}
+
+# Monitor de reversión: la base durable del edge es ~+0.2%/día; el costo round-trip estimado
+# (fee 0.08% + funding ~0.05%) ~0.13%. Estados por el edge rodante reciente vs esos umbrales.
+COST_RT = 0.13      # % round-trip estimado (fee + funding aprox)
+HOT_TH = 0.30       # edge rodante >= esto -> "operar" (cómodo sobre costos)
+ROLL_N = 20         # ventana rodante (sesiones recientes)
+MONITOR_DAYS = 50   # historial 1h a bajar para el monitor
+
+
+def lh_entry(epoch_sec: int) -> int:
+    """Hora Lima (UTC-5) de un epoch en segundos."""
+    return int(((epoch_sec // 3600) - 5) % 24)
 
 
 def _exchange():
@@ -247,3 +260,83 @@ def get_trades(limit: int = 60) -> list:
     recs = list(state.values())
     recs.sort(key=lambda r: (r["state"] != "open", -(r.get("entry_ts") or 0)))
     return recs[:limit]
+
+
+def _fetch_1h_long(tk, days):
+    """{hour_epoch: close} de los últimos `days` días (paginado)."""
+    ex = _exchange()
+    since = ex.milliseconds() - days * 24 * 3600 * 1000
+    out = {}
+    while True:
+        try:
+            o = ex.fetch_ohlcv(f"{tk}/USDT:USDT", "1h", since=since, limit=1000)
+        except Exception as e:
+            logger.debug(f"[IntradayPaper] monitor klines {tk}: {e}")
+            break
+        if not o:
+            break
+        for b in o:
+            out[b[0] // 1000] = b[4]
+        if len(o) < 1000:
+            break
+        since = o[-1][0] + 3600 * 1000
+    return out
+
+
+def reversion_monitor():
+    """Edge rodante por ticker (semáforo operar/cautela/parar). Cache 1h. Best-effort.
+    Mide el neto de la ventana de cada ticker en las últimas sesiones; si el edge se enfría
+    hacia el umbral de costos, avisa que conviene reducir/parar (la base durable es ~+0.2%)."""
+    import time as _t
+    if _monitor_cache["data"] is not None and _t.time() - _monitor_cache["ts"] < 3600:
+        return _monitor_cache["data"]
+    out = []
+    for tk, (eh, dur) in WINDOWS.items():
+        close = _fetch_1h_long(tk, MONITOR_DAYS)
+        rets = []
+        for e in sorted(close):
+            if lh_entry(e) != eh:
+                continue
+            c0 = close.get(e); c1 = close.get(e + dur * 3600)
+            if c0 and c1:
+                rets.append((c1 / c0 - 1) * 100 - COST_RT)
+        if not rets:
+            out.append({"ticker": tk, "state": "sin_datos", "rolling": None, "full": None, "n": 0})
+            continue
+        roll = rets[-ROLL_N:]
+        rolling = round(sum(roll) / len(roll), 2)
+        full = round(sum(rets) / len(rets), 2)
+        if rolling >= HOT_TH:
+            state = "operar"
+        elif rolling >= 0:
+            state = "cautela"
+        else:
+            state = "parar"
+        out.append({"ticker": tk, "state": state, "rolling": rolling, "full": full,
+                    "n": len(rets), "cooling": rolling < full,
+                    "entry_hour": f"{eh:02d}:00", "exit_hour": f"{(eh + dur) % 24:02d}:00"})
+    _monitor_cache["ts"] = _t.time()
+    _monitor_cache["data"] = out
+    return out
+
+
+def paper_summary():
+    """Acumulado de paper-trades CERRADOS por ticker: n, win%, neto medio y suma."""
+    state = _load()
+    by = {}
+    for r in state.values():
+        if r.get("state") != "closed" or r.get("final_pct") is None:
+            continue
+        b = by.setdefault(r["ticker"], {"ticker": r["ticker"], "n": 0, "wins": 0, "sum": 0.0})
+        b["n"] += 1
+        b["sum"] += r["final_pct"]
+        if r["final_pct"] > 0:
+            b["wins"] += 1
+    out = []
+    for b in by.values():
+        out.append({"ticker": b["ticker"], "n": b["n"],
+                    "win": round(100 * b["wins"] / b["n"]) if b["n"] else 0,
+                    "avg": round(b["sum"] / b["n"], 2) if b["n"] else 0,
+                    "sum": round(b["sum"], 1)})
+    out.sort(key=lambda x: -x["avg"])
+    return out

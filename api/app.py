@@ -268,8 +268,9 @@ def get_intraday_paper(_: str = Depends(_require_auth)):
     ticker con precio entrada/salida, %max/%min recorrido, % final y contexto QQQ/acción día previo.
     Solo LEE el estado que mantiene el thread IntradayPaper (utils/intraday_paper.py). No opera."""
     try:
-        from utils.intraday_paper import get_trades, WINDOWS
-        return {"available": True, "trades": get_trades(), "windows": WINDOWS}
+        from utils.intraday_paper import get_trades, reversion_monitor, paper_summary, WINDOWS
+        return {"available": True, "trades": get_trades(), "windows": WINDOWS,
+                "monitor": reversion_monitor(), "summary": paper_summary()}
     except Exception as e:
         return {"available": False, "error": str(e)}
 
