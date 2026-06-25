@@ -575,7 +575,7 @@ tbody tr:hover { background: #fafafb; }
     <div class="login-icon">📈</div>
     <div class="login-logo">Opportunity<em>Alert</em></div>
     <div class="login-sub">Panel de inversiones</div>
-    <div class="field"><label class="field-label">Usuario</label><input id="lu" type="text" placeholder="ej. analista_senior" autocomplete="username"></div>
+    <div class="field"><label class="field-label">Usuario</label><input id="lu" type="text" value="oscar" placeholder="oscar" autocomplete="username"></div>
     <div class="field"><label class="field-label">Contraseña</label><input id="lp" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <button class="btn-login" onclick="doLogin()">Ingresar →</button>
     <div id="login-err" class="login-err">Credenciales incorrectas — intenta de nuevo.</div>
@@ -933,7 +933,7 @@ let _capitalDisponible = 5000;  // inicializado desde /api/health, luego actuali
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function doLogin() {
-  const u = document.getElementById('lu').value.trim();
+  const u = document.getElementById('lu').value.trim() || 'oscar';
   const p = document.getElementById('lp').value;
   _creds = btoa(`${u}:${p}`);
   try {
@@ -2339,14 +2339,15 @@ function downloadNoticiasLog() {
 // ── Auto-login ────────────────────────────────────────────────────────────────
 (function () {
   const s = localStorage.getItem('oa');
-  if (s) _creds = s;
-  // Probar el backend: si responde 200 (con o sin creds) → entrar directo.
-  // En local (sin DASHBOARD_PASS) esto entra sin login. En la VM (con pass) cae al login.
-  // Las creds viven en localStorage → solo se pide login la 1ª vez (o tras Salir).
-  fetch('/api/health', { headers: auth() }).then(r => {
-    if (r.ok) { launch(); }
-    else { localStorage.removeItem('oa'); _creds = null; }   // 401 → backend pide auth → mostrar login
-  }).catch(() => { localStorage.removeItem('oa'); _creds = null; });
+  if (!s) return;          // sin creds guardadas → queda el login (visible por defecto)
+  _creds = s;
+  // Validar contra un endpoint PROTEGIDO (NO /api/health, que es público y siempre
+  // responde 200 → daría "entrada falsa" y luego 401 en cada llamada real).
+  // Creds válidas en localStorage → entra directo sin re-pedir contraseña (persiste indefinido).
+  fetch('/api/stats', { headers: auth() }).then(r => {
+    if (r.ok) { launch(); }                                    // creds válidas → adentro
+    else { localStorage.removeItem('oa'); _creds = null; }     // 401 → creds inválidas → mostrar login
+  }).catch(() => { launch(); });   // error de RED (no auth) → no expulsar; entrar con las creds guardadas
 })();
 </script>
 </body>
